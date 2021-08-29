@@ -60,7 +60,7 @@ class Ntw(Tk):
             self.canvas.delete(i)
 
 
-ntw = Ntw(False) #Launch main windows. Programs should call the functions below. True means with debug menu.
+ntw = Ntw(True) #Launch main windows. Programs should call the functions below. True means with debug menu.
 
 ## KANDINSKY
 
@@ -117,14 +117,49 @@ def keydown(key):
         return True
     else : return False
 
+# ions keys translated to keyboard module... don't know if there are the good names though (no doc and no testing)
 KEY_EXE = "space"
 KEY_UP = "up"
 KEY_DOWN = "down"
 KEY_RIGHT = "right"
 KEY_LEFT = "left"
 KEY_OK = "return"
+KEY_BACK = "delete"
+KEY_HOME = "windows"
+KEY_ONOFF = "echap"
 KEY_SHIFT = "shift"
+KEY_ALPHA = "ctrl"
+KEY_XNT = "n"
+KEY_VAR = "F1"
+KEY_TOOLBOX = "F2"
+KEY_EXP = "e"
+KEY_LN = "z"
+KEY_LOG = "l"
+KEY_IMAGINARY = "i"
+KEY_COMMA = ","
+KEY_POWER = "^"
+KEY_SINE = "s"
+KEY_COSINE = "c"
+KEY_TANGENT = "t"
+KEY_PI = "p"
+KEY_SQRT = "_"
+KEY_SQUARE = "²"
+KEY_EIGHT = "eight"
 KEY_SEVEN = "seven"
+KEY_NINE = "nine"
 KEY_ONE = "one"
-KEY_RIGHTPARENTHESIS = "nine"
-KEY_MINUS = "three"
+KEY_TWO = "two"
+KEY_THREE = "three"
+KEY_RIGHTPARENTHESIS = ")"
+KEY_LEFTPARENTHESIS = "("
+KEY_FOUR = "four"
+KEY_FIVE = "five"
+KEY_SIX = "six"
+KEY_MULTIPLICATION = "multiplication"
+KEY_DIVISION = "division"
+KEY_MINUS = "minus"
+KEY_PLUS = "plus"
+KEY_ZERO = "zero"
+KEY_DOT = "dot"
+KEY_EE = "!"
+KEY_ANS = "a"
