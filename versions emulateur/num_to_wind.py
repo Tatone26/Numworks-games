@@ -2,9 +2,9 @@ from tkinter import *
 import random as rd
 import keyboard as kb
 import time
-from threading import Thread
 
 class Ntw(Tk):
+
     def __init__(self):
         Tk.__init__(self)
         self.title("NUMWORK TO WINDOWS")
@@ -18,13 +18,13 @@ class Ntw(Tk):
     def exit(self, event):
         self.destroy()
 
-    def get_pixel(self, posx, posy):
+    def get_pixel(self, posx, posy): #complicated because of tk
         list_touched = self.canvas.find_overlapping(posx, posy, posx, posy)
         precise_touched = max(list_touched)
         return tuple(int(self.canvas.itemcget(precise_touched, "fill").strip('#')[i:i+2], 16) for i in (0, 2, 4))
 
     def set_pixel(self, x, y, color):
-        self.canvas.create_rectangle(x+1, y+1, x+2, y+2, fill='#{:02x}{:02x}{:02x}'.format(color[0], color[1], color[2]), outline='#{:02x}{:02x}{:02x}'.format(color[0], color[1], color[2]))
+        self.canvas.create_rectangle(x+1, y+1, x+2, y+2, fill='#{:02x}{:02x}{:02x}'.format(color[0], color[1], color[2]), outline='', tags="rect")
         self.clean_canvas()
         self.canvas.update()
 
@@ -34,15 +34,15 @@ class Ntw(Tk):
         self.canvas.update()
 
     def draw_string(self, string, posx, posy):
-        self.canvas.create_rectangle(posx-2, posy-1, posx+len(string)*7+4, posy+20, outline="white", fill="white")
-        self.canvas.create_text(posx, posy, text=string, anchor="nw")
+        self.canvas.create_rectangle(posx-2, posy-1, posx+len(string)*7+4, posy+20, outline="white", fill="white", tags="rect")
+        self.canvas.create_text(posx, posy, text=string, anchor="nw", tags="rect")
         self.canvas.update()
 
     def sleep(self, sec):
         time.sleep(sec)
         self.update()
 
-    def clean_canvas(self):
+    def clean_canvas(self): # clean the canvas of everything that is not showing
         listrect = self.canvas.find_withtag("rect")
         todelete = []
         for b in listrect:
@@ -54,34 +54,16 @@ class Ntw(Tk):
         for i in todelete:
             self.canvas.delete(i)
 
-KEY_EXE = "space"
-KEY_UP = "up"
-KEY_DOWN = "down"
-KEY_RIGHT = "right"
-KEY_LEFT = "left"
-KEY_OK = "return"
-KEY_SHIFT = "shift"
-KEY_SEVEN = "seven"
-KEY_ONE = "one"
-KEY_RIGHTPARENTHESIS = "nine" #pour garder la bonne position sur le clavier
-KEY_MINUS = "three" #same
 
+ntw = Ntw() #Launch main windows. Programs should call the functions below.
 
-ntw = Ntw()
+## KANDINSKY
 
 def fill_rect(posx, posy, width, height, color):
     ntw.fill_rect(posx, posy, width, height, color)
 
-def keydown(key):
-    if ntw.focus_displayof() != None and kb.is_pressed(key):
-        return True
-    else : return False
-
 def draw_string(string, posx, posy):
     ntw.draw_string(string, posx, posy)
-
-def sleep(sec):
-    ntw.sleep(sec)
 
 def set_pixel(x,y,color):
     ntw.set_pixel(x, y, color)
@@ -92,11 +74,52 @@ def get_pixel(posx, posy):
 def color(a, b, c):
     return (a, b, c)
 
+## RANDOM
+
 def randint(a, b):
     return rd.randint(a, b)
 
 def choice(seq):
     return rd.choice(seq)
 
+def getrandbits(k):
+    return rd.getrandbits(k)
+
+def seed(k):
+    return rd.seed(k)
+
+def randrange(start, stop):
+    return rd.randrange(start, stop)
+
+def random():
+    return rd.random()
+
+def uniform(a, b):
+    return rd.uniform(a, b)
+
+## TIME
+
 def monotonic():
     return time.time()
+
+def sleep(sec):
+    ntw.sleep(sec)
+
+## ION
+
+def keydown(key):
+    if ntw.focus_displayof() != None and kb.is_pressed(key):
+        return True
+    else : return False
+
+KEY_EXE = "space"
+KEY_UP = "up"
+KEY_DOWN = "down"
+KEY_RIGHT = "right"
+KEY_LEFT = "left"
+KEY_OK = "return"
+KEY_SHIFT = "shift"
+KEY_SEVEN = "seven"
+KEY_ONE = "one"
+KEY_RIGHTPARENTHESIS = "nine"
+KEY_MINUS = "three"
