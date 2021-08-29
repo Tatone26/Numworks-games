@@ -10,7 +10,7 @@ class Ntw(Tk):
         self.title("NUMWORK TO WINDOWS")
         self.geometry("320x220")
         self.resizable(False, False)
-        self.canvas = Canvas(self, bg="white", height=220, width=320)
+        self.canvas = Canvas(self, bg="white", height=220, width=320, bd=0, highlightthickness=0)
         self.canvas.pack()
         self.last_update = time.time()
         self.bind("<KeyPress-Delete>", self.exit)
@@ -25,6 +25,7 @@ class Ntw(Tk):
 
     def set_pixel(self, x, y, color):
         self.canvas.create_rectangle(x+1, y+1, x+2, y+2, fill='#{:02x}{:02x}{:02x}'.format(color[0], color[1], color[2]), outline='#{:02x}{:02x}{:02x}'.format(color[0], color[1], color[2]))
+        self.clean_canvas()
         self.canvas.update()
 
     def fill_rect(self, posx, posy, width, height, color):
@@ -52,8 +53,6 @@ class Ntw(Tk):
                     todelete.append(i)
         for i in todelete:
             self.canvas.delete(i)
-        print(len(self.canvas.find_withtag("rect")))
-
 
 KEY_EXE = "space"
 KEY_UP = "up"
@@ -74,7 +73,7 @@ def fill_rect(posx, posy, width, height, color):
     ntw.fill_rect(posx, posy, width, height, color)
 
 def keydown(key):
-    if kb.is_pressed(key):
+    if ntw.focus_displayof() != None and kb.is_pressed(key):
         return True
     else : return False
 
