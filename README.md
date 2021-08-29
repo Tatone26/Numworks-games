@@ -10,3 +10,6 @@ To get the emulator version of any program, just exchange the imports by "import
 To get a program from the calculator or to the calculator, go to numworks.com (with chrome), connect to your account, go to "python" -> "your scripts" and connect your numworks to your pc with a usb cable. Then, you have some big buttons to get scripts from or put on your calculator.
 
 I don't think this github page will ever interest anyone but I made it public anyway... On numworks.com, you have a repository of lots of programs (and you can submit your owns apparently).
+
+
+(PS : may be the last year I'm doing that I'm in last year of high school and don't know if I will need the numworks after that)
