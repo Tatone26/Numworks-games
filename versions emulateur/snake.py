@@ -1,14 +1,16 @@
 from num_to_wind import *
 from menu import menu
 
-posFruit = [-1, -1]
-points = 0
 killerSizes = True
 obstacles = False
 speed = 2
 field = (32,22,1)
+
+posFruit = [-1, -1]
+points = 0
+posWall = []
+
 white = color(255,255,255)
-record = 157
 green = color(0, 120, 0)
 l_green = color(40, 200, 120)
 
@@ -21,17 +23,17 @@ def drawCase(x, y):
 
 class snake():
   def __init__(self):
-    self.pos = [[3, 0],[2, 0], [1, 0], [0, 0]]
+    self.pos = [[4, 1],[3, 1], [2, 1], [1, 1]]
     self.dir = [1, 0]
 
-  def drawSelf(self, t):
+  def drawSelf(self):
     for pos in self.pos[1:]:
-      fill_rect(int(10*pos[0]+(t-1)*10), int(10*pos[1]+(t-1)*10), 10, 10, green)
-    fill_rect(int(10*self.pos[0][0]+10*(t-1)), int(self.pos[0][1]*10+10*(t-1)), 10, 10, l_green)
+      fill_rect(int(10*pos[0]), int(10*pos[1]), 10, 10, green)
+    fill_rect(int(10*self.pos[0][0]), int(self.pos[0][1]*10), 10, 10, l_green)
 
   def checkPos(self):
     nex = [self.pos[0][0]+self.dir[0], self.pos[0][1]+self.dir[1]]
-    if nex in self.pos:return False
+    if nex in self.pos or nex in posWall:return False
     elif killerSizes and (not (0<=nex[0]<field[0]) or not (0<=nex[1]<field[1])):return False
     return True
 
@@ -44,13 +46,13 @@ class snake():
       elif self.pos[0][1]>(field[1]-1): self.pos[0][1]=0
 
   def checkKey(self):
-    if keydown(KEY_UP) and self.pos[1][1] != self.pos[0][1]-1:
+    if keydown(KEY_UP) and self.pos[1][1] != self.pos[0][1]-1 and not (not killerSizes and self.pos[0][1]==0 and self.pos[1][1]==field[1]-1):
       self.dir = [0, -1]
-    elif keydown(KEY_DOWN) and self.pos[1][1] != self.pos[0][1]+1:
+    elif keydown(KEY_DOWN) and self.pos[1][1] != self.pos[0][1]+1 and not (not killerSizes and self.pos[0][1]==field[1]-1 and self.pos[1][1]==0):
       self.dir = [0, 1]
-    elif keydown(KEY_RIGHT) and self.pos[1][0] != self.pos[0][0]+1:
+    elif keydown(KEY_RIGHT) and self.pos[1][0] != self.pos[0][0]+1 and not (not killerSizes and self.pos[0][0]==field[0]-1 and self.pos[1][0]==0):
       self.dir = [1, 0]
-    elif keydown(KEY_LEFT)  and self.pos[1][0] != self.pos[0][0]-1:
+    elif keydown(KEY_LEFT)  and self.pos[1][0] != self.pos[0][0]-1 and not (not killerSizes and self.pos[0][0]==0 and self.pos[1][0]==field[0]-1):
       self.dir = [-1, 0]
     elif keydown(KEY_OK):
       draw_string("PAUSE", 120, 90)
@@ -60,6 +62,8 @@ class snake():
       for x in range(9, 22):
         for y in range(9, 16):drawCase(x, y)
       drawFruit()
+      for w in posWall:
+        drawWall(w)
       sleep(0.3)
 
   def act(self):
@@ -71,29 +75,45 @@ class snake():
       self.move()
       if self.pos[0]==posFruit:
         points += 1
+        if obstacles == True and points%2==0:
+          placeWall(self.pos)
         placeFruit(self.pos)
       else : self.pos.pop()
-      self.drawSelf(1)
+      self.drawSelf()
       return True
     return False
 
 def drawFruit():
   fill_rect(posFruit[0]*10, posFruit[1]*10, 10, 10, (255, 0, 0))
-
 def placeFruit(bpos):
   global posFruit
   while True:
     posFruit = [randint(0, field[0]-1), randint(0, field[1]-1)]
-    if posFruit not in bpos: break
+    if posFruit not in bpos and posFruit not in posWall: break
   drawFruit()
 
+def drawWall(pos):
+  fill_rect(pos[0]*10, pos[1]*10, 10, 10, (20, 20, 20))
+def placeWall(bpos):
+  global posWall
+  while True:
+    newpos = [randint(0, field[0]-1), randint(0, field[1]-1)]
+    bpostest = bpos.copy()
+    bpostest += [[bpos[0][0]+1, bpos[0][1]], [bpos[0][0]-1, bpos[0][1]], [bpos[0][0], bpos[0][1]+1], [bpos[0][0], bpos[0][1]-1]]
+    if (newpos not in bpostest) and (newpos not in posWall):
+      posWall.append(newpos)
+      break
+  drawWall(newpos)
+
 def snk():
-  global points
+  global points, posWall
   points=0
+  posWall=[]
   for x in range(field[0]):
     for y in range(field[1]):drawCase(x, y)
   a = snake()
   placeFruit(a.pos)
+  a.drawSelf()
   sleep(0.5)
   while a.act(): pass
   draw_string("Points : "+str(points), 95, 110)
@@ -103,7 +123,7 @@ def snk():
   while not (keydown(KEY_EXE) or keydown(KEY_OK)): pass
   if keydown(KEY_EXE): menu_s()
   else:
-    fill_rect(0, 200, 320, 40, white)
+    fill_rect(0, 0, 320, 240, white)
     snk()
 
 def menu_s():
@@ -112,10 +132,9 @@ def menu_s():
     fill_rect(100, 90, 80, 10, green)
     fill_rect(180, 90, 10, 10, l_green)
     fill_rect(210, 90, 10, 10, (255, 0, 0))
-    draw_string("Record : "+str(record), 190, 10)
   opt_list = [["Terrain continu", ("Oui", "Non"), killerSizes],
    ["Vitesse", ("Lent", "Moyen", "Rapide"), speed],
-   ["Obstacles",("Oui","Non"),obstacles],
+   ["Obstacles",("Non","Oui"),obstacles],
    ["Terrain",("Entier","Demi", "2/3"),field[2]]]
   opt_modif = menu("SNAKE", addons, green, white, opt_list)
   killerSizes = opt_modif[0]
@@ -129,5 +148,5 @@ def menu_s():
   if opt_modif[-1]==True : snk()
 
 menu_s()
-#157
+
 ntw.mainloop()
