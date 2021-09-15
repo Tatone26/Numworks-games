@@ -4,7 +4,7 @@ from menu import menu
 killerSizes = True
 obstacles = False
 speed = 2
-field = (32,22,1)
+field = (32,22,1,0,0) #width, height, size (1, 2 ou 3), xoffset, yoffset
 
 posFruit = [-1, -1]
 points = 0
@@ -16,10 +16,10 @@ l_green = color(40, 200, 120)
 
 def drawCase(x, y):
   if x>=field[0] or y>=field[1]:
-    fill_rect(10*x, 10*y, 10, 10, white)
+    fill_rect(10*x+field[3], 10*y+field[4], 10, 10, white)
   elif (x%2==0 and y%2!=0) or (y%2==0 and x%2!=0):
-    fill_rect(10*x, 10*y, 10, 10, (175, 175, 175))
-  else:fill_rect(10*x, 10*y, 10, 10, (225, 225, 225))
+    fill_rect(10*x+field[3], 10*y+field[4], 10, 10, (175, 175, 175))
+  else:fill_rect(10*x+field[3], 10*y+field[4], 10, 10, (225, 225, 225))
 
 class snake():
   def __init__(self):
@@ -28,8 +28,8 @@ class snake():
 
   def drawSelf(self):
     for pos in self.pos[1:]:
-      fill_rect(int(10*pos[0]), int(10*pos[1]), 10, 10, green)
-    fill_rect(int(10*self.pos[0][0]), int(self.pos[0][1]*10), 10, 10, l_green)
+      fill_rect(int(10*pos[0])+field[3], int(10*pos[1])+field[4], 10, 10, green)
+    fill_rect(int(10*self.pos[0][0])+field[3], int(self.pos[0][1]*10)+field[4], 10, 10, l_green)
 
   def checkPos(self):
     nex = [self.pos[0][0]+self.dir[0], self.pos[0][1]+self.dir[1]]
@@ -55,15 +55,16 @@ class snake():
     elif keydown(KEY_LEFT)  and self.pos[1][0] != self.pos[0][0]-1 and not (not killerSizes and self.pos[0][0]==0 and self.pos[1][0]==field[0]-1):
       self.dir = [-1, 0]
     elif keydown(KEY_OK):
-      draw_string("PAUSE", 120, 90)
-      draw_string("Points : "+str(points), 95, 120)
+      draw_string("PAUSE", 130, 90)
+      draw_string("Points : "+str(points), 100, 120)
       sleep(0.3)
       while not keydown(KEY_OK):pass
-      for x in range(9, 22):
-        for y in range(9, 16):drawCase(x, y)
+      for x in range(round(9-field[3]/10), round(22-field[3]/10)):
+        for y in range(round(9-field[4]/10), round(14-field[4]/10)):drawCase(x, y)
       drawFruit()
       for w in posWall:
         drawWall(w)
+      self.drawSelf()
       sleep(0.3)
 
   def act(self):
@@ -84,7 +85,7 @@ class snake():
     return False
 
 def drawFruit():
-  fill_rect(posFruit[0]*10, posFruit[1]*10, 10, 10, (255, 0, 0))
+  fill_rect(posFruit[0]*10+field[3], posFruit[1]*10+field[4], 10, 10, (255, 0, 0))
 def placeFruit(bpos):
   global posFruit
   while True:
@@ -93,7 +94,7 @@ def placeFruit(bpos):
   drawFruit()
 
 def drawWall(pos):
-  fill_rect(pos[0]*10, pos[1]*10, 10, 10, (20, 20, 20))
+  fill_rect(pos[0]*10+field[3], pos[1]*10+field[4], 10, 10, (20, 20, 20))
 def placeWall(bpos):
   global posWall
   while True:
@@ -109,6 +110,9 @@ def snk():
   global points, posWall
   points=0
   posWall=[]
+  color = (0, 0, 0)
+  if not killerSizes : color = (150, 150, 150)
+  fill_rect(field[3]-5, field[4]-5, 10*field[0]+10, 10*field[1]+10, color)
   for x in range(field[0]):
     for y in range(field[1]):drawCase(x, y)
   a = snake()
@@ -144,7 +148,8 @@ def menu_s():
     if opt != 1:
       return round(size*((opt-1)/opt))
     else : return opt*size
-  field = (calc_side(opt_modif[3], 32), calc_side(opt_modif[3], 22), opt_modif[3])
+  field = [calc_side(opt_modif[3], 32), calc_side(opt_modif[3], 22), opt_modif[3]]
+  field = tuple(field + [160-10*round(field[0]/2), 110-10*round(field[1]/2)])
   if opt_modif[-1]==True : snk()
 
 menu_s()
