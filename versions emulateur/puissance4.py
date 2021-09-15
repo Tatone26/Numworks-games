@@ -1,5 +1,5 @@
 from num_to_wind import *
-from menu import *
+from menu import menu
 
 white = color(255, 255, 255)
 black = color(0, 0, 0)
@@ -42,14 +42,8 @@ def dbAlign():
         return True
   return False
 
-def getStackHeight(stack):
-  a = 0
-  for co in placedCoins[stack]:
-    if co != None : a += 1
-  return a
-
 def placeCoin(posx, color):
-  h = getStackHeight(posx)
+  h = len([f for f in placedCoins[posx] if f!=None])
   placedCoins[posx][h] = color
   return h
 
@@ -75,7 +69,7 @@ def selectPosCoin(color):
       clearCoin(select)
       select +=1
       printCoin(select, 6, color)
-    elif keydown(KEY_OK) and getStackHeight(select)<=5:
+    elif (keydown(KEY_OK)or keydown(KEY_DOWN)) and len([f for f in placedCoins[select] if f!=None])<=5:
       clearCoin(select)
       break
     sleep(0.1)
@@ -113,4 +107,5 @@ def menu_p4():
   if modif_opt[-1]==True:p4()
 
 menu_p4()
+
 ntw.mainloop()

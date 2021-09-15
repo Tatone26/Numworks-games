@@ -4,14 +4,18 @@ from menu import menu
 posFruit = [-1, -1]
 points = 0
 killerSizes = True
+obstacles = False
 speed = 2
+field = (32,22,1)
 white = color(255,255,255)
 record = 157
 green = color(0, 120, 0)
 l_green = color(40, 200, 120)
 
 def drawCase(x, y):
-  if (x%2==0 and y%2!=0) or (y%2==0 and x%2!=0):
+  if x>=field[0] or y>=field[1]:
+    fill_rect(10*x, 10*y, 10, 10, white)
+  elif (x%2==0 and y%2!=0) or (y%2==0 and x%2!=0):
     fill_rect(10*x, 10*y, 10, 10, (175, 175, 175))
   else:fill_rect(10*x, 10*y, 10, 10, (225, 225, 225))
 
@@ -26,18 +30,18 @@ class snake():
     fill_rect(int(10*self.pos[0][0]+10*(t-1)), int(self.pos[0][1]*10+10*(t-1)), 10, 10, l_green)
 
   def checkPos(self):
-    next = [self.pos[0][0]+self.dir[0], self.pos[0][1]+self.dir[1]]
-    if next in self.pos:return False
-    elif killerSizes and (not (0<=next[0]<32) or not (0<=next[1]<22)):return False
+    nex = [self.pos[0][0]+self.dir[0], self.pos[0][1]+self.dir[1]]
+    if nex in self.pos:return False
+    elif killerSizes and (not (0<=nex[0]<field[0]) or not (0<=nex[1]<field[1])):return False
     return True
 
   def move(self):
     self.pos.insert(0, [self.pos[0][0]+self.dir[0], self.pos[0][1]+self.dir[1]])
     if not killerSizes:
-      if self.pos[0][0]<0: self.pos[0][0]=31
-      elif self.pos[0][0]>31: self.pos[0][0]=0
-      if self.pos[0][1]<0: self.pos[0][1]=21
-      elif self.pos[0][1]>21: self.pos[0][1]=0
+      if self.pos[0][0]<0: self.pos[0][0]=field[0]-1
+      elif self.pos[0][0]>(field[0]-1): self.pos[0][0]=0
+      if self.pos[0][1]<0: self.pos[0][1]=field[1]-1
+      elif self.pos[0][1]>(field[1]-1): self.pos[0][1]=0
 
   def checkKey(self):
     if keydown(KEY_UP) and self.pos[1][1] != self.pos[0][1]-1:
@@ -56,7 +60,7 @@ class snake():
       for x in range(9, 22):
         for y in range(9, 16):drawCase(x, y)
       drawFruit()
-      sleep(0.1)
+      sleep(0.3)
 
   def act(self):
     global points
@@ -79,15 +83,18 @@ def drawFruit():
 def placeFruit(bpos):
   global posFruit
   while True:
-    posFruit = [randint(0, 31), randint(0, 21)]
+    posFruit = [randint(0, field[0]-1), randint(0, field[1]-1)]
     if posFruit not in bpos: break
   drawFruit()
 
 def snk():
-  for x in range(32):
-    for y in range(22):drawCase(x, y)
+  global points
+  points=0
+  for x in range(field[0]):
+    for y in range(field[1]):drawCase(x, y)
   a = snake()
   placeFruit(a.pos)
+  sleep(0.5)
   while a.act(): pass
   draw_string("Points : "+str(points), 95, 110)
   draw_string("REPLAY : <OK>", 10, 200)
@@ -95,22 +102,32 @@ def snk():
   draw_string("PERDU", 120, 80)
   while not (keydown(KEY_EXE) or keydown(KEY_OK)): pass
   if keydown(KEY_EXE): menu_s()
-  else:snk()
+  else:
+    fill_rect(0, 200, 320, 40, white)
+    snk()
 
 def menu_s():
-  global killerSizes, speed
+  global killerSizes, speed, obstacles, field
   def addons():
     fill_rect(100, 90, 80, 10, green)
     fill_rect(180, 90, 10, 10, l_green)
     fill_rect(210, 90, 10, 10, (255, 0, 0))
     draw_string("Record : "+str(record), 190, 10)
-  opt_list = [["Terrain continu", ("Oui", "Non"), killerSizes], ["Vitesse", ("Lent", "Moyen", "Rapide"), speed]]
+  opt_list = [["Terrain continu", ("Oui", "Non"), killerSizes],
+   ["Vitesse", ("Lent", "Moyen", "Rapide"), speed],
+   ["Obstacles",("Oui","Non"),obstacles],
+   ["Terrain",("Entier","Demi", "2/3"),field[2]]]
   opt_modif = menu("SNAKE", addons, green, white, opt_list)
   killerSizes = opt_modif[0]
   speed = opt_modif[1]
+  obstacles = opt_modif[2]
+  def calc_side(opt, size):
+    if opt != 1:
+      return round(size*((opt-1)/opt))
+    else : return opt*size
+  field = (calc_side(opt_modif[3], 32), calc_side(opt_modif[3], 22), opt_modif[3])
   if opt_modif[-1]==True : snk()
 
 menu_s()
 #157
-
 ntw.mainloop()

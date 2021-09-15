@@ -43,7 +43,7 @@ def clear_shape(shape):
   for i in blocs(shape):
     draw_grid_pixel(i[0], i[1])
 
-def move_shape(shape): #TODO : améliorer algo
+def move_shape(shape): #TODO : améliorer algo ?
   '''Gère le déplacements d'une shape (chute) et vérification de toutes les collisions et input.'''
   global placed_blocs
   while not touch_down(shape):
