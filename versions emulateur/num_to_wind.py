@@ -2,6 +2,7 @@ from tkinter import *
 import random as rd
 import keyboard as kb
 import time
+import math
 
 class Ntw(Tk):
 
@@ -109,6 +110,11 @@ def monotonic():
 
 def sleep(sec):
     ntw.sleep(sec)
+
+## MATH
+
+def copysign(x, y):
+    return math.copysign(x, y)
 
 ## ION
 

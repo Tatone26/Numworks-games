@@ -8,6 +8,8 @@ red = color(255, 0, 0)
 placedCoins = []
 
 darkMode = False
+visGrid = True
+visChoice = True
 
 def check():
   if hAlign() or vAlign() or dhAlign() or dbAlign():
@@ -59,29 +61,30 @@ def clearCoin(pos) : fill_rect(53+30*pos, 23, 26, 26, white)
 
 def selectPosCoin(color):
   select = 3
-  printCoin(select, 6, color)
+  fill_rect(0, 0, 350, 10, color)
+  if visChoice : printCoin(select, 6, color)
   while True:
     if keydown(KEY_LEFT) and select>0:
       clearCoin(select)
       select -= 1
-      printCoin(select, 6, color)
+      if visChoice : printCoin(select, 6, color)
     elif keydown(KEY_RIGHT) and select<6:
       clearCoin(select)
       select +=1
-      printCoin(select, 6, color)
+      if visChoice : printCoin(select, 6, color)
     elif (keydown(KEY_OK)or keydown(KEY_DOWN)) and len([f for f in placedCoins[select] if f!=None])<=5:
       clearCoin(select)
       break
     sleep(0.1)
   h = placeCoin(select, color)
-  printCoin(select, h, color)
+  if visGrid : printCoin(select, h, color)
   sleep(0.3)
 
 def p4():
   global placedCoins
   fill_rect(0, 0, 350, 350, white)
   placedCoins = [[None]*6 for k in range(0,7)]
-  printGrid()
+  if visGrid:printGrid()
   sleep(0.4)
   while not check():
     selectPosCoin(blue)
@@ -96,14 +99,16 @@ def p4():
   else:p4()
 
 def menu_p4():
-  global darkMode, white, black
+  global darkMode, white, black, visGrid, visChoice
   def vis_add():
     printCoin(2, 4, red)
     printCoin(4, 4, blue)
-  list_opt = [["Mode sombre", ("Non", "Oui"), darkMode]]
+  list_opt = [["Mode sombre", ("Non", "Oui"), darkMode], ["Grille visible", ("Non", "Oui"), visGrid], ["Choix visible", ("Non", "Oui"), visChoice]]
   modif_opt = menu("PUISSANCE 4", vis_add, blue, white, list_opt)
   if modif_opt[0]!=darkMode:white, black = black, white
   darkMode = modif_opt[0]
+  visGrid = modif_opt[1]
+  visChoice = modif_opt[2]
   if modif_opt[-1]==True:p4()
 
 menu_p4()

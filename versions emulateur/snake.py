@@ -4,22 +4,24 @@ from menu import menu
 killerSizes = True
 obstacles = False
 speed = 2
-field = (32,22,1,0,0) #width, height, size (1, 2 ou 3), xoffset, yoffset
+field = (32,22,1,0,0) #wdh, hgt, opt, xoff, yoff
 
 posFruit = [-1, -1]
 points = 0
 posWall = []
 
 white = color(255,255,255)
-green = color(0, 120, 0)
-l_green = color(40, 200, 120)
+green = (0, 120, 0)
+l_green = (40, 200, 120)
 
+def box(x, y, color):
+  fill_rect(10*x+field[3], 10*y+field[4], 10, 10, color)
 def drawCase(x, y):
   if x>=field[0] or y>=field[1]:
-    fill_rect(10*x+field[3], 10*y+field[4], 10, 10, white)
+    box(x, y, white)
   elif (x%2==0 and y%2!=0) or (y%2==0 and x%2!=0):
-    fill_rect(10*x+field[3], 10*y+field[4], 10, 10, (175, 175, 175))
-  else:fill_rect(10*x+field[3], 10*y+field[4], 10, 10, (225, 225, 225))
+    box(x, y, (175, 175, 175))
+  else:box(x, y, (225, 225, 225))
 
 class snake():
   def __init__(self):
@@ -27,32 +29,40 @@ class snake():
     self.dir = [1, 0]
 
   def drawSelf(self):
-    for pos in self.pos[1:]:
-      fill_rect(int(10*pos[0])+field[3], int(10*pos[1])+field[4], 10, 10, green)
-    fill_rect(int(10*self.pos[0][0])+field[3], int(self.pos[0][1]*10)+field[4], 10, 10, l_green)
-
-  def checkPos(self):
-    nex = [self.pos[0][0]+self.dir[0], self.pos[0][1]+self.dir[1]]
-    if nex in self.pos or nex in posWall:return False
-    elif killerSizes and (not (0<=nex[0]<field[0]) or not (0<=nex[1]<field[1])):return False
-    return True
+    for p in self.pos[1:]:
+      box(p[0], p[1], green)
+    box(self.pos[0][0], self.pos[0][1], l_green)
 
   def move(self):
-    self.pos.insert(0, [self.pos[0][0]+self.dir[0], self.pos[0][1]+self.dir[1]])
-    if not killerSizes:
-      if self.pos[0][0]<0: self.pos[0][0]=field[0]-1
-      elif self.pos[0][0]>(field[0]-1): self.pos[0][0]=0
-      if self.pos[0][1]<0: self.pos[0][1]=field[1]-1
-      elif self.pos[0][1]>(field[1]-1): self.pos[0][1]=0
+    next = wrap([self.pos[0][0]+self.dir[0], self.pos[0][1]+self.dir[1]])
+    if next in self.pos or next in posWall:
+      return False
+    elif killerSizes and (not (0<=next[0]<field[0]) or not (0<=next[1]<field[1])):
+      return False
+    else :
+      self.pos.insert(0, next)
+      return True
 
   def checkKey(self):
-    if keydown(KEY_UP) and self.pos[1][1] != self.pos[0][1]-1 and not (not killerSizes and self.pos[0][1]==0 and self.pos[1][1]==field[1]-1):
+
+    def check(di):
+      # False if impossible action
+      if not self.pos[1][abs(di[1])] != self.pos[0][abs(di[1])]+sum(di):
+        return False
+      elif not killerSizes :
+        a = int((sum(di)-1)/-2)
+        b = abs(di[1])
+        if (self.pos[a][b]==field[b]-1 and self.pos[abs(a-1)][b]==0) :
+          return False
+      return True
+
+    if keydown(KEY_UP) and check([0, -1]):
       self.dir = [0, -1]
-    elif keydown(KEY_DOWN) and self.pos[1][1] != self.pos[0][1]+1 and not (not killerSizes and self.pos[0][1]==field[1]-1 and self.pos[1][1]==0):
+    elif keydown(KEY_DOWN) and check([0, 1]):
       self.dir = [0, 1]
-    elif keydown(KEY_RIGHT) and self.pos[1][0] != self.pos[0][0]+1 and not (not killerSizes and self.pos[0][0]==field[0]-1 and self.pos[1][0]==0):
+    elif keydown(KEY_RIGHT) and check([1, 0]):
       self.dir = [1, 0]
-    elif keydown(KEY_LEFT)  and self.pos[1][0] != self.pos[0][0]-1 and not (not killerSizes and self.pos[0][0]==0 and self.pos[1][0]==field[0]-1):
+    elif keydown(KEY_LEFT)  and check([-1, 0]):
       self.dir = [-1, 0]
     elif keydown(KEY_OK):
       draw_string("PAUSE", 130, 90)
@@ -72,20 +82,27 @@ class snake():
     frameStart = monotonic()
     while monotonic()<frameStart+0.70-speed*0.20 :self.checkKey()
     drawCase(self.pos[-1][0], self.pos[-1][1])
-    if self.checkPos():
-      self.move()
+    if self.move():
       if self.pos[0]==posFruit:
         points += 1
         if obstacles == True and points%2==0:
-          placeWall(self.pos)
+          placeWall(self.pos, self.dir)
         placeFruit(self.pos)
       else : self.pos.pop()
       self.drawSelf()
       return True
     return False
 
+def wrap(pos):
+  # wrap pos around field if necessary
+  if not killerSizes:
+    for i in range(2):
+      if pos[i] < 0 or pos[i] > field[i]-1 :
+        pos[i] -= int(copysign(field[i], pos[i]))
+  return pos
+
 def drawFruit():
-  fill_rect(posFruit[0]*10+field[3], posFruit[1]*10+field[4], 10, 10, (255, 0, 0))
+  box(posFruit[0], posFruit[1], (255, 0, 0))
 def placeFruit(bpos):
   global posFruit
   while True:
@@ -93,14 +110,13 @@ def placeFruit(bpos):
     if posFruit not in bpos and posFruit not in posWall: break
   drawFruit()
 
-def drawWall(pos):
-  fill_rect(pos[0]*10+field[3], pos[1]*10+field[4], 10, 10, (20, 20, 20))
-def placeWall(bpos):
+def drawWall(p):
+  box(p[0], p[1], (20, 20, 20))
+def placeWall(bpos, dir):
   global posWall
   while True:
     newpos = [randint(0, field[0]-1), randint(0, field[1]-1)]
-    bpostest = bpos.copy()
-    bpostest += [[bpos[0][0]+1, bpos[0][1]], [bpos[0][0]-1, bpos[0][1]], [bpos[0][0], bpos[0][1]+1], [bpos[0][0], bpos[0][1]-1]]
+    bpostest = bpos.copy() + [[bpos[0][0]+dir[0], bpos[0][1]+dir[1]]]
     if (newpos not in bpostest) and (newpos not in posWall):
       posWall.append(newpos)
       break
@@ -115,15 +131,15 @@ def snk():
   fill_rect(field[3]-5, field[4]-5, 10*field[0]+10, 10*field[1]+10, color)
   for x in range(field[0]):
     for y in range(field[1]):drawCase(x, y)
-  a = snake()
-  placeFruit(a.pos)
-  a.drawSelf()
+  s = snake()
+  placeFruit(s.pos)
+  s.drawSelf()
   sleep(0.5)
-  while a.act(): pass
-  draw_string("Points : "+str(points), 95, 110)
+  while s.act(): pass
+  draw_string("Points : "+str(points), 100, 120)
   draw_string("REPLAY : <OK>", 10, 200)
   draw_string("MENU : <EXE>", 190, 200)
-  draw_string("PERDU", 120, 80)
+  draw_string("PERDU", 130, 90)
   while not (keydown(KEY_EXE) or keydown(KEY_OK)): pass
   if keydown(KEY_EXE): menu_s()
   else:

@@ -22,40 +22,42 @@ def menu(titre, visible_addons, select_col, bkgd_col, list_opt):
     elif ch==0:
       modif_opt = options(list_opt, select_col, bkgd_col)
 
-def options(opt_list, select_col, bkgd_col):
+def options(olist, select_col, bkgd_col):
   fill_rect(0,0,320,240,bkgd_col)
   draw_string("OPTIONS", 125, 10)
-  firsty = 130-20*(4-len(opt_list))
-  for e in range(len(opt_list)):
-    draw_string(opt_list[e][0]+" : ", 30, firsty-30*e)
+  firsty = 130-20*(4-len(olist))
+  for e in range(len(olist)):
+    draw_string(olist[e][0]+" : ", 30, firsty-30*e)
   draw_string("Retour au menu", 30, 170)
   def draw_choices():
-    for e in range(len(opt_list)):
+    for e in range(len(olist)):
+      opt = olist[e]
       fill_rect(200, firsty+30*e, 140, 20, bkgd_col)
-      if type(opt_list[e][2]) is bool:
-        draw_string(opt_list[e][1][int(opt_list[e][2])], 200, firsty-30*e)
-      elif type(opt_list[e][2]) is int:
-        draw_string(opt_list[e][1][opt_list[e][2]-1], 200, firsty-30*e)
-  def draw_selected(nb1, nb2):
-    if nb1 == 0 : fill_rect(35, 190, 130, 2, bkgd_col)
-    else:fill_rect(200, firsty+50-30*nb1, 30, 2, bkgd_col)
-    if nb2 == 0: fill_rect(35, 190, 130, 2, select_col)
-    else:fill_rect(200, firsty+50-30*nb2, 30, 2, select_col)
+      if type(opt[2]) is bool:
+        draw_string(opt[1][int(opt[2])], 200, firsty-30*e)
+      elif type(opt[2]) is int:
+        draw_string(opt[1][opt[2]-1], 200, firsty-30*e)
+  def draw_selected(last, new):
+    if last == 0 : fill_rect(35, 190, 130, 2, bkgd_col)
+    else:fill_rect(200, firsty+50-30*last, 30, 2, bkgd_col)
+    if new == 0: fill_rect(35, 190, 130, 2, select_col)
+    else:fill_rect(200, firsty+50-30*new, 30, 2, select_col)
   draw_choices()
   fill_rect(35, 190, 130, 2, select_col)
-  pos = move_select(len(opt_list)+1, 0, draw_selected)
+  pos = move_select(len(olist)+1, 0, draw_selected)
   while pos != 0:
-    if type(opt_list[pos-1][2]) is bool:
-      fill_rect(200, firsty-30*(pos-1), len(opt_list[pos-1][1][int(opt_list[pos-1][2])])*15, 18, bkgd_col)
-      opt_list[pos-1][2] = not opt_list[pos-1][2]
-    elif type(opt_list[pos-1][2]) is int:
-      fill_rect(200, firsty-30*(pos-1), len(opt_list[pos-1][1][opt_list[pos-1][2]-1])*15, 18, bkgd_col)
-      if opt_list[pos-1][2] < len(opt_list[pos-1][1]):
-        opt_list[pos-1][2] += 1
-      else: opt_list[pos-1][2] = 1
+    opt = olist[pos-1]
+    if type(opt[2]) is bool:
+      fill_rect(200, firsty-30*(pos-1), len(opt[1][int(opt[2])])*15, 18, bkgd_col)
+      opt[2] = not opt[2]
+    elif type(opt[2]) is int:
+      fill_rect(200, firsty-30*(pos-1), len(opt[1][opt[2]-1])*15, 18, bkgd_col)
+      if opt[2] < len(opt[1]):
+        opt[2] += 1
+      else: opt[2] = 1
     draw_choices()
-    pos = move_select(len(opt_list)+1, pos, draw_selected)
-  return [i[2] for i in opt_list]
+    pos = move_select(len(olist)+1, pos, draw_selected)
+  return [i[2] for i in olist]
 
 def move_select(size, pos, vis_fonc):
   sleep(0.2)
