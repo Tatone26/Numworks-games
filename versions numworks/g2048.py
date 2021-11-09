@@ -46,12 +46,12 @@ def addBox():
             fullpos = [[x[0], x[1]] for x in lbx]
             if [nwbx[0], nwbx[1]] not in fullpos:
                 lbx.append(nwbx)
+                dwBox(nwbx)
                 placed = True
         return True
     return False
 
 def moveBoxes(drct):
-    #fonctionne mais sûrement améliorable (sort utile ?)
     global lbx
     moved = True
     timesmoved = 0
@@ -62,6 +62,8 @@ def moveBoxes(drct):
         for b in lbx:
             if 1<=b[0]+drct[0]<=size and 1<=b[1]+drct[1]<=size and [b[0]+drct[0], b[1]+drct[1]] not in fullpos:
                 newlbx.append((b[0]+drct[0], b[1]+drct[1], b[2]))
+                dwNoBox(b[0], b[1])
+                dwBox(newlbx[-1])
                 moved = True
             else :
                 newlbx.append(b)
@@ -73,33 +75,38 @@ def moveBoxes(drct):
 def fuseBoxes(drct):
     global lbx, pts
     newlbx = []
-    lbx.sort(key = lambda x : x[max([abs(drct[0]), abs(drct[1])])])
     used = []
+    if abs(drct[0])==1:n = 0
+    else : n = 1
+    lbx.sort(key = lambda x : x[n])
+    lbx.sort(key = lambda x : x[int(not bool(n))])
     if sum(drct)<0:
-        it = range(len(lbx)-1, 0, -1)
-    else :
         it = range(len(lbx))
+    else :
+        it = range(len(lbx)-1, -1, -1)
     for i in it:
         b = lbx[i]
-        if (b[0]+drct[0], b[1]+drct[1], b[2]) in lbx and (b[0]+drct[0], b[1]+drct[1], b[2]) not in used:
-            newlbx.append((b[0]+drct[0], b[1]+drct[1], b[2]+1))
+        if b not in used and (b[0]-drct[0], b[1]-drct[1], b[2]) in lbx and (b[0]-drct[0], b[1]-drct[1], b[2]) not in used:
+            newlbx.append((b[0], b[1], b[2]+1))
+            dwBox(newlbx[-1])
             used.append(b)
-            used.append((b[0]+drct[0], b[1]+drct[1], b[2]))
+            dwNoBox(b[0]-drct[0], b[1]-drct[1])
+            used.append((b[0]-drct[0], b[1]-drct[1], b[2]))
             pts += 2**(b[2]+1)
     for b in lbx:
         if b not in used:
             newlbx.append(b)
     lbx = newlbx.copy()
-    moveBoxes(drct)
     return len(used)>0
 
 def isdead():
     for b in lbx:
-        if (b[0]+1, b[1], b[2]) in lbx or (b[0]-1, b[1], b[2]) in lbx or (b[0], b[1]+1, b[2]) in lbx or (b[0], b[1]-1, b[2]) in lbx:
+        if len(lbx)<size*size or (b[0]+1, b[1], b[2]) in lbx or (b[0]-1, b[1], b[2]) in lbx or (b[0], b[1]+1, b[2]) in lbx or (b[0], b[1]-1, b[2]) in lbx:
             return False
     return True
 
 def game():
+    global pts, lbx
     fill_rect(0, 0, 320, 240, (255, 255, 255))
     dwGrid()
     draw_string("Record :  \n    "+str(best), 5, 180)
@@ -112,22 +119,23 @@ def game():
     while not dead:
         drct = pinput()
         moved = moveBoxes(drct)
+        sleep(0.08) #anim
         fused = fuseBoxes(drct)
         if fused:
             drawPts()
+            sleep(0.08) #anim
+            moveBoxes(drct)
         if moved or fused:
-            addBox():
+            addBox()
             if isdead():
                 dead = True
-            else :
-                dwGrid()
-                for i in lbx : dwBox(i)
-        sleep(0.3)
+        sleep(0.25)
     replay = False
     draw_string("Perdu !", xg+70, yg+15)
     draw_string("Rejouer : <OK>", xg+5, yg+115)
     draw_string("Menu : <EXE>", xg+5, yg+160)
     if pts>best: draw_string("Nouveau \n record !", 5, 100)
+    print("Score : "+str(pts))
     while not keydown(KEY_EXE):
         if keydown(KEY_OK):
             replay = True
