@@ -39,7 +39,7 @@ def addBox():
     if len(lbx)<size*size:
         placed = False
         while not placed :
-            nwbx = [randint(1, size), randint(1, size), pw]
+            nwbx = (randint(1, size), randint(1, size), pw)
             fullpos = [[x[0], x[1]] for x in lbx]
             if [nwbx[0], nwbx[1]] not in fullpos:
                 lbx.append(nwbx)
@@ -48,20 +48,58 @@ def addBox():
     return False
 
 def moveBoxes(drct):
+    #fonctionne mais sûrement améliorable (sort utile ?)
     global lbx
-    return False
+    moved = True
+    timesmoved = 0
+    while moved :
+        moved = False
+        fullpos = [[x[0], x[1]] for x in lbx]
+        newlbx = []
+        for b in lbx:
+            if 1<=b[0]+drct[0]<=size and 1<=b[1]+drct[1]<=size and [b[0]+drct[0], b[1]+drct[1]] not in fullpos:
+                newlbx.append((b[0]+drct[0], b[1]+drct[1], b[2]))
+                moved = True
+            else :
+                newlbx.append(b)
+        lbx = newlbx.copy()
+        if moved: timesmoved +=1
+    if timesmoved >= 1 :return True
+    else : return False
 
 def fuseBoxes(drct):
     global lbx, pts
-    pass
+    newlbx = []
+    lbx.sort(key = lambda x : x[max([abs(drct[0]), abs(drct[1])])])
+    used = []
+    if sum(drct)<0:
+        it = range(len(lbx)-1, 0, -1)
+    else :
+        it = range(len(lbx))
+    for i in it:
+        b = lbx[i]
+        if (b[0]+drct[0], b[1]+drct[1], b[2]) in lbx and (b[0]+drct[0], b[1]+drct[1], b[2]) not in used:
+            newlbx.append((b[0]+drct[0], b[1]+drct[1], b[2]+1))
+            used.append(b)
+            used.append((b[0]+drct[0], b[1]+drct[1], b[2]))
+            pts += 2**(b[2]+1)
+    for b in lbx:
+        if b not in used:
+            newlbx.append(b)
+    lbx = newlbx.copy()
+    moveBoxes(drct)
+    return len(used)>0
 
 def isdead():
-    return False
+    for b in lbx:
+        if (b[0]+1, b[1], b[2]) in lbx or (b[0]-1, b[1], b[2]) in lbx or (b[0], b[1]+1, b[2]) in lbx or (b[0], b[1]-1, b[2]) in lbx:
+            return False
+    return True
 
 def game():
     fill_rect(0, 0, 320, 240, (255, 255, 255))
     dwGrid()
-    draw_string("Record :\n"+str(best), 5, 180)
+    draw_string("Record :  \n    "+str(best), 5, 180)
     draw_string("Points :", 5, 20)
     drawPts()
     addBox()
@@ -70,16 +108,23 @@ def game():
     dead = False
     while not dead:
         drct = pinput()
-        if moveBoxes(drct):
-            fuseBoxes(drct)
+        moved = moveBoxes(drct)
+        fused = fuseBoxes(drct)
+        if fused:
             drawPts()
-            if not addBox():
-                if isdead():
-                    dead = True
+        if moved or fused:
+            addBox():
+            if isdead():
+                dead = True
             else :
                 dwGrid()
                 for i in lbx : dwBox(i)
+        sleep(0.3)
     replay = False
+    draw_string("Perdu !", xg+70, yg+15)
+    draw_string("Rejouer : <OK>", xg+5, yg+115)
+    draw_string("Menu : <EXE>", xg+5, yg+160)
+    if pts>best: draw_string("Nouveau \n record !", 5, 100)
     while not keydown(KEY_EXE):
         if keydown(KEY_OK):
             replay = True

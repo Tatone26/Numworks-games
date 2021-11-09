@@ -40,7 +40,9 @@ class Ntw(Tk):
         self.my_update()
 
     def draw_string(self, string, posx, posy):
-        self.canvas.create_rectangle(posx-2, posy-1, posx+len(string)*7+4, posy+20, outline="white", fill="white", tags="rect")
+        stringlist = string.split("\n")
+        for i in range(len(stringlist)):
+            self.canvas.create_rectangle(posx-2, posy-1+20*i, posx+len(stringlist[0])*7+4, posy+20, outline="white", fill="white", tags="rect")
         self.canvas.create_text(posx, posy, text=string, anchor="nw")
         self.my_update()
 

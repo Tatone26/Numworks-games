@@ -6,131 +6,143 @@ from menu import *
 
 xg = 120
 yg = 20
-sz = 4
+size = 4
 pts = 0
 best = 1112
 lbx = []
 
 def dwGrid():
-  fill_rect(120,20,185,185,(180,180,180))
-  for i in range(1,sz+1):
-    for e in range(1,sz+1): dwNoBox(i,e)
+    fill_rect(120,20,185,185,(180,180,180))
+    for i in range(1,size+1):
+        for e in range(1,size+1): dwNoBox(i,e)
 
 def dwNoBox(x,y):
-  fill_rect(xg+1+int(185/sz)*(x-1),yg+1+int(185/sz)*(y-1),int(185/sz)-1,int(185/sz)-1,(220,220,220))
+    rs = int(185/size)
+    fill_rect(xg+1+rs*(x-1),yg+1+rs*(y-1),rs-1,rs-1,(220,220,220))
 def dwBox(box):
-  fill_rect(xg+1+int(185/sz)*(box[0]-1),yg+1+int(185/sz)*(box[1]-1),int(185/sz)-1,int(185/sz)-1,(250-box[2]*10,250-box[2]*20,250-box[2]*20))
-  draw_string(str(2**box[2]),xg+int(185/sz/2)+int(185/sz)*(box[0]-1)-int(len(str(2**box[2]))/2*8),yg+int(185/sz/3)-2+int(185/sz)*(box[1]-1))
+    rs = int(185/size)
+    fill_rect(xg+1+rs*(box[0]-1),yg+1+rs*(box[1]-1),rs-1,rs-1,(250-box[2]*10,250-box[2]*20,250-box[2]*20))
+    draw_string(str(2**box[2]),xg+int(rs/2)+rs*(box[0]-1)-int(len(str(2**box[2]))/2*8),yg+int(rs/2)-2+rs*(box[1]-1))
 
-def dwLbx():
-  for i in lbx: dwBox(i)
+def drawPts():
+    fill_rect(30, 40, 50, 70, (255, 255, 255))
+    draw_string(str(pts), 35, 45)
 
 def pinput():
-  while True:
-    if keydown(KEY_UP):return [0,-1]
-    elif keydown(KEY_DOWN):return [0,1]
-    elif keydown(KEY_RIGHT):return [1,0]
-    elif keydown(KEY_LEFT):return [-1,0]
-
-def fuseBoxes(d):
-  nlb=[]
-  fused=[]
-  pts = 0
-  for i in lbx:
-    t = [i[0]+d[0]*(-1),i[1]+d[1]*(-1),i[2]]
-    if t in lbx and (t[0], t[1]) not in fused:
-      nlb.append([i[0],i[1],i[2]+1])
-      fused.append((i[0]+d[0]*(-1), i[1]+d[1]*(-1)))
-      pts += 2**(i[2]+1)
-    elif (i[0], i[1]) not in fused:
-      nlb.append(i)
-  return nlb, pts
-
-def moveBoxes(d):
-  nlb=lbx
-  def m(l,d):
-    nl=[]
-    add=False
-    for i in range(len(l)):
-      ept=True
-      for e in l:
-        if [e[0],e[1]]==[l[i][0]+d[0],l[i][1]+d[1]]:
-          ept=False
-      if ept==True and 0<l[i][0]+d[0]<=sz and 0<l[i][1]+d[1]<=sz:
-        nl.append([l[i][0]+d[0],l[i][1]+d[1],l[i][2]])
-        add = True
-      else: nl.append(l[i])
-    return add,nl
-  mvd = False
-  while True:
-    t,nlb=m(nlb,d)
-    if t==False: break
-    mvd = True
-  return nlb, mvd
+    while True:
+        if keydown(KEY_UP):return [0,-1]
+        elif keydown(KEY_DOWN):return [0,1]
+        elif keydown(KEY_RIGHT):return [1,0]
+        elif keydown(KEY_LEFT):return [-1,0]
 
 def addBox():
-  global lbx
-  if len(lbx)<sz*sz:
-    while True :
-      turn = False
-      nb = [randint(1, sz), randint(1, sz), 1]
-      for e in lbx:
-        if [e[0], e[1]] == [nb[0], nb[1]]:
-          turn = True
-          break
-      if turn == False:
-        lbx.append(nb)
-        break
-    return True
-  return False
+    global lbx
+    if randint(1, 9)==9: pw = 2
+    else : pw = 1
+    if len(lbx)<size*size:
+        placed = False
+        while not placed :
+            nwbx = (randint(1, size), randint(1, size), pw)
+            fullpos = [[x[0], x[1]] for x in lbx]
+            if [nwbx[0], nwbx[1]] not in fullpos:
+                lbx.append(nwbx)
+                placed = True
+        return True
+    return False
 
-def vaStart():
-  fill_rect(0,0,320,240,(255,255,255))
-  dwGrid()
-  dwLbx()
-  draw_string("Record : \n    "+str(best), 5, 180)
-  draw_string("Points :", 5, 20)
-  draw_string("0", 35, 45)
+def moveBoxes(drct):
+    #fonctionne mais sûrement améliorable (sort utile ?)
+    global lbx
+    moved = True
+    timesmoved = 0
+    while moved :
+        moved = False
+        fullpos = [[x[0], x[1]] for x in lbx]
+        newlbx = []
+        for b in lbx:
+            if 1<=b[0]+drct[0]<=size and 1<=b[1]+drct[1]<=size and [b[0]+drct[0], b[1]+drct[1]] not in fullpos:
+                newlbx.append((b[0]+drct[0], b[1]+drct[1], b[2]))
+                moved = True
+            else :
+                newlbx.append(b)
+        lbx = newlbx.copy()
+        if moved: timesmoved +=1
+    if timesmoved >= 1 :return True
+    else : return False
+
+def fuseBoxes(drct):
+    global lbx, pts
+    newlbx = []
+    lbx.sort(key = lambda x : x[max([abs(drct[0]), abs(drct[1])])])
+    used = []
+    if sum(drct)<0:
+        it = range(len(lbx)-1, 0, -1)
+    else :
+        it = range(len(lbx))
+    for i in it:
+        b = lbx[i]
+        if (b[0]+drct[0], b[1]+drct[1], b[2]) in lbx and (b[0]+drct[0], b[1]+drct[1], b[2]) not in used:
+            newlbx.append((b[0]+drct[0], b[1]+drct[1], b[2]+1))
+            used.append(b)
+            used.append((b[0]+drct[0], b[1]+drct[1], b[2]))
+            pts += 2**(b[2]+1)
+    for b in lbx:
+        if b not in used:
+            newlbx.append(b)
+    lbx = newlbx.copy()
+    moveBoxes(drct)
+    return len(used)>0
+
+def isdead():
+    for b in lbx:
+        if (b[0]+1, b[1], b[2]) in lbx or (b[0]-1, b[1], b[2]) in lbx or (b[0], b[1]+1, b[2]) in lbx or (b[0], b[1]-1, b[2]) in lbx:
+            return False
+    return True
 
 def game():
-  global lbx, pts
-  lbx = [[randint(1, sz), randint(1, sz), 1]]
-  vaStart()
-  while True:
-    d=pinput()
-    lbx, mvd1 = moveBoxes(d)
-    lbx, np = fuseBoxes(d)
-    lbx = moveBoxes(d)[0]
-    if mvd1 or np>0:
-      pts += np
-      draw_string(str(pts), 35, 45)
-      live = addBox()
-      if not live:
-        if not end():break
-      dwGrid()
-      dwLbx()
-    sleep(0.3)
-  menu2048()
-
-def end():
-  global lbx
-  draw_string("Perdu !", xg+70, yg+15)
-  draw_string("Rejouer : <OK>", xg+5, yg+115)
-  draw_string("Menu : <EXE>", xg+5, yg+160)
-  if pts>best: draw_string("Nouveau \n record !", 5, 100)
-  while True:
-    if keydown(KEY_OK):
-      lbx = [[randint(1, sz), randint(1, sz), 1]]
-      vaStart()
-      return True
-    elif keydown(KEY_EXE):return False
+    fill_rect(0, 0, 320, 240, (255, 255, 255))
+    dwGrid()
+    draw_string("Record :  \n    "+str(best), 5, 180)
+    draw_string("Points :", 5, 20)
+    drawPts()
+    addBox()
+    addBox()
+    for i in lbx : dwBox(i)
+    dead = False
+    while not dead:
+        drct = pinput()
+        moved = moveBoxes(drct)
+        fused = fuseBoxes(drct)
+        if fused:
+            drawPts()
+        if moved or fused:
+            addBox():
+            if isdead():
+                dead = True
+            else :
+                dwGrid()
+                for i in lbx : dwBox(i)
+        sleep(0.3)
+    replay = False
+    draw_string("Perdu !", xg+70, yg+15)
+    draw_string("Rejouer : <OK>", xg+5, yg+115)
+    draw_string("Menu : <EXE>", xg+5, yg+160)
+    if pts>best: draw_string("Nouveau \n record !", 5, 100)
+    while not keydown(KEY_EXE):
+        if keydown(KEY_OK):
+            replay = True
+            break
+    pts = 0
+    lbx.clear()
+    if replay : game()
+    else : menu2048()
 
 def menu2048():
-  global sz
-  def va():
-    fill_rect(0,75,320,20,(230,180,180))
-  opt = menu("2048",va,(0,0,0),(255,255,255),[["Taille", ("3", "4", "5", "6", "7", "8"), sz-2]])
-  sz = opt[0]+2
-  if opt[-1]==True:game()
+    global size
+    def va():
+        fill_rect(0,75,320,20,(230,180,180))
+    opt = menu("2048",va,(0,0,0),(255,255,255),[["Taille plateau", ("3x3", "4x4", "5x5", "6x6", "7x7", "8x8"), size-2]])
+    size = opt[0]+2
+    if opt[-1]==True:game()
 
 menu2048()
