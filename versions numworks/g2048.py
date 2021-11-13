@@ -22,7 +22,7 @@ def dwNoBox(x,y):
 def dwBox(box):
     rs = int(185/size)
     fill_rect(xg+1+rs*(box[0]-1),yg+1+rs*(box[1]-1),rs-1,rs-1,(250-box[2]*10,250-box[2]*20,250-box[2]*20))
-    draw_string(str(2**box[2]),xg+int(rs/2)+rs*(box[0]-1)-int(len(str(2**box[2]))/2*8),yg+int(rs/2)-2+rs*(box[1]-1))
+    draw_string(str(2**box[2]),xg+int(rs/2)+rs*(box[0]-1)-int(len(str(2**box[2]))/2*8),yg+int(rs/2)-8+rs*(box[1]-1))
 
 def drawPts():
     fill_rect(30, 40, 50, 70, (255, 255, 255))
@@ -76,10 +76,10 @@ def fuseBoxes(drct):
     global lbx, pts
     newlbx = []
     used = []
-    if abs(drct[0])==1:n = 0
+    if drct[0]!=0:n = 0
     else : n = 1
-    lbx.sort(key = lambda x : x[n])
     lbx.sort(key = lambda x : x[int(not bool(n))])
+    lbx.sort(key = lambda x : x[n])
     if sum(drct)<0:
         it = range(len(lbx))
     else :
