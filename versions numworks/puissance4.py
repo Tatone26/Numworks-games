@@ -104,8 +104,7 @@ def p4():
     for y in range(6):
       if placedCoins[x][y]!=None:
         printCoin(x, y, placedCoins[x][y])
-  if nbPlayers == 2:
-    draw_centered_string(title+" !",100)
+  draw_centered_string(title+" !",100)
   draw_string("MENU : EXE", 180, 200)
   draw_string("REJOUER : OK",20,200)
   while not keydown(KEY_EXE) and not keydown(KEY_OK):

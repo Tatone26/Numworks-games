@@ -2,7 +2,7 @@ from math import *
 from kandinsky import *
 from ion import *
 from random import *
-from menu import *
+from menu import menu, fill_screen
 
 xg = 120
 yg = 20

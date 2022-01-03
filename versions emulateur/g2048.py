@@ -1,5 +1,5 @@
 from num_to_wind import *
-from menu import *
+from menu import menu, fill_screen
 
 xg = 120
 yg = 20
