@@ -10,3 +10,5 @@ To get the emulator version of any program, just exchange all the numworks-speci
 To get a program from the calculator or to the calculator, go to numworks.com (with chrome), connect to your account, go to "python" -> "your scripts" and connect your numworks to your pc with a usb cable. Then, you have some big buttons to get scripts from or to your numworks.
 
 I don't think this github page will ever interest anyone but I made it public anyway... On numworks.com, you have a repository of lots of programs (and you can submit your owns apparently).
+
+PS : ignore pong and tetris, they are not working right now. There are some good versions online somewhere else.
