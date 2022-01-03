@@ -107,7 +107,7 @@ def isdead():
 
 def game():
     global pts, lbx
-    fill_rect(0, 0, 320, 240, (255, 255, 255))
+    fill_screen((255, 255, 255))
     dwGrid()
     draw_string("Record :  \n    "+str(best), 5, 180)
     draw_string("Points :", 5, 20)

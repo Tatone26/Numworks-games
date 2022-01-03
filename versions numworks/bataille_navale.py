@@ -1,205 +1,180 @@
 from kandinsky import *
 from ion import *
 from time import *
-from menu import menu
+from menu import menu, draw_centered_string, fill_screen
 
 white = color(255,255,255)
 black = color(0, 0, 0)
 darkMode = False
 
-class Boat:
-
-  def __init__(self, size, posx, posy, orient):
-    self.boat = [0]*size
-    self.pos = []
-    self.orient = orient
-    self.size = size
-    if(self.orient == "h"):
-      for p in range(posx, posx+size):
-        self.pos.append([p, posy])
-    else :
-      for p in range(posy, posy+size):
-        self.pos.append([posx, p])
-
-  def check(self):
-    return(not 0 in self.boat)
-
 class Player:
-
   def __init__(self):
-    self.listBoat = []
+    self.listBoats = []
     self.listTirs = []
-    self.lastSelect = [0,0]
+    self.lastSel = [0, 0]
 
-  def choosePos(self, griPosX, griPosY, boatSize, orient):
-    select = replaceBoatSelect(boatSize, orient, self.lastSelect)
+def colorCaseGri(griPos, pos, color):
+  fill_rect(griPos[0]+1+14*pos[0], griPos[1]+1+14*pos[1], 10, 10, color)
 
-    def printCho():
-      colorCaseGri(griPosX, griPosY, select, (250, 0, 250))
-      if boatSize > 0:
-        printBoat(Boat(boatSize, select[0], select[1], orient), griPosX, griPosY)
-
-    def clearCho(oldSelect):
-      if boatSize > 0:
-        for pos in Boat(boatSize, oldSelect[0], oldSelect[1], orient).pos:
-          colorCaseGri(griPosX, griPosY, pos, white)
-      else:
-        c = white
-        if oldSelect+[0] in self.listTirs:
-          c = (250,250,0)
-        elif oldSelect+[1] in self.listTirs:
-          c = (250,0,0)
-        colorCaseGri(griPosX, griPosY, oldSelect, c)
-
-    printCho()
-
-    while True:
-      vSelect = select[:]
-      turned = False
-
-      if keydown(KEY_OK) and ( (boatSize > 0 and self.checkBoatPlcmt(Boat(boatSize, select[0], select[1], orient))) or (boatSize<=0 and select+[0] not in self.listTirs and select+[1] not in self.listTirs)):
-        clearCho(select)
-        self.lastSelect = select
-        return select, orient
-
-      elif keydown(KEY_RIGHT) and (select[0]<9-boatSize if (boatSize >0 and orient=="h") else select[0]<8):
-        select[0] += 1
-      elif keydown(KEY_LEFT) and select[0]>0:
-        select[0] -= 1
-      elif keydown(KEY_DOWN) and (select[1]<9-boatSize if (boatSize >0 and orient=="v") else select[1]<8):
-        select[1] += 1
-      elif keydown(KEY_UP) and select[1]>0:
-        select[1] -= 1
-      elif keydown(KEY_SHIFT) and boatSize>0:
-        clearCho(vSelect)
-        if(orient=="h") :
-          orient="v"
-        else:
-          orient="h"
-        select = replaceBoatSelect(boatSize, orient, select)
-        printCho()
-        turned = True
-
-      if vSelect != select and not turned:
-        clearCho(vSelect)
-        printCho()
-      sleep(0.08)
-
-  def chooseBoats(self):
-    clearScreen()
-    printGri(20, 30) #cho
-    printGri(170, 50) #boats
-    draw_string("Pivoter : bouton \"shift\"", 10, 180)
-    list = [5, 4, 3, 3, 2]
-    for i in range(len(list)) :
-      draw_string("Restants : "+str(len(list)-i)+"   ", 10, 2)
-      pos, orient = self.choosePos(20, 30, list[i], "h")
-      bo = Boat(list[i], pos[0], pos[1], orient)
-      self.listBoat.append(bo)
-      printBoat(bo, 170, 50)
-
-  def checkBoatPlcmt(self, boat):
-    for b in self.listBoat:
-      for p in b.pos:
-        if p in boat.pos: return False
-    return True
-
-  def fire(self, player2):
-    pos, orient = self.choosePos(20, 30, 0, None)
-    for boat in player2.listBoat :
-      t, c = False, False
-      if pos in boat.pos:
-        boat.boat[boat.pos.index(pos)] = 1
-        t, c = True, boat.check()
-      if t : break
-    fill_rect(0,175,150,75,white)
-    if t:
-        self.listTirs += [pos+[1]]
-        if c : draw_string("Bateau coulé !", 10, 175)
-        else:  draw_string("Touché !", 10, 175)
-        sleep(1.5)
-    else:
-        self.listTirs += [pos+[0]]
-        draw_string("Dans l'eau...", 10, 175)
-        sleep(1.5)
-
-  def check(self):
-    for i in self.listBoat:
-      if not i.check(): return False
-    return True
-
-def replaceBoatSelect(boatSize, orient, select):
-  if select[1]>9-boatSize and orient=="v":
-      select[1] = 9-boatSize
-  elif select[0]>9-boatSize and orient=="h":
-      select[0] = 9-boatSize
-  return select
-
-def colorCaseGri(posxgri, posygri, pos, color):
-  fill_rect(posxgri+1+14*pos[0], posygri+1+14*pos[1], 10, 10, color)
-
-def printGri(posx, posy):
+def printGri(griPos):
+  posx = griPos[0]
+  posy = griPos[1]
   fill_rect(posx-1,posy-1,126,126,black)
   fill_rect(posx,posy,124,124,white)
   for x in range(8):fill_rect(posx+12+14*x, posy, 2, 124, black)
   for y in range(8):fill_rect(posx, posy+12+14*y, 124, 2, black)
 
-def printBoat(boat, posxgri, posygri):
-  for i in range(boat.size):
-      c = boat.pos[i]
-      if boat.boat[i] == 0:
-        colorCaseGri(posxgri, posygri, c, (250, 150, 0))
+def printTir(griPos, player, tir):
+  c = white
+  if tir+[0] in player.listTirs:
+    c = (250, 250, 0)
+  elif tir+[1] in player.listTirs:
+    c = (250, 0, 0)
+  colorCaseGri(griPos, tir, c)
+
+def printBoat(griPos, boat):
+  for i in range(len(boat)):
+    colorCaseGri(griPos, boat[i][:2], (250, abs(boat[i][2]-1)*150, 0))
+
+def selectPos(griPos, sInit = [0, 0], opt = [5, (1, 0)], player = None) : #select initial, griPos, opt = [size, orient]
+
+  def printCho():
+    for i in range(opt[0]):
+      colorCaseGri(griPos, [select[0]+1*i*opt[1][0], select[1]+1*i*opt[1][1]], (250, 0, 250))
+
+  def clearCho():
+    for i in range(opt[0]):
+      s = [select[0]+1*i*opt[1][0], select[1]+1*i*opt[1][1]]
+      if player == None:
+        colorCaseGri(griPos, s, white)
       else:
-        colorCaseGri(posxgri, posygri, c, (250, 0, 0))
+        printTir(griPos, player, s)
 
-def clearScreen():fill_rect(0, 0, 320, 240, white)
+  def replace():
+    if select[1]>9-opt[0] and opt[1]==(0, 1):
+        select[1] = 9-opt[0]
+    elif select[0]>9-opt[0] and opt[1]==(1, 0):
+        select[0] = 9-opt[0]
 
-def changingPlayer():
-  clearScreen()
-  draw_string("JOUEUR SUIVANT",100, 100)
-  draw_string("Appuie sur EXE pour commencer ton tour.", 20, 200)
-  while not keydown(KEY_EXE):pass
+  select = sInit
+  replace()
+  printCho()
+  sleep(0.5)
+  while True:
 
-def turn(p1, p2):
-  clearScreen()
-  printGri(20,30)
-  for pos in p1.listTirs:
-    if pos[2] == 0:
-      colorCaseGri(20, 30, pos, (250, 250, 0))
-    else:colorCaseGri(20, 30, pos, (250, 0, 0))
+    oldSel = select[:]
+    turned = False
+    if keydown(KEY_OK):
+      clearCho()
+      return select, opt
+    elif keydown(KEY_EXE):
+      clearCho()
+      opt[1] = (opt[1][1], opt[1][0])
+      replace()
+      printCho()
+      turned = True
+
+    elif keydown(KEY_RIGHT) and (select[0]<9-((opt[0]-1)*opt[1][0]+1)):
+      select[0] += 1
+    elif keydown(KEY_LEFT) and (select[0]>0):
+      select[0] -= 1
+    elif keydown(KEY_DOWN) and (select[1]<9-((opt[0]-1)*opt[1][1]+1)):
+      select[1] += 1
+    elif keydown(KEY_UP) and (select[1]>0):
+      select[1] -= 1
+
+    if oldSel != select and not turned:
+      tempSel = select[:]
+      select = oldSel
+      clearCho()
+      select = tempSel[:]
+      printCho()
+    sleep(0.05)
+
+def changeScreen(text, nextPlayer):
+  fill_screen(white)
+  draw_centered_string("PLAYER "+str(nextPlayer), 75)
+  draw_centered_string(text, 100)
+  draw_centered_string("Press <EXE> to continue.", 200)
+  while not keydown(KEY_EXE):
+    sleep(0.2)
+  fill_screen(white)
+
+def placeBoats(player):
+  printGri((20, 20))
+  printGri((170, 50))
+  sizes = [5, 4, 3, 3, 2]
+  i = 0
+  while i<len(sizes):
+    opt = [sizes[i], (1, 0)]
+    player.lastSel, opt = selectPos((20,20), player.lastSel[:], opt)
+    boat = [[player.lastSel[0]+i*opt[1][0], player.lastSel[1]+i*opt[1][1], 0] for i in range(opt[0])]
+    verif = False
+    for b in player.listBoats :
+      for c in boat:
+        if c in b:verif = True
+    if not verif:
+      player.listBoats.append([[player.lastSel[0]+i*opt[1][0], player.lastSel[1]+i*opt[1][1], 0] for i in range(opt[0])])
+      printBoat((170, 50), player.listBoats[-1])
+      i += 1
+
+def turn(player, cible):
+  printGri((20, 20))
   draw_string("V--CIBLE--V", 15, 2)
-  printGri(170, 50)
-  for b in p1.listBoat : printBoat(b,170,50)
-  draw_string("^-VOS BATEAUX-^",155, 180)
-  p1.fire(p2)
+  printGri((170, 50))
+  draw_string("^-VOS BATEAUX-^", 155, 180)
+  for b in player.listBoats : printBoat((170, 50), b)
+  for t in player.listTirs : printTir((20, 20), player, [t[0], t[1]])
+  while True:
+    pos, o = selectPos((20, 20), player.lastSel, [1, (1, 1)], player)
+    player.lastSel = pos[:]
+    if pos in [[i[0], i[1]] for i in player.listTirs]:
+      continue
+    elif pos+[1] in [i for b in cible.listBoats for i in b]:
+      continue
+    elif pos+[0] not in [i for b in cible.listBoats for i in b]:
+      player.listTirs.append(pos+[0])
+      draw_string("Dans l'eau...", 10, 175)
+      sleep(1)
+      break
+    else :
+      player.listTirs.append(pos+[1])
+      draw_string("Touché !", 10, 175)
+      for b in cible.listBoats:
+        if pos+[0] in b:
+          b[b.index(pos+[0])][2] = 1
+          if False not in [i[2] == 1 for i in b]:
+            draw_string("Touché coulé !", 10, 175)
+      sleep(1)
+      break
+
 
 def game():
-  sleep(0.5)
-  clearScreen()
-  a = Player()
-  a.chooseBoats()
-  changingPlayer()
-  b = Player()
-  b.chooseBoats()
-  changingPlayer()
+  p1 = Player()
+  p2 = Player()
+  changeScreen("is going to place his boats.", 1)
+  placeBoats(p1)
+  changeScreen("is going to place his boats.", 2)
+  placeBoats(p2)
+  win = None
   while True:
-    turn(a, b)
-    if b.check():
-      clearScreen()
-      draw_string("VICTOIRE DE J1 !",50,100)
+    changeScreen("is going to attack.", 1)
+    turn(p1, p2)
+    if False not in [i[2]==1 for b in p2.listBoats for i in b]:
+      win = 1
       break
-    changingPlayer()
-    turn(b, a)
-    if a.check():
-      clearScreen()
-      draw_string("VICTOIRE DE J2 !",50,100)
+    changeScreen("is going to attack.", 2)
+    turn(p2, p1)
+    if False not in [i[2]==1 for b in p1.listBoats for i in b]:
+      win = 2
       break
-    changingPlayer()
+  changeScreen("WON", win)
+  menu_bn()
 
 def menu_bn():
   global darkMode, white, black
   def vis_add():
-    printBoat(Boat(5, 0, 0, "h"), 120, 75)
+    printBoat((120, 75), [[0, 0, 0], [1, 0, 0], [2, 0, 1], [3, 0, 0], [4, 0, 0]])
   mod_opt = menu("BATAILLE NAVALE", vis_add, (250, 150, 0), white, [["Mode sombre", ("Non", "Oui"), darkMode]])
   if darkMode != mod_opt[0]:
     darkMode = mod_opt[0]

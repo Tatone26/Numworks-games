@@ -3,7 +3,7 @@ from kandinsky import *
 from ion import *
 from time import *
 from math import copysign
-from menu import menu
+from menu import menu, fill_screen, draw_centered_string
 
 killerSizes = True
 obstacles = False
@@ -69,8 +69,8 @@ class snake():
     elif keydown(KEY_LEFT)  and check([-1, 0]):
       self.dir = [-1, 0]
     elif keydown(KEY_OK):
-      draw_string("PAUSE", 130, 90)
-      draw_string("Points : "+str(points), 100, 120)
+      draw_centered_string("PAUSE", 130, 90)
+      draw_centered_string("Points : "+str(points), 100, 120)
       sleep(0.3)
       while not keydown(KEY_OK):pass
       for x in range(round(9-field[3]/10), round(22-field[3]/10)):
@@ -140,14 +140,14 @@ def snk():
   s.drawSelf()
   sleep(0.5)
   while s.act(): pass
-  draw_string("Points : "+str(points), 100, 120)
-  draw_string("REPLAY : <OK>", 10, 200)
+  draw_centered_string("Points : "+str(points), 100, 120)
+  draw_centered_string("REPLAY : <OK>", 10, 200)
   draw_string("MENU : <EXE>", 190, 200)
   draw_string("PERDU", 130, 90)
   while not (keydown(KEY_EXE) or keydown(KEY_OK)): pass
   if keydown(KEY_EXE): menu_s()
   else:
-    fill_rect(0, 0, 320, 240, white)
+    fill_screen(white)
     snk()
 
 def menu_s():

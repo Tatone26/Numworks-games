@@ -3,28 +3,28 @@ from num_to_wind import *
 def menu(titre, visible_addons, select_col, bkgd_col, list_opt):
   modif_opt = [i[2] for i in list_opt]
   def vis_fonc(pos1, pos2):
-    fill_rect(105, 200-30*pos2, 90, 2, select_col)
-    fill_rect(105, 200-30*pos1, 90, 2, bkgd_col)
+    fill_rect(125, 200-30*pos2, 80, 2, select_col)
+    fill_rect(125, 200-30*pos1, 80, 2, bkgd_col)
   def play():
-    fill_rect(0,0,320,240,bkgd_col)
-    draw_string(titre, 150-10*int(len(titre)/2), 40)
-    draw_string("Commencer", 105, 150)
-    draw_string("Options", 115, 180)
+    fill_screen(bkgd_col)
+    draw_centered_string(titre, 40)
+    draw_centered_string("Commencer", 150)
+    draw_centered_string("Options", 180)
     draw_string("Quitter:<EXE>",192,202)
-    fill_rect(105, 170, 90, 2, select_col)
+    fill_rect(125, 170, 80, 2, select_col)
     visible_addons()
     return move_select(2, 1, vis_fonc)
   while True:
     ch = play()
     if ch==1 or ch==-1:
-      fill_rect(0, 0, 320, 240, bkgd_col)
+      fill_screen(bkgd_col)
       return modif_opt+[ch>0]
     elif ch==0:
       modif_opt = options(list_opt, select_col, bkgd_col)
 
 def options(olist, select_col, bkgd_col):
   fill_rect(0,0,320,240,bkgd_col)
-  draw_string("OPTIONS", 125, 10)
+  draw_centered_string("OPTIONS", 10)
   firsty = 130-20*(4-len(olist))
   for e in range(len(olist)):
     draw_string(olist[e][0]+" : ", 30, firsty-30*e)
@@ -73,3 +73,9 @@ def move_select(size, pos, vis_fonc):
       break
     sleep(0.1)
   return pos
+
+def draw_centered_string(text, posy):
+  draw_string(text, 159-10*int(len(text)/2), posy)
+
+def fill_screen(color):
+  fill_rect(0, 0, 320, 240, color)
