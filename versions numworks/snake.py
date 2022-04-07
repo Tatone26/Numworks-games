@@ -6,9 +6,9 @@ from math import copysign
 from menu import menu, fill_screen, draw_centered_string
 
 killerSizes = True
-obstacles = False
-speed = 2
-field = (32,22,1,0,0) #wdh, hgt, opt, xoff, yoff
+obstacles = True
+speed = 3
+field = (32,22,2,0,0) #wdh, hgt, opt, xoff, yoff
 
 posFruit = [-1, -1]
 points = 0

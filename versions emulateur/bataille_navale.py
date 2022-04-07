@@ -180,5 +180,4 @@ def menu_bn():
   if mod_opt[-1]==True:game()
 
 menu_bn()
-
 ntw.mainloop()

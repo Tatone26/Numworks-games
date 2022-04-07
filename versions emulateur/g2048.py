@@ -1,11 +1,11 @@
 from num_to_wind import *
 from menu import menu, fill_screen
-
+from time import *
 xg = 120
 yg = 20
 size = 4
 pts = 0
-best = 1112
+best = 26372
 lbx = []
 
 def dwGrid():

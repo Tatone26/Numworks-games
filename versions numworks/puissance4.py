@@ -24,28 +24,28 @@ def hAlign():
   for x in range(5):
     for y in range(6):
       co = placedCoins[x][y]
-      if co != None and placedCoins[x+1][y] == co and placedCoins[x+2][y]==co and (placedCoins[x+3][y]==co or nbPlayers>=3):
+      if co != None and placedCoins[x+1][y] == co and placedCoins[x+2][y]==co and (nbPlayers>=3 or (x<=3 and placedCoins[x+3][y]==co)):
         return True
   return False
 def vAlign():
   for x in range(7):
     for y in range(4):
       co = placedCoins[x][y]
-      if co != None and placedCoins[x][y+1] == co and placedCoins[x][y+2]==co and (placedCoins[x][y+3]==co or nbPlayers>=3):
+      if co != None and placedCoins[x][y+1] == co and placedCoins[x][y+2]==co and (nbPlayers>=3 or (y<=2 and placedCoins[x][y+3]==co)):
         return True
   return False
 def dhAlign():
   for x in range(5):
-    for y in range(3):
+    for y in range(4):
       co = placedCoins[x][y]
-      if co != None and placedCoins[x+1][y+1] == co and placedCoins[x+2][y+2]==co and (placedCoins[x+3][y+3]==co or nbPlayers>=3):
+      if co != None and placedCoins[x+1][y+1] == co and placedCoins[x+2][y+2]==co and (nbPlayers>=3 or (x<=3 and y<=2 and placedCoins[x+3][y+3]==co)):
         return True
   return False
 def dbAlign():
   for x in range(5):
     for y in range(2, 6):
       co = placedCoins[x][y]
-      if co != None and placedCoins[x+1][y-1] == co and placedCoins[x+2][y-2]==co and (placedCoins[x+3][y-3]==co or nbPlayers>=3):
+      if co != None and placedCoins[x+1][y-1] == co and placedCoins[x+2][y-2]==co and (nbPlayers>=3 or (x<=3 and y>=3 and placedCoins[x+3][y-3]==co)):
         return True
   return False
 
