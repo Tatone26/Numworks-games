@@ -2,3 +2,5 @@
 *.pyc
 versions emulateur/__pycache__/num_to_wind.cpython-38.pyc
 versions emulateur/__pycache__/menu.cpython-38.pyc
+/tetrisv2.py
+/num_to_wind.py
