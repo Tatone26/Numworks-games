@@ -1,5 +1,5 @@
-from num_to_wind import *
 from menu import menu, draw_centered_string, fill_screen
+from num_to_wind import *
 
 white = color(255, 255, 255)
 black = color(0, 0, 0)
@@ -14,118 +14,148 @@ visChoice = True
 title = "PUISSANCE 4"
 nbPlayers = 2
 
+
 def check():
-  if hAlign() or vAlign() or dhAlign() or dbAlign():
-    return True
-  return False
+    if hAlign() or vAlign() or dhAlign() or dbAlign():
+        return True
+    return False
+
+
 def hAlign():
-  for x in range(5):
-    for y in range(6):
-      co = placedCoins[x][y]
-      if co != None and placedCoins[x+1][y] == co and placedCoins[x+2][y]==co and (nbPlayers>=3 or (x<=3 and placedCoins[x+3][y]==co)):
-        return True
-  return False
+    for x in range(5):
+        for y in range(6):
+            co = placedCoins[x][y]
+            if co is not None and placedCoins[x + 1][y] == co and placedCoins[x + 2][y] == co and (
+                    nbPlayers >= 3 or (x <= 3 and placedCoins[x + 3][y] == co)):
+                return True
+    return False
+
+
 def vAlign():
-  for x in range(7):
-    for y in range(4):
-      co = placedCoins[x][y]
-      if co != None and placedCoins[x][y+1] == co and placedCoins[x][y+2]==co and (nbPlayers>=3 or (y<=2 and placedCoins[x][y+3]==co)):
-        return True
-  return False
+    for x in range(7):
+        for y in range(4):
+            co = placedCoins[x][y]
+            if co is not None and placedCoins[x][y + 1] == co and placedCoins[x][y + 2] == co and (
+                    nbPlayers >= 3 or (y <= 2 and placedCoins[x][y + 3] == co)):
+                return True
+    return False
+
+
 def dhAlign():
-  for x in range(5):
-    for y in range(4):
-      co = placedCoins[x][y]
-      if co != None and placedCoins[x+1][y+1] == co and placedCoins[x+2][y+2]==co and (nbPlayers>=3 or (x<=3 and y<=2 and placedCoins[x+3][y+3]==co)):
-        return True
-  return False
+    for x in range(5):
+        for y in range(4):
+            co = placedCoins[x][y]
+            if co is not None and placedCoins[x + 1][y + 1] == co and placedCoins[x + 2][y + 2] == co and (
+                    nbPlayers >= 3 or (x <= 3 and y <= 2 and placedCoins[x + 3][y + 3] == co)):
+                return True
+    return False
+
+
 def dbAlign():
-  for x in range(5):
-    for y in range(2, 6):
-      co = placedCoins[x][y]
-      if co != None and placedCoins[x+1][y-1] == co and placedCoins[x+2][y-2]==co and (nbPlayers>=3 or (x<=3 and y>=3 and placedCoins[x+3][y-3]==co)):
-        return True
-  return False
+    for x in range(5):
+        for y in range(2, 6):
+            co = placedCoins[x][y]
+            if co is not None and placedCoins[x + 1][y - 1] == co and placedCoins[x + 2][y - 2] == co and (
+                    nbPlayers >= 3 or (x <= 3 <= y and placedCoins[x + 3][y - 3] == co)):
+                return True
+    return False
 
-def placeCoin(posx, color):
-  h = len([f for f in placedCoins[posx] if f!=None])
-  placedCoins[posx][h] = color
-  return h
 
-def printGrid():
-  fill_rect(50, 50, 212, 170, black)
-  for x in range(7):
-    fill_rect(52+x*30, 50, 28, 168, white)
-    for y in range(6):
-        if not darkMode: printCoin(x,y,(240,240,240))
-        else: printCoin(x,y,(30,30,30))
-def printCoin(posx,posy,color) : fill_rect(53+30*posx, 191-28*posy, 26, 26, color)
-def clearCoin(pos) : fill_rect(53+30*pos, 23, 26, 26, white)
+def place_coin(posx, color):
+    h = len([f for f in placedCoins[posx] if f is not None])
+    placedCoins[posx][h] = color
+    return h
 
-def selectPosCoin(color):
-  select = 3
-  fill_rect(0, 0, 350, 10, color)
-  if visChoice : printCoin(select, 6, color)
-  while True:
-    if keydown(KEY_LEFT) and select>0:
-      clearCoin(select)
-      select -= 1
-      if visChoice : printCoin(select, 6, color)
-    elif keydown(KEY_RIGHT) and select<6:
-      clearCoin(select)
-      select +=1
-      if visChoice : printCoin(select, 6, color)
-    elif (keydown(KEY_OK)or keydown(KEY_DOWN)) and len([f for f in placedCoins[select] if f!=None])<=5:
-      clearCoin(select)
-      break
-    sleep(0.1)
-  h = placeCoin(select, color)
-  if visGrid : printCoin(select, h, color)
-  sleep(0.3)
+
+def print_grid():
+    fill_rect(50, 50, 212, 170, black)
+    for x in range(7):
+        fill_rect(52 + x * 30, 50, 28, 168, white)
+        for y in range(6):
+            if not darkMode:
+                print_coin(x, y, (240, 240, 240))
+            else:
+                print_coin(x, y, (30, 30, 30))
+
+
+def print_coin(posx, posy, color): fill_rect(53 + 30 * posx, 191 - 28 * posy, 26, 26, color)
+
+
+def clear_coin(pos): fill_rect(53 + 30 * pos, 23, 26, 26, white)
+
+
+def select_pos_coin(color):
+    select = 3
+    fill_rect(0, 0, 350, 10, color)
+    if visChoice: print_coin(select, 6, color)
+    while True:
+        if keydown(KEY_LEFT) and select > 0:
+            clear_coin(select)
+            select -= 1
+            if visChoice: print_coin(select, 6, color)
+        elif keydown(KEY_RIGHT) and select < 6:
+            clear_coin(select)
+            select += 1
+            if visChoice: print_coin(select, 6, color)
+        elif (keydown(KEY_OK) or keydown(KEY_DOWN)) and len([f for f in placedCoins[select] if f is not None]) <= 5:
+            clear_coin(select)
+            break
+        sleep(0.1)
+    h = place_coin(select, color)
+    if visGrid: print_coin(select, h, color)
+    sleep(0.3)
+
 
 def p4():
-  global placedCoins
-  fill_screen(white)
-  placedCoins = [[None]*6 for k in range(0,7)]
-  if visGrid:printGrid()
-  sleep(0.4)
-  while not check():
-    selectPosCoin(blue)
-    if check(): break
-    selectPosCoin(red)
-    if check():break
-    if nbPlayers>=3:
-      selectPosCoin(green)
-    if check(): break
-  printGrid()
-  for x in range(7):
-    for y in range(6):
-      if placedCoins[x][y]!=None:
-        printCoin(x, y, placedCoins[x][y])
-  draw_centered_string(title+" !",100)
-  draw_string("MENU : EXE", 180, 200)
-  draw_string("REJOUER : OK",20,200)
-  while not keydown(KEY_EXE) and not keydown(KEY_OK):
-    pass
-  if keydown(KEY_EXE):menu_p4()
-  else:p4()
+    global placedCoins
+    fill_screen(white)
+    placedCoins = [[None] * 6 for k in range(0, 7)]
+    if visGrid: print_grid()
+    sleep(0.4)
+    while not check():
+        select_pos_coin(blue)
+        if check(): break
+        select_pos_coin(red)
+        if check(): break
+        if nbPlayers >= 3:
+            select_pos_coin(green)
+        if check(): break
+    print_grid()
+    for x in range(7):
+        for y in range(6):
+            if placedCoins[x][y] is not None:
+                print_coin(x, y, placedCoins[x][y])
+    draw_centered_string(title + " !", 100)
+    draw_string("MENU : EXE", 180, 200)
+    draw_string("REJOUER : OK", 20, 200)
+    while not keydown(KEY_EXE) and not keydown(KEY_OK):
+        pass
+    if keydown(KEY_EXE):
+        menu_p4()
+    else:
+        p4()
+
 
 def menu_p4():
-  global darkMode, white, black, visGrid, visChoice, nbPlayers, title
-  def vis_add():
-    printCoin(2, 4, red)
-    printCoin(4, 4, blue)
-    if nbPlayers >=3:
-      printCoin(3,4, green)
-  list_opt = [["Mode sombre", ("Non", "Oui"), darkMode], ["Grille visible", ("Non", "Oui"), visGrid], ["Choix visible", ("Non", "Oui"), visChoice], ["Nb de joueurs", ("2", "3"), nbPlayers-1]]
-  modif_opt = menu(title, vis_add, blue, white, list_opt)
-  if modif_opt[0]!=darkMode:white, black = black, white
-  darkMode = modif_opt[0]
-  visGrid = modif_opt[1]
-  visChoice = modif_opt[2]
-  nbPlayers = modif_opt[3]+1
-  title = "PUISSANCE "+str(6-nbPlayers)
-  if modif_opt[-1]==True:p4()
+    global darkMode, white, black, visGrid, visChoice, nbPlayers, title
+
+    def vis_add():
+        print_coin(2, 4, red)
+        print_coin(4, 4, blue)
+        if nbPlayers >= 3:
+            print_coin(3, 4, green)
+
+    list_opt = [["Mode sombre", ("Non", "Oui"), darkMode], ["Grille visible", ("Non", "Oui"), visGrid],
+                ["Choix visible", ("Non", "Oui"), visChoice], ["Nb de joueurs", ("2", "3"), nbPlayers - 1]]
+    modif_opt = menu(title, vis_add, blue, white, list_opt)
+    if modif_opt[0] != darkMode: white, black = black, white
+    darkMode = modif_opt[0]
+    visGrid = modif_opt[1]
+    visChoice = modif_opt[2]
+    nbPlayers = modif_opt[3] + 1
+    title = "PUISSANCE " + str(6 - nbPlayers)
+    if modif_opt[-1]: p4()
+
 
 menu_p4()
 
