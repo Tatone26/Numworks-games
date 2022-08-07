@@ -6,6 +6,7 @@ from menu import menu, draw_centered_string, fill_screen
 white = color(255, 255, 255)
 black = color(0, 0, 0)
 darkMode = False
+gpos = ((20, 30), (170, 50))
 
 
 class Player:
@@ -15,49 +16,49 @@ class Player:
         self.lastSel = [0, 0]
 
 
-def color_case_grid(grid_pos, pos, color):
-    fill_rect(grid_pos[0] + 1 + 14 * pos[0], grid_pos[1] + 1 + 14 * pos[1], 10, 10, color)
+def color_case_grid(grid, pos, c):
+    fill_rect(gpos[grid][0] + 1 + 14 * pos[0], gpos[grid][1] + 1 + 14 * pos[1], 10, 10, c)
 
 
-def print_grid(grid_pos):
-    posx = grid_pos[0]
-    posy = grid_pos[1]
+def print_grid(grid):
+    posx = gpos[grid][0]
+    posy = gpos[grid][1]
     fill_rect(posx - 1, posy - 1, 126, 126, black)
     fill_rect(posx, posy, 124, 124, white)
     for x in range(8): fill_rect(posx + 12 + 14 * x, posy, 2, 124, black)
     for y in range(8): fill_rect(posx, posy + 12 + 14 * y, 124, 2, black)
 
 
-def print_shot(grid_pos, player, tir):
+def print_shot(grid, player, tir):
     c = white
     if tir + [0] in player.listTirs:
         c = (250, 250, 0)
     elif tir + [1] in player.listTirs:
         c = (250, 0, 0)
-    color_case_grid(grid_pos, tir, c)
+    color_case_grid(grid, tir, c)
 
 
-def print_boat(grid_pos, boat):
+def print_boat(grid, boat):
     for i in range(len(boat)):
-        color_case_grid(grid_pos, boat[i][:2], (250, abs(boat[i][2] - 1) * 150, 0))
+        color_case_grid(grid, boat[i][:2], (250, abs(boat[i][2] - 1) * 150, 0))
 
 
-def select_pos(grid_pos, sinit=(0, 0), opt=None, player=None):  # select initial, griPos, opt = [size, orient]
+def select_pos(grid, sinit=(0, 0), opt=None, player=None):  # select initial, griPos, opt = [size, orient]
 
     if opt is None:
         opt = [5, (1, 0)]
 
     def print_cho():
         for i in range(opt[0]):
-            color_case_grid(grid_pos, [select[0] + 1 * i * opt[1][0], select[1] + 1 * i * opt[1][1]], (250, 0, 250))
+            color_case_grid(grid, [select[0] + 1 * i * opt[1][0], select[1] + 1 * i * opt[1][1]], (250, 0, 250))
 
     def clear_cho():
         for i in range(opt[0]):
             s = [select[0] + 1 * i * opt[1][0], select[1] + 1 * i * opt[1][1]]
             if player is None:
-                color_case_grid(grid_pos, s, white)
+                color_case_grid(grid, s, white)
             else:
-                print_shot(grid_pos, player, s)
+                print_shot(grid, player, s)
 
     def replace():
         if select[1] > 9 - opt[0] and opt[1] == (0, 1):
@@ -103,22 +104,22 @@ def select_pos(grid_pos, sinit=(0, 0), opt=None, player=None):  # select initial
 
 def change_screen(text, next_player):
     fill_screen(white)
-    draw_centered_string("PLAYER " + str(next_player), 75)
-    draw_centered_string(text, 100)
-    draw_centered_string("Press <EXE> to continue.", 200)
+    draw_centered_string("PLAYER " + str(next_player), 75, black, white)
+    draw_centered_string(text, 100, black, white)
+    draw_centered_string("Press <EXE> to continue.", 200, black, white)
     while not keydown(KEY_EXE):
         sleep(0.2)
     fill_screen(white)
 
 
 def place_boats(player):
-    print_grid((20, 20))
-    print_grid((170, 50))
+    print_grid(0)
+    print_grid(1)
     sizes = [5, 4, 3, 3, 2]
     i = 0
     while i < len(sizes):
         opt = [sizes[i], (1, 0)]
-        player.lastSel, opt = select_pos((20, 20), player.lastSel[:], opt)
+        player.lastSel, opt = select_pos(0, player.lastSel[:], opt)
         boat = [[player.lastSel[0] + i * opt[1][0], player.lastSel[1] + i * opt[1][1], 0] for i in range(opt[0])]
         verif = False
         for b in player.listBoats:
@@ -127,19 +128,20 @@ def place_boats(player):
         if not verif:
             player.listBoats.append(
                 [[player.lastSel[0] + i * opt[1][0], player.lastSel[1] + i * opt[1][1], 0] for i in range(opt[0])])
-            print_boat((170, 50), player.listBoats[-1])
+            print_boat(1, player.listBoats[-1])
             i += 1
 
 
 def turn(player, target):
-    print_grid((20, 20))
-    draw_string("V--CIBLE--V", 15, 2)
-    print_grid((170, 50))
-    draw_string("^-VOS BATEAUX-^", 155, 180)
-    for b in player.listBoats: print_boat((170, 50), b)
-    for t in player.listTirs: print_shot((20, 20), player, [t[0], t[1]])
+    print_grid(0)
+    draw_string("V--CIBLE--V", 23, 2, black, white)
+    print_grid(1)
+    draw_string("^-VOS BATEAUX-^", 155, 185, black, white)
+    for b in player.listBoats: print_boat(1, b)
+    for t in player.listTirs: print_shot(0, player, [t[0], t[1]])
     while True:
-        pos, o = select_pos((20, 20), player.lastSel, [1, (1, 1)], player)
+        pos: list
+        pos, o = select_pos(0, player.lastSel, [1, (1, 1)], player)
         player.lastSel = pos[:]
         if pos in [[i[0], i[1]] for i in player.listTirs]:
             continue
@@ -147,7 +149,7 @@ def turn(player, target):
             continue
         elif pos + [0] not in [i for b in target.listBoats for i in b]:
             player.listTirs.append(pos + [0])
-            draw_string("Dans l'eau...", 10, 175)
+            draw_string("Dans l'eau...", 10, 175, black, white)
             sleep(1)
             break
         else:
@@ -157,7 +159,7 @@ def turn(player, target):
                 if pos + [0] in b:
                     b[b.index(pos + [0])][2] = 1
                     if False not in [i[2] == 1 for i in b]:
-                        draw_string("Touché coulé !", 10, 175)
+                        draw_string("Touché coulé !", 10, 175, black, white)
             sleep(1)
             break
 
@@ -169,7 +171,6 @@ def game():
     place_boats(p1)
     change_screen("is going to place his boats.", 2)
     place_boats(p2)
-    win = None
     while True:
         change_screen("is going to attack.", 1)
         turn(p1, p2)
@@ -189,9 +190,9 @@ def menu_bn():
     global darkMode, white, black
 
     def vis_add():
-        print_boat((120, 75), [[0, 0, 0], [1, 0, 0], [2, 0, 1], [3, 0, 0], [4, 0, 0]])
+        print_boat(0, [[8, 5, 0], [9, 5, 0], [10, 5, 1], [11, 5, 0], [12, 5, 0]])
 
-    mod_opt = menu("BATAILLE NAVALE", vis_add, (250, 150, 0), white, [["Mode sombre", ("Non", "Oui"), darkMode]])
+    mod_opt = menu("BATAILLE NAVALE", vis_add, (250, 150, 0), white, [["Mode sombre", ("Non", "Oui"), darkMode]], black)
     if darkMode != mod_opt[0]:
         darkMode = mod_opt[0]
         white, black = black, white

@@ -25,10 +25,11 @@ def dw_no_box(x, y):
 
 def dw_box(box):
     rs = int(185 / size)
+    c = (250 - box[2] * 10, 250 - box[2] * 20, 250 - box[2] * 20)
     fill_rect(xg + 1 + rs * (box[0] - 1), yg + 1 + rs * (box[1] - 1), rs - 1, rs - 1,
               (250 - box[2] * 10, 250 - box[2] * 20, 250 - box[2] * 20))
     draw_string(str(2 ** box[2]), xg + int(rs / 2) + rs * (box[0] - 1) - int(len(str(2 ** box[2])) / 2 * 8),
-                yg + int(rs / 2) - 8 + rs * (box[1] - 1))
+                yg + int(rs / 2) - 8 + rs * (box[1] - 1), (0, 0, 0), c)
 
 
 def draw_pts():

@@ -127,9 +127,9 @@ def p4():
         for y in range(6):
             if placedCoins[x][y] is not None:
                 print_coin(x, y, placedCoins[x][y])
-    draw_centered_string(title + " !", 100)
-    draw_string("MENU : EXE", 180, 200)
-    draw_string("REJOUER : OK", 20, 200)
+    draw_centered_string(title + " !", 100, black, white)
+    draw_string("MENU : EXE", 180, 200, black, white)
+    draw_string("REJOUER : OK", 20, 200, black, white)
     while not keydown(KEY_EXE) and not keydown(KEY_OK):
         pass
     if keydown(KEY_EXE):
@@ -149,7 +149,7 @@ def menu_p4():
 
     list_opt = [["Mode sombre", ("Non", "Oui"), darkMode], ["Grille visible", ("Non", "Oui"), visGrid],
                 ["Choix visible", ("Non", "Oui"), visChoice], ["Nb de joueurs", ("2", "3"), nbPlayers - 1]]
-    modif_opt = menu(title, vis_add, blue, white, list_opt)
+    modif_opt = menu(title, vis_add, blue, white, list_opt, black)
     if modif_opt[0] != darkMode: white, black = black, white
     darkMode = modif_opt[0]
     visGrid = modif_opt[1]
