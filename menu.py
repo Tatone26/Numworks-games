@@ -79,10 +79,10 @@ def options(olist, select_col, bkgd_col, text_col):
 def move_select(size, pos, vis_fonc):
     sleep(0.2)
     while not keydown(KEY_OK):
-        if keydown(KEY_DOWN) and pos > 0:
+        if (keydown(KEY_DOWN) or keydown(KEY_LEFT)) and pos > 0:
             vis_fonc(pos, pos - 1)
             pos -= 1
-        elif keydown(KEY_UP) and pos < size - 1:
+        elif (keydown(KEY_UP) or keydown(KEY_RIGHT)) and pos < size - 1:
             vis_fonc(pos, pos + 1)
             pos += 1
         elif keydown(KEY_EXE):

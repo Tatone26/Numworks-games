@@ -1,7 +1,7 @@
 from kandinsky import *
 from ion import *
 from time import *
-from menu import menu, draw_centered_string, fill_screen
+from menu import menu, draw_centered_string, fill_screen, move_select
 
 white = color(255, 255, 255)
 black = color(0, 0, 0)
@@ -87,25 +87,20 @@ def clear_coin(pos): fill_rect(53 + 30 * pos, 23, 26, 26, white)
 
 
 def select_pos_coin(color):
-    select = 3
+    def vis_function(pos, new_pos):
+        clear_coin(pos)
+        if visChoice: print_coin(new_pos, 6, color)
     fill_rect(0, 0, 350, 10, color)
-    if visChoice: print_coin(select, 6, color)
-    while True:
-        if keydown(KEY_LEFT) and select > 0:
-            clear_coin(select)
-            select -= 1
-            if visChoice: print_coin(select, 6, color)
-        elif keydown(KEY_RIGHT) and select < 6:
-            clear_coin(select)
-            select += 1
-            if visChoice: print_coin(select, 6, color)
-        elif (keydown(KEY_OK) or keydown(KEY_DOWN)) and len([f for f in placedCoins[select] if f is not None]) <= 5:
-            clear_coin(select)
-            break
-        sleep(0.1)
-    h = place_coin(select, color)
-    if visGrid: print_coin(select, h, color)
-    sleep(0.3)
+    if visChoice: print_coin(3, 6, color)
+    select = move_select(7, 3, vis_function)
+    if select < 0 or len([f for f in placedCoins[select] if f is not None]) > 5:
+        fill_rect(53, 23, 270, 26, white)
+        select_pos_coin(color)
+    else:
+        h = place_coin(select, color)
+        if visGrid: print_coin(select, h, color)
+        clear_coin(select)
+        sleep(0.3)
 
 
 def p4():
