@@ -7,4 +7,4 @@ matplotlib==3.5.2
 numpy==1.23.1
 pip==22.2.2
 pygame==2.1.2
-
+future~=0.18.2
