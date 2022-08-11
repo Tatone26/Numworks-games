@@ -51,8 +51,8 @@ def set_table():
     for j in range(7):  # placing table
         table[j + 6] = table[5][:j + 1]
         for k in range(j + 1):
-            table[j+6][k].pos = j + 6
-        table[j+6][0].shown = True
+            table[j + 6][k].pos = j + 6
+        table[j + 6][0].shown = True
         table[5] = table[5][j + 1:]
 
 
@@ -69,7 +69,7 @@ def place_cards_there(cards, pos):
     def insertion():
         for i in reversed(cards):
             stack.insert(0, i)
-            return True
+        return True
 
     if 0 <= pos < 4 and len(cards) == 1 and cards[0].suit == pos:
         if (len(stack) <= 0 and cards[0].number == 1) or (len(stack) > 0 and cards[0].number == stack[0].number + 1):
@@ -82,6 +82,19 @@ def place_cards_there(cards, pos):
         elif cards[-1].number == 13:
             return insertion()
     return False
+
+
+def turning_deck():
+    c = min(3, len(table[5]))  # de combien on tourne
+    if c < 3:
+        fill_rect(189, 10, 69, 52, green)
+    for k in range(c):
+        table[5][0].pos, table[5][0].shown = 4, True
+        table[4].insert(0, table[5][0])
+        table[5].remove(table[5][0])
+    for k in reversed(range(min(3, len(table[4])))):
+        draw_card(table[4][k])
+    draw_card(get_stack_from_pos(5, empty=False)[0], outline=select_colors[0], outline_size=3)
 
 
 # GRAPHIQUE #
@@ -128,18 +141,6 @@ def draw_card(card: Card, outline=black, outline_size=1, clear=False, abs_pos=No
             draw_string(letters_list[card.number - 1], abs_pos[0] + 3, abs_pos[1] + 2, black, white)
 
 
-def turning_deck():
-    c = min(3, len(table[5]))  # de combien on tourne
-    if c < 3:
-        fill_rect(189, 10, 69, 52, green)
-    for k in range(c):
-        table[5][0].pos, table[5][0].shown = 4, True
-        table[4].insert(0, table[5][0])
-        table[5].remove(table[5][0])
-    for k in reversed(range(min(3, len(table[4])))):
-        draw_card(table[4][k])
-
-
 # MAIN #
 
 
@@ -148,11 +149,14 @@ def solitaire():
     draw_table()
 
     pos: int = 9
+    draw_card(get_stack_from_pos(pos, empty=False)[0], outline=select_colors[0], outline_size=3)
     selected_cards: list[Card] = []
 
     def clear_selection():
         for k in reversed(selected_cards):
             draw_card(k)
+        if len(selected_cards) > 0 and selected_cards[0].pos == pos:
+            draw_card(selected_cards[0], outline=select_colors[0], outline_size=3)
         selected_cards.clear()
 
     def draw_selection():
@@ -164,8 +168,17 @@ def solitaire():
         if keydown(KEY_OK):
             if pos == 5:
                 clear_selection()
-                turning_deck()
-            elif pos == 4:
+                if len(table[5]) > 0:
+                    turning_deck()
+                else:
+                    while len(table[4]) > 0:
+                        table[4][-1].pos, table[4][-1].shown = 5, False
+                        table[5].append(table[4][-1])
+                        table[4].pop()
+                    fill_rect(189, 10, 69, 52, green)
+                    draw_card(Card(None, None, 4))
+                    draw_card(table[5][0], outline=select_colors[0], outline_size=3)
+            elif pos == 4 and len(selected_cards) <= 0 and len(table[4]) > 0:
                 clear_selection()
                 selected_cards.append(table[4][0])
                 draw_selection()
@@ -173,23 +186,29 @@ def solitaire():
                 selected_cards.append(get_stack_from_pos(pos)[0])
                 draw_selection()
             elif len(selected_cards) > 0:
+                draw_card(get_stack_from_pos(pos, empty=False)[0])
                 if place_cards_there(selected_cards, pos):
                     old_stack_pos = selected_cards[0].pos
                     for i in selected_cards:
                         draw_card(i, clear=True)
                         i.pos = pos
                         get_stack_from_pos(old_stack_pos).remove(i)
+                    for i in reversed(selected_cards):
                         draw_card(i)
                     if old_stack_pos == 4:
                         if len(table[4]) < 3:
                             fill_rect(189, 10, 69, 52, green)
-                        for k in reversed(range(min(3, len(table[4])))):
-                            draw_card(table[4][k])
+                        for p in reversed(range(min(3, len(table[4])))):
+                            draw_card(table[4][p])
                     else:
                         new_card = get_stack_from_pos(old_stack_pos, empty=False)[0]
                         new_card.shown = True
                         draw_card(new_card)
                     selected_cards.clear()
+                card = get_stack_from_pos(pos, False)[0]
+                draw_card(card,
+                          outline=select_colors[int(len(selected_cards) > 0 and pos == selected_cards[0].pos)],
+                          outline_size=3)
             sleep(0.1)
         elif keydown(KEY_EXE):
             clear_selection()
@@ -210,6 +229,10 @@ def solitaire():
             pos -= 6
         elif keydown(KEY_DOWN) and 0 <= pos <= 5:
             pos += 6
+        elif keydown(KEY_ZERO):
+            for i in table:
+                i.clear()
+            solitaire()
         if oldpos != pos:
             if len(selected_cards) == 0 or oldpos != selected_cards[0].pos:
                 draw_card(get_stack_from_pos(oldpos, False)[0])
@@ -217,6 +240,7 @@ def solitaire():
             draw_card(card, outline=select_colors[int(len(selected_cards) > 0 and pos == selected_cards[0].pos)],
                       outline_size=3)
         sleep(0.1)
+    draw_string("GAGNE", 100, 100)
 
 
 def menu_sol():
