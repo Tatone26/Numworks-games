@@ -24,9 +24,7 @@ select_colors = (color(18, 213, 7), color(12, 199, 150))
 color_list = (red, orange, blue, purple)
 letters_list = ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 
-placed_cards = [[], [], [], [], [], [], []]
-final_stacks = [[], [], [], []]
-deck = [[], 0]
+table = [[], [], [], [], [], [], [], [], [], [], [], [], []]
 
 
 # TECHNIQUE #
@@ -41,66 +39,48 @@ class Card:
 
 
 def set_table():
-    global deck, placed_cards
+    global table
     temp = []
     for s in range(4):  # creates deck
         for n in range(13):
-            temp.append(Card(n + 1, s + 1, 6))
+            temp.append(Card(n + 1, s, 5))
     for i in range(52):  # randomizing
         c = choice(temp)
-        deck[0].append(c)
+        table[5].append(c)
         temp.remove(c)
     for j in range(7):  # placing table
-        placed_cards[j] = deck[0][:j + 1]
+        table[j + 6] = table[5][:j + 1]
         for k in range(j + 1):
-            placed_cards[j][k].pos = j + 7
-        placed_cards[j][0].shown = True
-        deck[0] = deck[0][j + 1:]
+            table[j+6][k].pos = j + 6
+        table[j+6][0].shown = True
+        table[5] = table[5][j + 1:]
 
 
 def get_stack_from_pos(pos, empty=True) -> list[Card]:
-    if 0 < pos < 5:
-        if len(final_stacks[pos - 1]) <= 0 and not empty:
-            return [Card(None, None, pos)]
-        return final_stacks[pos - 1]
-    elif pos == 5:
-        if deck[1] > 0:
-            return deck[0][:deck[1]]  # TODO
-        else:
-            return [Card(None, None, pos)]
-    elif 6 < pos <= 13:
-        if len(placed_cards[pos - 7]) <= 0 and not empty:
-            return [Card(None, None, pos)]
-        return placed_cards[pos - 7]
+    if len(table[pos]) <= 0 and not empty:
+        return [Card(None, None, pos)]
     else:
-        return deck[0][deck[1]:]
-
-
-def win():
-    return len(deck) <= 0
+        return table[pos]
 
 
 def place_cards_there(cards, pos):
     stack = get_stack_from_pos(pos)
-    if 0 < pos <= 4 and len(cards) <= 1:
-        if len(stack) <= 0 and cards[0].number == 1 and cards[0].suit == pos:
-            stack.insert(0, cards[0])
+
+    def insertion():
+        for i in reversed(cards):
+            stack.insert(0, i)
             return True
-        elif len(stack) > 0 and cards[0].number == stack[-1].number + 1:
-            stack.insert(0, cards[0])
-            return True
-    elif 7 <= pos <= 13:
+
+    if 0 <= pos < 4 and len(cards) == 1 and cards[0].suit == pos:
+        if (len(stack) <= 0 and cards[0].number == 1) or (len(stack) > 0 and cards[0].number == stack[0].number + 1):
+            return insertion()
+    elif 6 <= pos < 13:
         if len(stack) > 0:
-            if cards[-1].number == stack[0].number - 1:
-                if 0 < cards[-1].suit <= 2 and 3 <= stack[0].suit <= 4 \
-                        or 3 <= cards[-1].suit <= 4 and 0 < stack[0].suit <= 2:
-                    for i in reversed(cards):
-                        stack.insert(0, i)
-                    return True
+            if cards[-1].number == stack[0].number - 1 and ((0 <= cards[-1].suit < 2 and 2 <= stack[0].suit < 4)
+                                                            or (2 <= cards[-1].suit < 4 and 0 <= stack[0].suit < 2)):
+                return insertion()
         elif cards[-1].number == 13:
-            for i in reversed(cards):
-                stack.insert(0, i)
-            return True
+            return insertion()
     return False
 
 
@@ -109,29 +89,28 @@ def place_cards_there(cards, pos):
 
 def draw_table():
     fill_screen(green)
-    for i in placed_cards:
+    for i in table:
         for j in reversed(i):
             draw_card(j)
     for i in range(4):
-        draw_card(Card(None, None, i + 1))
+        draw_card(Card(None, None, i))
         fill_rect(22 + 38 * i, 5, 32, 3, color_list[i])
-    draw_card(Card(None, None, 5))
-    draw_card(deck[0][0])
+    draw_card(Card(None, None, 4))
 
 
 def get_abs_pos(card) -> tuple[int, int]:
-    stack = get_stack_from_pos(card.pos)
+    stack = get_stack_from_pos(card.pos, empty=False)  # PAS SUR
     card_index = 1
     if card.number is not None:
         card_index = stack.index(card)
-    if 0 < card.pos <= 4:
-        return 20 + (card.pos - 1) * 38, 10
+    if 0 <= card.pos < 4:
+        return 20 + card.pos * 38, 10
+    elif card.pos == 4:
+        return 223 - 15 * (card_index % 3), 10
     elif card.pos == 5:
-        return 223, 10
-    elif card.pos == 6:
         return 275, 10
-    elif 13 >= card.pos > 6:
-        return 15 + 42 * (card.pos - 7), 55 + 15 * max(len(stack) - card_index, 1)
+    elif 13 > card.pos >= 6:
+        return 15 + 42 * (card.pos - 6), 55 + 15 * max(len(stack) - card_index, 1)
     elif card.pos is None:
         return -100, -100
 
@@ -139,23 +118,26 @@ def get_abs_pos(card) -> tuple[int, int]:
 def draw_card(card: Card, outline=black, outline_size=1, clear=False, abs_pos=None):
     if abs_pos is None:
         abs_pos = get_abs_pos(card)
+    fill_rect(abs_pos[0], abs_pos[1], 35, 52, outline if not clear else green)
     if not clear:
-        fill_rect(abs_pos[0], abs_pos[1], 35, 52, outline)
-        if card.number is not None:
-            if card.shown:
-                fill_rect(abs_pos[0] + outline_size, abs_pos[1] + outline_size, 35 - 2 * outline_size,
-                          52 - 2 * outline_size, white)
-                fill_rect(abs_pos[0] + 17, abs_pos[1] + 3, 15, 15, color_list[card.suit - 1])
-                fill_rect(abs_pos[0] + 3, abs_pos[1] + 34, 15, 15, color_list[card.suit - 1])
-                draw_string(letters_list[card.number - 1], abs_pos[0] + 3, abs_pos[1] + 2, black, white)
-            else:
-                fill_rect(abs_pos[0] + outline_size, abs_pos[1] + outline_size, 35 - 2 * outline_size,
-                          52 - 2 * outline_size, gray)
-        else:
-            fill_rect(abs_pos[0] + outline_size, abs_pos[1] + outline_size, 35 - 2 * outline_size,
-                      52 - 2 * outline_size, green)
-    else:
-        fill_rect(abs_pos[0], abs_pos[1], 35, 52, green)
+        fill_rect(abs_pos[0] + outline_size, abs_pos[1] + outline_size, 35 - 2 * outline_size,
+                  52 - 2 * outline_size, green if card.number is None else (white if card.shown else gray))
+        if card.shown and card.number is not None:
+            fill_rect(abs_pos[0] + 17, abs_pos[1] + 3, 15, 15, color_list[card.suit])
+            fill_rect(abs_pos[0] + 3, abs_pos[1] + 34, 15, 15, color_list[card.suit])
+            draw_string(letters_list[card.number - 1], abs_pos[0] + 3, abs_pos[1] + 2, black, white)
+
+
+def turning_deck():
+    c = min(3, len(table[5]))  # de combien on tourne
+    if c < 3:
+        fill_rect(189, 10, 69, 52, green)
+    for k in range(c):
+        table[5][0].pos, table[5][0].shown = 4, True
+        table[4].insert(0, table[5][0])
+        table[5].remove(table[5][0])
+    for k in reversed(range(min(3, len(table[4])))):
+        draw_card(table[4][k])
 
 
 # MAIN #
@@ -165,7 +147,7 @@ def solitaire():
     set_table()
     draw_table()
 
-    pos: int = 10
+    pos: int = 9
     selected_cards: list[Card] = []
 
     def clear_selection():
@@ -177,36 +159,37 @@ def solitaire():
         for k in reversed(selected_cards):
             draw_card(k, outline=select_colors[1], outline_size=3)
 
-    while not win():
+    while len(table[4]) + len(table[5]) >= 0:  # BOUCLE PRINCIPALE
         oldpos = pos
         if keydown(KEY_OK):
-            if pos == 6:
+            if pos == 5:
                 clear_selection()
-                # TODO : turning the deck lol
-            elif pos == 5:
+                turning_deck()
+            elif pos == 4:
                 clear_selection()
-                # TODO : récupérer la bonne carte
+                selected_cards.append(table[4][0])
+                draw_selection()
             elif len(selected_cards) <= 0 and len(get_stack_from_pos(pos)) > 0:
                 selected_cards.append(get_stack_from_pos(pos)[0])
                 draw_selection()
-            elif len(selected_cards) > 0 and place_cards_there(selected_cards, pos):
-                old_stack_pos = selected_cards[0].pos
-                old_stack = get_stack_from_pos(old_stack_pos)
-                for i in selected_cards:
-                    draw_card(i, clear=True)
-                    old_stack.remove(i)
-                    i.pos = pos
-                if len(old_stack) == 0:
-                    old_stack.append(Card(None, None, old_stack_pos))
-                old_stack[0].shown = True
-                for i in reversed(old_stack):
-                    draw_card(i)
-                if old_stack[0].number is None:
-                    old_stack.clear()
-                for i in reversed(get_stack_from_pos(pos)):
-                    if i.shown:
+            elif len(selected_cards) > 0:
+                if place_cards_there(selected_cards, pos):
+                    old_stack_pos = selected_cards[0].pos
+                    for i in selected_cards:
+                        draw_card(i, clear=True)
+                        i.pos = pos
+                        get_stack_from_pos(old_stack_pos).remove(i)
                         draw_card(i)
-                selected_cards.clear()
+                    if old_stack_pos == 4:
+                        if len(table[4]) < 3:
+                            fill_rect(189, 10, 69, 52, green)
+                        for k in reversed(range(min(3, len(table[4])))):
+                            draw_card(table[4][k])
+                    else:
+                        new_card = get_stack_from_pos(old_stack_pos, empty=False)[0]
+                        new_card.shown = True
+                        draw_card(new_card)
+                    selected_cards.clear()
             sleep(0.1)
         elif keydown(KEY_EXE):
             clear_selection()
@@ -219,19 +202,19 @@ def solitaire():
             if card.shown:
                 selected_cards.append(get_stack_from_pos(pos)[len(selected_cards)])
                 draw_selection()
-        elif keydown(KEY_RIGHT) and pos < 13:
+        elif keydown(KEY_RIGHT) and pos < 12:
             pos += 1
-        elif keydown(KEY_LEFT) and pos > 1:
+        elif keydown(KEY_LEFT) and pos > 0:
             pos -= 1
-        elif keydown(KEY_UP) and 7 <= pos <= 12:
+        elif keydown(KEY_UP) and 6 <= pos <= 11:
             pos -= 6
-        elif keydown(KEY_DOWN) and 1 <= pos <= 6:
+        elif keydown(KEY_DOWN) and 0 <= pos <= 5:
             pos += 6
         if oldpos != pos:
             if len(selected_cards) == 0 or oldpos != selected_cards[0].pos:
                 draw_card(get_stack_from_pos(oldpos, False)[0])
-            draw_card(get_stack_from_pos(pos, False)[0],
-                      outline=select_colors[int(len(selected_cards) > 0 and pos == selected_cards[0].pos)],
+            card = get_stack_from_pos(pos, False)[0]
+            draw_card(card, outline=select_colors[int(len(selected_cards) > 0 and pos == selected_cards[0].pos)],
                       outline_size=3)
         sleep(0.1)
 
@@ -240,8 +223,8 @@ def menu_sol():
     global darkMode, difficulty, black, white, gray
 
     def vis_add():
-        draw_card(Card(13, 1, 1, shown=True), abs_pos=(122, 70))
-        draw_card(Card(1, 4, 1, shown=True), abs_pos=(172, 70))
+        draw_card(Card(13, 0, 1, shown=True), abs_pos=(122, 70))
+        draw_card(Card(1, 3, 1, shown=True), abs_pos=(172, 70))
 
     list_opt = [["Mode sombre", ("Non", "Oui"), darkMode],
                 ["Difficulté", ("Facile", "Normal", "Difficile"), difficulty]]
