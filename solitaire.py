@@ -128,7 +128,7 @@ def draw_card(card: Card, outline=black, outline_size=1, clear=False, abs_pos=No
         if card.shown and card.number is not None:
             fill_rect(abs_pos[0] + 17, abs_pos[1] + 3, 15, 15, color_list[card.suit])
             fill_rect(abs_pos[0] + 3, abs_pos[1] + 34, 15, 15, color_list[card.suit])
-            draw_string(letters_list[card.number - 1], abs_pos[0] + 3, abs_pos[1] + 2, black, white)
+            draw_string(letters_list[card.number - 1], abs_pos[0] + 3, abs_pos[1] + 3, black, white)
 
 
 def win():
@@ -227,12 +227,13 @@ def solitaire():
         sleep(0.1)
     draw_centered_string(" BRAVO !! ", 100, white, green)
     draw_string("REJOUER : <0>", 10, 200, white, green)
-    draw_string("MENU : <EXE>", 190, 200, white, green)
+    draw_string("MENU : <ANS>", 190, 200, white, green)
     while True:
-        if keydown(KEY_EXE):
+        if keydown(KEY_ANS):
             menu_sol()
         elif keydown(KEY_ZERO):
             solitaire()
+        sleep(0.1)
 
 
 def menu_sol():
