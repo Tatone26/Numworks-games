@@ -136,7 +136,7 @@ def win():
         for j in i:
             if not j.shown:
                 return False
-    return len(table[4]) + len(table[5]) <= 0
+    return len(table[4]) == 0
 
 
 def solitaire():
@@ -217,8 +217,6 @@ def solitaire():
         elif keydown(KEY_DOWN) and 0 <= pos <= 5:
             pos += 6
         elif keydown(KEY_ZERO):
-            for i in table:
-                i.clear()
             solitaire()
         if oldpos != pos:
             if len(selected_cards) == 0 or oldpos != selected_cards[0].pos:
