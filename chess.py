@@ -69,106 +69,90 @@ def create_initial_board():
 
 def selection(init_pos):
     pos = init_pos.copy()
+    moves = []
+    selected_piece = None
 
     def draw_selection():
         auto_draw_box(pos, c=(255, 0, 0))
 
+    def clear_selection():
+        auto_draw_box(pos, c=(0, 255, 0) if pos in moves else None)
+
     draw_selection()
     while True:
-        if keydown(KEY_RIGHT) and pos[0] < 7:
-            auto_draw_box(pos)
-            pos[0] += 1
-            draw_selection()
-        elif keydown(KEY_LEFT) and pos[0] > 0:
-            auto_draw_box(pos)
-            pos[0] -= 1
-            draw_selection()
-        elif keydown(KEY_DOWN) and pos[1] < 7:
-            auto_draw_box(pos)
-            pos[1] += 1
-            draw_selection()
-        elif keydown(KEY_UP) and pos[1] > 0:
-            auto_draw_box(pos)
-            pos[1] -= 1
-            draw_selection()
+        mvt = (0, 0)
+        if keydown(KEY_RIGHT):
+            mvt = (1, 0)
+        elif keydown(KEY_LEFT):
+            mvt = (-1, 0)
+        elif keydown(KEY_DOWN):
+            mvt = (0, 1)
+        elif keydown(KEY_UP):
+            mvt = (0, -1)
         elif keydown(KEY_OK):
-            moves = get_possible_moves(pos)
-            for i in moves:
-                auto_draw_box(i, c=(0, 255, 0))
+            for p in moves:
+                auto_draw_box(p)
+            if pos in moves and selected_piece is not None:
+                move_piece(selected_piece, pos)
+                moves.clear()
+                selected_piece = None
+            else:
+                if selected_piece != pos and board[pos[0]][pos[1]] is not None:
+                    selected_piece = pos.copy()
+                    moves = get_possible_moves(pos)
+                    for i in moves:
+                        auto_draw_box(i, c=(0, 255, 0))
+                else:
+                    selected_piece = None
+                    moves.clear()
+            sleep(0.1)
+        if mvt != (0, 0) and 0 <= pos[0]+mvt[0] <= 7 and 0 <= pos[1]+mvt[1] <= 7:
+            clear_selection()
+            pos[0] += mvt[0]
+            pos[1] += mvt[1]
+            draw_selection()
         sleep(0.1)
 
 
 def get_possible_moves(pos):
+    """Renvoie les mouvements possibles de la pièce à cette position.
+    Renvoie une liste vide si il n'y a pas de pièce."""
     p = board[pos[0]][pos[1]]
     if p is None:
         return []
     else:
         moves = []
         if p[0] == 0:  # PIONS
-            if board[pos[0] + 1 - 2 * p[1]][pos[1]] is None:
+            if board[pos[0] + 1 - 2 * p[1]][pos[1]] is None:  # TOUT DROIT
                 moves.append([pos[0] + 1 - 2 * p[1], pos[1]])
-                if pos[0] == 1 + 5 * p[1] and board[pos[0] + 2 - 4 * p[1]][pos[1]] is None:
+                if pos[0] == 1 + 5 * p[1] and board[pos[0] + 2 - 4 * p[1]][pos[1]] is None:  # DOUBLE SI PAS BOUGE
                     moves.append([pos[0] + 2 - 4 * p[1], pos[1]])
-            if board[pos[0] + 1 - 2 * p[1]][pos[1] + 1] is not None and board[pos[0] + 1 - 2 * p[1]][pos[1] + 1][1] != \
-                    p[1]:
-                moves.append([pos[0] + 1 - 2 * p[1], pos[1] + 1])
-            if board[pos[0] + 1 - 2 * p[1]][pos[1] - 1] is not None and board[pos[0] + 1 - 2 * p[1]][pos[1] - 1][1] != \
-                    p[1]:
-                moves.append([pos[0] + 1 - 2 * p[1], pos[1] - 1])
-
+            for i in [1, -1]:  # BOUFFER LES AUTRES
+                if board[pos[0] + 1 - 2 * p[1]][pos[1] + i] is not None and board[pos[0] + 1 - 2 * p[1]][pos[1] + i][
+                    1] != \
+                        p[1]:
+                    moves.append([pos[0] + 1 - 2 * p[1], pos[1] + i])
+        d = []
         if p[0] == 1 or p[0] == 4:  # LIGNES DROITES
-            i = pos[0] + 1
-            while i <= 7 and (board[i][pos[1]] is None or board[i][pos[1]][1] != p[1]):
-                moves.append([i, pos[1]])
-                if board[i][pos[1]] is not None and board[i][pos[1]][1] != p[1]: break
-                i += 1
-            j = pos[0] - 1
-            while j >= 0 and (board[j][pos[1]] is None or board[j][pos[1]][1] != p[1]):
-                moves.append([j, pos[1]])
-                if board[j][pos[1]] is not None and board[j][pos[1]][1] != p[1]: break
-                j -= 1
-            k = pos[1] + 1
-            while k <= 7 and (board[pos[0]][k] is None or board[pos[0]][k][1] != p[1]):
-                moves.append([pos[0], k])
-                if board[pos[0]][k] is not None and board[pos[0]][k][1] != p[1]: break
-                k += 1
-            e = pos[1] - 1
-            while e >= 0 and (board[pos[0]][e] is None or board[pos[0]][e][1] != p[1]):
-                moves.append([pos[0], e])
-                if board[pos[0]][e] is not None and board[pos[0]][e][1] != p[1]: break
-                e -= 1
-
+            d += [(1, 0), (-1, 0), (0, 1), (0, -1)]
         if p[0] == 4 or p[0] == 3:  # DIAGONALES
-            i = 1
-            while pos[0] + i <= 7 and pos[1] + i <= 7 and (
-                    board[pos[0] + i][pos[1] + i] is None or board[pos[0] + i][pos[1] + i][1] != p[1]):
-                moves.append([pos[0] + i, pos[1] + i])
-                if board[pos[0] + i][pos[1] + i] is not None and board[pos[0] + i][pos[1] + i][1] != p[1]: break
-                i += 1
-            j = -1
-            while pos[0] + j >= 0 and pos[1] + j >= 0 and (
-                    board[pos[0] + j][pos[1] + j] is None or board[pos[0] + j][pos[1] + j][1] != p[1]):
-                moves.append([pos[0] + j, pos[1] + j])
-                if board[pos[0] + j][pos[1] + j] is not None and board[pos[0] + j][pos[1] + j][1] != p[1]: break
-                j -= 1
-            k = 1
-            while pos[0] + k <= 7 and pos[1] - k >= 0 and (
-                    board[pos[0] + k][pos[1] - k] is None or board[pos[0] + k][pos[1] - k][1] != p[1]):
-                moves.append([pos[0] + k, pos[1] - k])
-                if board[pos[0] + k][pos[1] - k] is not None and board[pos[0] + k][pos[1] - k][1] != p[1]: break
-                k += 1
-            e = -1
-            while pos[0] + e >= 0 and pos[1] - e <= 7 and (
-                    board[pos[0] + e][pos[1] - e] is None or board[pos[0] + e][pos[1] - e][1] != p[1]):
-                moves.append([pos[0] + e, pos[1] - e])
-                if board[pos[0] + e][pos[1] - e] is not None and board[pos[0] + e][pos[1] - e][1] != p[1]: break
-                e -= 1
+            d += [(1, 1), (-1, 1), (1, -1), (-1, -1)]
+        for e in d:  # CHECK INFINI (LA PIECE PEUT AVANCER TANT QU'ELLE N'EST PAS BLOQUEE)
+            i, j = pos[0] + e[0], pos[1] + e[1]
+            while 0 <= i <= 7 and 0 <= j <= 7 and (board[i][j] is None or board[i][j][1] != p[1]):
+                moves.append([i, j])
+                if board[i][j] is not None and board[i][j][1] != p[1]: break
+                i += e[0]
+                j += e[1]
+        d = []
         if p[0] == 2:  # CHEVAL
-            a = [(2, 1), (2, -1), (-2, 1), (-2, -1), (1, -2), (-1, -2), (1, 2), (-1, -2)]
-            for i in a:
-                if 0 <= pos[0] + i[0] <= 7 and 0 <= pos[1] + i[1] <= 7:
-                    if board[pos[0] + i[0]][pos[1] + i[1]] is None or board[pos[0] + i[0]][pos[1] + i[1]][1] != p[1]:
-                        moves.append([pos[0] + i[0], pos[1] + i[1]])
+            d = [(2, 1), (2, -1), (-2, 1), (-2, -1), (1, -2), (-1, -2), (1, 2), (-1, -2)]
+        if p[0] == 5:
+            d = [(1, 0), (1, 1), (0, 1), (-1, 0), (0, -1), (-1, -1), (-1, 1), (1, -1)]
+        for i in d:
+            if 0 <= pos[0] + i[0] <= 7 and 0 <= pos[1] + i[1] <= 7:
+                if board[pos[0] + i[0]][pos[1] + i[1]] is None or board[pos[0] + i[0]][pos[1] + i[1]][1] != p[1]:
+                    moves.append([pos[0] + i[0], pos[1] + i[1]])
         return moves
 
 
