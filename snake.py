@@ -19,8 +19,8 @@ green = (0, 120, 0)
 l_green = (40, 200, 120)
 
 
-def box(x, y, color):
-    fill_rect(10 * x + field[3], 10 * y + field[4], 10, 10, color)
+def box(x, y, c):
+    fill_rect(10 * x + field[3], 10 * y + field[4], 10, 10, c)
 
 
 def draw_case(x, y):
@@ -59,7 +59,7 @@ class Snake:
             if not self.pos[1][abs(di[1])] != self.pos[0][abs(di[1])] + sum(di):
                 return False
             elif not killerSizes:
-                a = int((sum(di) - 1) / -2)
+                a = (sum(di) - 1) // -2
                 b = abs(di[1])
                 if self.pos[a][b] == field[b] - 1 and self.pos[abs(a - 1)][b] == 0:
                     return False
@@ -78,8 +78,8 @@ class Snake:
             draw_centered_string("Points : " + str(points), 120)
             sleep(0.3)
             while not keydown(KEY_OK): pass
-            for x in range(round(9 - field[3] / 10), round(22 - field[3] / 10)):
-                for y in range(round(9 - field[4] / 10), round(14 - field[4] / 10)): draw_case(x, y)
+            for x in range((9 - field[3] // 10), (22 - field[3] // 10)):
+                for y in range((9 - field[4] // 10), (14 - field[4] // 10)): draw_case(x, y)
             draw_fruit()
             for w in posWall:
                 draw_wall(w)
@@ -144,9 +144,9 @@ def snk():
     global points, posWall
     points = 0
     posWall = []
-    color = (0, 0, 0)
-    if not killerSizes: color = (150, 150, 150)
-    fill_rect(field[3] - 5, field[4] - 5, 10 * field[0] + 10, 10 * field[1] + 10, color)
+    col = (0, 0, 0)
+    if not killerSizes: col = (150, 150, 150)
+    fill_rect(field[3] - 5, field[4] - 5, 10 * field[0] + 10, 10 * field[1] + 10, col)
     for x in range(field[0]):
         for y in range(field[1]): draw_case(x, y)
     s = Snake()

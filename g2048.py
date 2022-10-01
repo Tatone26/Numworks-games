@@ -97,10 +97,7 @@ def fuse_boxes(drct):
     global lbx, pts
     new_lbx = []
     used = []
-    if drct[0] != 0:
-        n = 0
-    else:
-        n = 1
+    n = int(drct[0] == 0)
     lbx.sort(key=lambda x: x[int(not bool(n))])
     lbx.sort(key=lambda x: x[n])
     if sum(drct) < 0:

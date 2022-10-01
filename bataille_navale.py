@@ -39,8 +39,8 @@ def print_shot(grid, player, tir):
 
 
 def print_boat(grid, boat):
-    for i in range(len(boat)):
-        color_case_grid(grid, boat[i][:2], (250, abs(boat[i][2] - 1) * 150, 0))
+    for c in boat:
+        color_case_grid(grid, c[:2], (250, abs(c[2] - 1) * 150, 0))
 
 
 def select_pos(grid, sinit=(0, 0), opt=None, player=None):  # select initial, griPos, opt = [size, orient]

@@ -41,7 +41,7 @@ def set_table():
             temp.append(Card(n + 1, s, 5))
         draw_card(Card(None, None, s))
         fill_rect(22 + 38 * s, 5, 32, 3, color_list[s])
-    for i in range(52):
+    for _ in range(52):
         c = choice(temp)
         table[5].append(c)
         temp.remove(c)
@@ -84,7 +84,7 @@ def turning_deck():
     fill_rect(189, 10, 69, 52, green)
     draw_card(Card(None, None, 4))
     if len(table[5]) > 0:
-        for k in range(min(difficulty, len(table[5]))):
+        for _ in range(min(difficulty, len(table[5]))):
             table[5][0].pos, table[5][0].shown = 4, True
             table[4].insert(0, table[5][0])
             table[5].remove(table[5][0])
@@ -148,7 +148,7 @@ def solitaire():
     def clear_selection():
         for k in reversed(selected_cards):
             draw_card(k)
-        if len(selected_cards) > 0 and selected_cards[0].pos == pos:
+        if selected_cards and selected_cards[0].pos == pos:
             draw_card(selected_cards[0], outline=select_colors[0], outline_size=3)
         selected_cards.clear()
 
@@ -158,7 +158,7 @@ def solitaire():
 
     def draw_cursor():
         draw_card(get_stack_from_pos(pos, empty=False)[0],
-                  outline=select_colors[int(len(selected_cards) > 0 and pos == selected_cards[0].pos)],
+                  outline=select_colors[bool(selected_cards and pos == selected_cards[0].pos)],
                   outline_size=3)
 
     draw_cursor()
@@ -168,14 +168,14 @@ def solitaire():
             if pos == 5:
                 clear_selection()
                 turning_deck()
-            elif pos == 4 and len(selected_cards) <= 0 and len(table[4]) > 0:
+            elif pos == 4 and not selected_cards and table[4]:
                 clear_selection()
                 selected_cards.append(table[4][0])
                 draw_selection()
-            elif len(selected_cards) <= 0 and len(get_stack_from_pos(pos)) > 0:
+            elif not selected_cards and get_stack_from_pos(pos):
                 selected_cards.append(get_stack_from_pos(pos)[0])
                 draw_selection()
-            elif len(selected_cards) > 0:
+            elif selected_cards:
                 draw_card(get_stack_from_pos(pos, empty=False)[0], clear=True)
                 if place_cards_there(selected_cards, pos):
                     old_stack_pos = selected_cards[0].pos
@@ -219,7 +219,7 @@ def solitaire():
         elif keydown(KEY_ZERO):
             solitaire()
         if oldpos != pos:
-            if len(selected_cards) == 0 or oldpos != selected_cards[0].pos:
+            if not selected_cards or oldpos != selected_cards[0].pos:
                 draw_card(get_stack_from_pos(oldpos, False)[0])
             draw_cursor()
         sleep(0.1)

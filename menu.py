@@ -23,7 +23,7 @@ def menu(title, visible_addons, select_col, bkgd_col, list_opt, text_col=(0, 0, 
 
     while True:
         ch = play()
-        if ch == 1 or ch == -1:
+        if abs(ch) == 1:
             fill_screen(bkgd_col)
             return modif_opt + [ch > 0]
         elif ch == 0:
@@ -34,17 +34,17 @@ def options(olist, select_col, bkgd_col, text_col):
     fill_rect(0, 0, 320, 240, bkgd_col)
     draw_centered_string("OPTIONS", 10, text_col, bkgd_col)
     firsty = 130 - 20 * (4 - len(olist))
-    for e in range(len(olist)):
-        draw_string(olist[e][0] + " : ", 30, firsty - 30 * e, text_col, bkgd_col)
+    for e, l in enumerate(olist):
+        draw_string(l[0] + " : ", 30, firsty - 30 * e, text_col, bkgd_col)
     draw_string("Retour au menu", 30, 170, text_col, bkgd_col)
 
     def draw_choices():
         for e in range(len(olist)):
             opt = olist[e]
             fill_rect(200, firsty + 30 * e, 140, 20, bkgd_col)
-            if type(opt[2]) is bool:
-                draw_string(opt[1][int(opt[2])], 200, firsty - 30 * e, text_col, bkgd_col)
-            elif type(opt[2]) is int:
+            if isinstance(opt[2], bool):
+                draw_string(opt[1][opt[2]], 200, firsty - 30 * e, text_col, bkgd_col)
+            elif isinstance(opt[2], int):
                 draw_string(opt[1][opt[2] - 1], 200, firsty - 30 * e, text_col, bkgd_col)
 
     def draw_selected(last, new):
@@ -62,10 +62,10 @@ def options(olist, select_col, bkgd_col, text_col):
     pos = move_select(len(olist) + 1, 0, draw_selected)
     while pos > 0:
         opt = olist[pos - 1]
-        if type(opt[2]) is bool:
+        if isinstance(opt[2], bool):
             fill_rect(200, firsty - 30 * (pos - 1), len(opt[1][int(opt[2])]) * 15, 18, bkgd_col)
             opt[2] = not opt[2]
-        elif type(opt[2]) is int:
+        elif isinstance(opt[2], int):
             fill_rect(200, firsty - 30 * (pos - 1), len(opt[1][opt[2] - 1]) * 15, 18, bkgd_col)
             if opt[2] < len(opt[1]):
                 opt[2] += 1

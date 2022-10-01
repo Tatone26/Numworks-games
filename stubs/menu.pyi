@@ -6,10 +6,10 @@ def menu(title : str,
          visible_addons : Callable[[], NoReturn],
          select_col : _ColorInput,
          bkgd_col : _ColorInput,
-         list_opt : List[List[str, Tuple[str, str], vars]],
+         list_opt : List[List[str|bool, Tuple[str|bool], vars]],
          text_col : Optional[_ColorInput]=(0, 0, 0)) -> List: """Creates an entire menu. The parameters seem clear."""
 
-def options(olist : List[Tuple[str, Tuple[str, str], vars]],
+def options(olist : List[List[str|bool, Tuple[str|bool], vars]],
             select_col : _ColorInput,
             bkgd_col : _ColorInput,
             text_col : Optional[_ColorInput]=(0, 0, 0)) -> List: """Options menu."""
