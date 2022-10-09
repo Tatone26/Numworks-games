@@ -1,9 +1,13 @@
 #![no_std]
 #![no_main]
-
-use eadk::{Point, display, Rect, Color, keyboard, key, timing};
-
 pub mod eadk;
+use eadk::{key, keyboard, Color};
+
+mod menu;
+use menu::menu;
+use utils::fill_screen;
+
+mod utils;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]
@@ -19,14 +23,12 @@ pub static EADK_APP_ICON: [u8; 4250] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {
-    let mut point : Point = Point::new(0, 0);
-    loop{
+    menu("CECI EST UN TITRE!", Color::WHITE);
+    fill_screen(Color::BLUE);
+    loop {
         let keyboard_state = keyboard::scan();
-        if keyboard_state.key_down(key::ONE){
-            point.x += 5;
-            point.y += 5;
+        if keyboard_state.key_down(key::EXE) {
+            break;
         };
-        display::push_rect_uniform(Rect{x : point.x, y : point.y, width : 10, height : 10}, Color::RED);
-        timing::msleep(20);
-    };
+    }
 }
