@@ -1,9 +1,10 @@
-use core::u8;
-
-use crate::eadk::display::{push_rect_uniform, draw_string};
+use crate::eadk::display::{draw_string, push_rect_uniform, SCREEN_HEIGHT};
 use crate::eadk::{display, key, keyboard, timing, Color, Point, Rect};
+use crate::BOOL_OPTIONS_NUMBER;
 
-use crate::utils::{draw_centered_string, fill_screen, get_centered_left_coordo, LARGE_CHAR_HEIGHT};
+use crate::utils::{
+    draw_centered_string, fill_screen, get_centered_left_coordo, LARGE_CHAR_HEIGHT,
+};
 
 #[derive(Debug)]
 enum CursorPos {
@@ -13,26 +14,29 @@ enum CursorPos {
 }
 
 #[derive(Debug)]
-pub struct MyOption<T : PartialEq, const COUNT : usize> {
-    name : &'static str,
-    value : T, 
-    possible_values : [T; COUNT],
-    possible_values_str : [&'static str; COUNT]
+pub struct MyOption<T: PartialEq, const COUNT: usize> {
+    pub name: &'static str,
+    pub value: (T, &'static str),
+    pub possible_values: [T; COUNT],
+    pub possible_values_str: [&'static str; COUNT],
 }
 
-impl<T : PartialEq, const COUNT : usize> MyOption<T, COUNT> {
+impl<T: PartialEq, const COUNT: usize> MyOption<T, COUNT> {
     pub fn get_next_value(&self) -> (&T, &str) {
-        for item in self.possible_values.iter().enumerate(){
-            let (i, x) : (usize, &T) = item;
-            if x == &self.value{
-                if i < self.possible_values.len() - 1{
-                    return (&self.possible_values[i + 1], self.possible_values_str[i + 1]);
-                }else{
+        for item in self.possible_values.iter().enumerate() {
+            let (i, x) = item;
+            if x == &self.value.0 {
+                if i < self.possible_values.len() - 1 {
+                    return (
+                        &self.possible_values[i + 1],
+                        self.possible_values_str[i + 1],
+                    );
+                } else {
                     return (&self.possible_values[0], self.possible_values_str[0]);
                 }
             }
         }
-        return (&self.value, self.possible_values_str[0])
+        return (&self.value.0, self.possible_values_str[0]);
     }
 }
 
@@ -44,7 +48,13 @@ const START_TXT: &str = "Start\0";
 const OPTIONS_TXT: &str = "Options\0";
 const EXIT_TXT: &str = "Exit\0";
 
-pub fn menu(title: &str, text_color: Color, background_color: Color, selection_color: Color) -> u8 {
+pub fn menu(
+    title: &str,
+    opt: &[MyOption<bool, 2>; 2],
+    text_color: Color,
+    background_color: Color,
+    selection_color: Color,
+) -> u8 {
     fill_screen(background_color);
     draw_centered_string(title, 20u16, true, text_color, background_color);
     draw_selection_string(&CursorPos::START, selection_color, background_color, true);
@@ -57,8 +67,11 @@ pub fn menu(title: &str, text_color: Color, background_color: Color, selection_c
         if keyboard_state.key_down(key::OK) {
             match &cursor_pos {
                 CursorPos::START => return 1,
-                CursorPos::OPTIONS => _ = options(text_color, background_color, selection_color),
-                CursorPos::EXIT => return 0
+                CursorPos::OPTIONS => {
+                    _ = options(opt, text_color, background_color, selection_color);
+                    return menu(title, opt, text_color, background_color, selection_color);
+                }
+                CursorPos::EXIT => return 0,
             }
         } else if keyboard_state.key_down(key::DOWN) | keyboard_state.key_down(key::UP) {
             match &cursor_pos {
@@ -111,7 +124,12 @@ pub fn menu(title: &str, text_color: Color, background_color: Color, selection_c
     }
 }
 
-fn draw_selection_string(cursor_pos: &CursorPos, text_color: Color, background_color: Color, selected : bool) {
+fn draw_selection_string(
+    cursor_pos: &CursorPos,
+    text_color: Color,
+    background_color: Color,
+    selected: bool,
+) {
     match cursor_pos {
         CursorPos::START => {
             draw_centered_string(START_TXT, START_POS, true, text_color, background_color);
@@ -122,7 +140,11 @@ fn draw_selection_string(cursor_pos: &CursorPos, text_color: Color, background_c
                     width: 10,
                     height: 2,
                 },
-                if selected {text_color} else {background_color},
+                if selected {
+                    text_color
+                } else {
+                    background_color
+                },
             );
         }
         CursorPos::OPTIONS => {
@@ -134,7 +156,11 @@ fn draw_selection_string(cursor_pos: &CursorPos, text_color: Color, background_c
                     width: 10,
                     height: 2,
                 },
-                if selected {text_color} else {background_color},
+                if selected {
+                    text_color
+                } else {
+                    background_color
+                },
             );
         }
         CursorPos::EXIT => {
@@ -146,16 +172,128 @@ fn draw_selection_string(cursor_pos: &CursorPos, text_color: Color, background_c
                     width: 10,
                     height: 2,
                 },
-                if selected {text_color} else {background_color},
+                if selected {
+                    text_color
+                } else {
+                    background_color
+                },
             );
         }
     }
-
 }
 
-fn options(text_color: Color, background_color: Color, selection_color: Color) -> u8 {
-    let myoption1 = MyOption::<bool, 2>{name : "TestOption\0", value:true, possible_values:[true, false], possible_values_str:["Vrai\0", "Faux\0"]};
-    draw_centered_string(myoption1.name, START_POS, true, text_color, background_color);
-    draw_centered_string(myoption1.get_next_value().1, EXIT_POS, true, text_color, background_color);
-    return 0
+const SPACE_BETWEEN_LINES: u16 = 20;
+const XPOS_NAMES: u16 = 30;
+const XPOS_VALUES: u16 = 170;
+
+fn options(
+    list: &[MyOption<bool, 2>; BOOL_OPTIONS_NUMBER],
+    text_color: Color,
+    background_color: Color,
+    selection_color: Color,
+) -> u8 {
+    fill_screen(background_color);
+    draw_centered_string("OPTIONS\0", 20u16, true, text_color, background_color);
+    // Only taking care of boolean options for now.
+    let first_y: u16;
+    let items_number: u16 = list.iter().count() as u16;
+    match (SCREEN_HEIGHT - (SCREEN_HEIGHT - LARGE_CHAR_HEIGHT) / 2)
+        .checked_sub((LARGE_CHAR_HEIGHT / 2) * items_number)
+    {
+        None | Some(0) => first_y = 0,
+        Some(1u16..=u16::MAX) => {
+            first_y = (SCREEN_HEIGHT - (SCREEN_HEIGHT - LARGE_CHAR_HEIGHT) / 2)
+                - ((LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) / 2) * items_number
+        }
+    }
+    for item in list.iter().enumerate() {
+        let (i, x) = item;
+        let pos: u16 = i as u16;
+        display::draw_string(
+            x.name,
+            Point::new(
+                XPOS_NAMES,
+                first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * pos,
+            ),
+            x.name.len() < 12,
+            text_color,
+            background_color,
+        );
+        draw_options_selection(
+            x.value.1,
+            first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * pos,
+            if pos == 0 { true } else { false },
+            selection_color,
+            background_color,
+            text_color,
+        )
+    }
+    let mut cursor_pos: u16 = 0;
+    loop {
+        let keyboard_scan = keyboard::scan();
+        if keyboard_scan.key_down(key::BACK) {
+            break;
+        } else if keyboard_scan.key_down(key::UP) | keyboard_scan.key_down(key::DOWN) {
+            let current_selection: &MyOption<bool, 2> = &list[cursor_pos as usize];
+            draw_options_selection(
+                current_selection.value.1,
+                first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
+                false,
+                selection_color,
+                background_color,
+                text_color,
+            );
+            if keyboard_scan.key_down(key::DOWN) {
+                if cursor_pos > 0 {
+                    cursor_pos -= 1;
+                } else {
+                    cursor_pos = (list.len() as u16) - 1;
+                }
+            } else if keyboard_scan.key_down(key::UP) {
+                if cursor_pos < list.len() as u16 - 1 {
+                    cursor_pos += 1;
+                } else {
+                    cursor_pos = 0;
+                }
+            }
+            let new_selection : &MyOption<bool, 2> = &list[cursor_pos as usize];
+            draw_options_selection(new_selection.value.1, first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos, true, selection_color, background_color, text_color);
+            timing::msleep(200);
+        }
+    }
+    return 0;
+}
+
+fn draw_options_selection(
+    text: &str,
+    ypos: u16,
+    selected: bool,
+    selection_color: Color,
+    background_color: Color,
+    text_color: Color,
+) {
+    draw_string(
+        text,
+        Point::new(XPOS_VALUES, ypos),
+        true,
+        if selected {
+            selection_color
+        } else {
+            text_color
+        },
+        background_color,
+    );
+    push_rect_uniform(
+        Rect {
+            x: XPOS_VALUES - 15,
+            y: ypos + LARGE_CHAR_HEIGHT / 2,
+            width: 10,
+            height: 2,
+        },
+        if selected {
+            selection_color
+        } else {
+            background_color
+        },
+    );
 }
