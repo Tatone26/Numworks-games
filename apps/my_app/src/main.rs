@@ -1,11 +1,10 @@
 #![no_std]
 #![no_main]
 pub mod eadk;
-use eadk::{key, keyboard, Color};
+use eadk::{Color, display};
 
 mod menu;
 use menu::menu;
-use utils::fill_screen;
 
 mod utils;
 
@@ -23,12 +22,11 @@ pub static EADK_APP_ICON: [u8; 4250] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {
-    menu("CECI EST UN TITRE!", Color::WHITE);
-    fill_screen(Color::BLUE);
-    loop {
-        let keyboard_state = keyboard::scan();
-        if keyboard_state.key_down(key::EXE) {
-            break;
-        };
+    let start = menu("CECI EST UN TITRE!", Color::BLACK, Color::WHITE, Color::GREEN);
+    display::wait_for_vblank();
+    if start == 1 {
+        return;
+    } else {
+        return;
     }
 }

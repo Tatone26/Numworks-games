@@ -24,6 +24,6 @@
 			],
 			"group" : "none",
 			"label" : "rust: cargo doc"
-		}
+		},
 	]
 }
