@@ -9,6 +9,8 @@ use menu::{menu, MyOption};
 
 mod utils;
 
+mod game;
+
 #[used]
 #[link_section = ".rodata.eadk_app_name"]
 pub static EADK_APP_NAME: [u8; 10] = *b"HelloRust\0";
@@ -26,14 +28,14 @@ const BOOL_OPTIONS_NUMBER : usize = 2;
 
 #[no_mangle]
 pub fn main() {
-    let opt = [
-        MyOption {
+    let mut opt = [
+        &mut MyOption {
             name: "TestOption\0",
             value: (true, "Vrai\0"),
             possible_values: [true, false],
             possible_values_str: ["Vrai\0", "Faux\0"],
         },
-        MyOption  {
+        &mut MyOption  {
             name: "TestOptionYoupi\0",
             value: (false, "Faux\0"),
             possible_values: [true, false],
@@ -42,14 +44,14 @@ pub fn main() {
     ];
     let start = menu(
         "CECI EST UN TITRE!",
-        &opt,
+        &mut opt,
         Color::BLACK,
         Color::WHITE,
         Color::GREEN,
     );
     display::wait_for_vblank();
     if start == 1 {
-        return;
+        game::game();
     } else {
         return;
     }

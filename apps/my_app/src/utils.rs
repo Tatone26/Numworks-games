@@ -18,7 +18,7 @@ pub fn fill_screen(color: Color) {
     );
 }
 
-pub fn get_centered_left_coordo(string: &str, large: bool) -> u16 {
+pub fn get_centered_text_left_coordo(string: &str, large: bool) -> u16 {
     let size: u16 = string.chars().count() as u16;
     match (display::SCREEN_WIDTH / 2).checked_sub(
         (size / 2)
@@ -50,7 +50,7 @@ pub fn draw_centered_string(
 ) {
     draw_string(
         string,
-        Point::new(get_centered_left_coordo(string, large), posy),
+        Point::new(get_centered_text_left_coordo(string, large), posy),
         large,
         text_color,
         background_color,

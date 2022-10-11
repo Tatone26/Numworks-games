@@ -1,9 +1,9 @@
-use crate::eadk::display::{draw_string, push_rect_uniform, SCREEN_HEIGHT};
+use crate::eadk::display::{draw_string, push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::eadk::{display, key, keyboard, timing, Color, Point, Rect};
 use crate::BOOL_OPTIONS_NUMBER;
 
 use crate::utils::{
-    draw_centered_string, fill_screen, get_centered_left_coordo, LARGE_CHAR_HEIGHT,
+    draw_centered_string, fill_screen, get_centered_text_left_coordo, LARGE_CHAR_HEIGHT,
 };
 
 #[derive(Debug)]
@@ -13,30 +13,27 @@ enum CursorPos {
     EXIT,
 }
 
-#[derive(Debug)]
-pub struct MyOption<T: PartialEq, const COUNT: usize> {
+#[derive(Debug, Copy, Clone)]
+pub struct MyOption<T: PartialEq + Copy, const COUNT: usize> {
     pub name: &'static str,
     pub value: (T, &'static str),
     pub possible_values: [T; COUNT],
     pub possible_values_str: [&'static str; COUNT],
 }
 
-impl<T: PartialEq, const COUNT: usize> MyOption<T, COUNT> {
-    pub fn get_next_value(&self) -> (&T, &str) {
+impl<T: PartialEq + Copy, const COUNT: usize> MyOption<T, COUNT> {
+    pub fn get_next_value(&self) -> (T, &'static str) {
         for item in self.possible_values.iter().enumerate() {
             let (i, x) = item;
             if x == &self.value.0 {
                 if i < self.possible_values.len() - 1 {
-                    return (
-                        &self.possible_values[i + 1],
-                        self.possible_values_str[i + 1],
-                    );
+                    return (self.possible_values[i + 1], self.possible_values_str[i + 1]);
                 } else {
-                    return (&self.possible_values[0], self.possible_values_str[0]);
+                    return (self.possible_values[0], self.possible_values_str[0]);
                 }
             }
         }
-        return (&self.value.0, self.possible_values_str[0]);
+        return (self.value.0, self.possible_values_str[0]);
     }
 }
 
@@ -50,7 +47,7 @@ const EXIT_TXT: &str = "Exit\0";
 
 pub fn menu(
     title: &str,
-    opt: &[MyOption<bool, 2>; 2],
+    opt: &mut [&mut MyOption<bool, 2>; 2],
     text_color: Color,
     background_color: Color,
     selection_color: Color,
@@ -120,6 +117,8 @@ pub fn menu(
             draw_selection_string(&cursor_pos, selection_color, background_color, true);
             display::wait_for_vblank();
             timing::msleep(200);
+        } else if keyboard_state.key_down(key::BACK) {
+            return 0;
         }
     }
 }
@@ -135,7 +134,7 @@ fn draw_selection_string(
             draw_centered_string(START_TXT, START_POS, true, text_color, background_color);
             push_rect_uniform(
                 Rect {
-                    x: get_centered_left_coordo(START_TXT, true) - 15,
+                    x: get_centered_text_left_coordo(START_TXT, true) - 15,
                     y: START_POS + LARGE_CHAR_HEIGHT / 2,
                     width: 10,
                     height: 2,
@@ -151,7 +150,7 @@ fn draw_selection_string(
             draw_centered_string(OPTIONS_TXT, OPTIONS_POS, true, text_color, background_color);
             push_rect_uniform(
                 Rect {
-                    x: get_centered_left_coordo(OPTIONS_TXT, true) - 15,
+                    x: get_centered_text_left_coordo(OPTIONS_TXT, true) - 15,
                     y: OPTIONS_POS + LARGE_CHAR_HEIGHT / 2,
                     width: 10,
                     height: 2,
@@ -167,7 +166,7 @@ fn draw_selection_string(
             draw_centered_string(EXIT_TXT, EXIT_POS, true, text_color, background_color);
             push_rect_uniform(
                 Rect {
-                    x: get_centered_left_coordo(EXIT_TXT, true) - 15,
+                    x: get_centered_text_left_coordo(EXIT_TXT, true) - 15,
                     y: EXIT_POS + LARGE_CHAR_HEIGHT / 2,
                     width: 10,
                     height: 2,
@@ -187,7 +186,7 @@ const XPOS_NAMES: u16 = 30;
 const XPOS_VALUES: u16 = 170;
 
 fn options(
-    list: &[MyOption<bool, 2>; BOOL_OPTIONS_NUMBER],
+    list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER],
     text_color: Color,
     background_color: Color,
     selection_color: Color,
@@ -229,6 +228,8 @@ fn options(
         )
     }
     let mut cursor_pos: u16 = 0;
+    display::wait_for_vblank();
+    timing::msleep(200);
     loop {
         let keyboard_scan = keyboard::scan();
         if keyboard_scan.key_down(key::BACK) {
@@ -256,8 +257,29 @@ fn options(
                     cursor_pos = 0;
                 }
             }
-            let new_selection : &MyOption<bool, 2> = &list[cursor_pos as usize];
-            draw_options_selection(new_selection.value.1, first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos, true, selection_color, background_color, text_color);
+            let new_selection: &MyOption<bool, 2> = &list[cursor_pos as usize];
+            draw_options_selection(
+                new_selection.value.1,
+                first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
+                true,
+                selection_color,
+                background_color,
+                text_color,
+            );
+            display::wait_for_vblank();
+            timing::msleep(200);
+        } else if keyboard_scan.key_down(key::OK) {
+            let mut selection: &mut MyOption<bool, 2> = list[cursor_pos as usize];
+            selection.value = selection.get_next_value();
+            draw_options_selection(
+                selection.value.1,
+                first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
+                true,
+                selection_color,
+                background_color,
+                text_color,
+            );
+            display::wait_for_vblank();
             timing::msleep(200);
         }
     }
@@ -296,4 +318,45 @@ fn draw_options_selection(
             background_color
         },
     );
+}
+
+const RESUME_TXT: &str = "Resume\0";
+const PAUSE_RECT_SIZE: u16 = 20; // La marge sur le côté
+
+pub fn pause_menu(text_color: Color, background_color: Color, selection_color: Color) -> u16{
+    let cursor_pos: CursorPos = CursorPos::START;
+    let rect_x: u16 = get_centered_text_left_coordo(RESUME_TXT, true);
+    display::push_rect_uniform(
+        Rect {
+            x: rect_x - PAUSE_RECT_SIZE,
+            y: (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES - PAUSE_RECT_SIZE,
+            width: SCREEN_WIDTH - (rect_x - PAUSE_RECT_SIZE)*2,
+            height: (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES + PAUSE_RECT_SIZE) * 2,
+        },
+        background_color,
+    );
+    draw_centered_string(
+        RESUME_TXT,
+        (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES,
+        true,
+        selection_color,
+        background_color,
+    );
+    draw_centered_string(
+        EXIT_TXT,
+        (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES,
+        true,
+        text_color,
+        background_color,
+    );
+    display::wait_for_vblank();
+    timing::msleep(200);
+    loop {
+        let keyboard_state = keyboard::scan();
+        if keyboard_state.key_down(key::BACK){
+            return 1;
+        }else if keyboard_state.key_down(key::EXE){
+            return 0;
+        }
+    }
 }
