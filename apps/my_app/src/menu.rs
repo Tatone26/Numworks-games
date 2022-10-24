@@ -71,35 +71,6 @@ pub fn menu(
                 CursorPos::EXIT => return 0,
             }
         } else if keyboard_state.key_down(key::DOWN) | keyboard_state.key_down(key::UP) {
-            match &cursor_pos {
-                CursorPos::START => push_rect_uniform(
-                    Rect {
-                        x: Point::ZERO.x,
-                        y: START_POS,
-                        width: display::SCREEN_WIDTH,
-                        height: LARGE_CHAR_HEIGHT,
-                    },
-                    background_color,
-                ),
-                CursorPos::OPTIONS => push_rect_uniform(
-                    Rect {
-                        x: Point::ZERO.x,
-                        y: OPTIONS_POS,
-                        width: display::SCREEN_WIDTH,
-                        height: LARGE_CHAR_HEIGHT,
-                    },
-                    background_color,
-                ),
-                CursorPos::EXIT => push_rect_uniform(
-                    Rect {
-                        x: Point::ZERO.x,
-                        y: EXIT_POS,
-                        width: display::SCREEN_WIDTH,
-                        height: LARGE_CHAR_HEIGHT,
-                    },
-                    background_color,
-                ),
-            }
             draw_selection_string(&cursor_pos, text_color, background_color, false);
             if keyboard_state.key_down(key::DOWN) {
                 match &cursor_pos {
@@ -323,40 +294,106 @@ fn draw_options_selection(
 const RESUME_TXT: &str = "Resume\0";
 const PAUSE_RECT_SIZE: u16 = 20; // La marge sur le côté
 
-pub fn pause_menu(text_color: Color, background_color: Color, selection_color: Color) -> u16{
-    let cursor_pos: CursorPos = CursorPos::START;
+pub fn pause_menu(text_color: Color, background_color: Color, selection_color: Color) -> u16 {
+    let mut cursor_pos: CursorPos = CursorPos::START;
     let rect_x: u16 = get_centered_text_left_coordo(RESUME_TXT, true);
     display::push_rect_uniform(
         Rect {
             x: rect_x - PAUSE_RECT_SIZE,
             y: (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES - PAUSE_RECT_SIZE,
-            width: SCREEN_WIDTH - (rect_x - PAUSE_RECT_SIZE)*2,
+            width: SCREEN_WIDTH - (rect_x - PAUSE_RECT_SIZE) * 2,
             height: (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES + PAUSE_RECT_SIZE) * 2,
         },
         background_color,
     );
-    draw_centered_string(
-        RESUME_TXT,
-        (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES,
-        true,
-        selection_color,
-        background_color,
-    );
-    draw_centered_string(
-        EXIT_TXT,
-        (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES,
-        true,
-        text_color,
-        background_color,
-    );
+    draw_pause_selection_string(&cursor_pos, text_color, background_color, true, selection_color);
+    draw_pause_selection_string(&CursorPos::EXIT, text_color, background_color, false, selection_color);
     display::wait_for_vblank();
     timing::msleep(200);
     loop {
         let keyboard_state = keyboard::scan();
-        if keyboard_state.key_down(key::BACK){
+        if keyboard_state.key_down(key::DOWN) | keyboard_state.key_down(key::UP) {
+            draw_pause_selection_string(&cursor_pos, text_color, background_color, false, selection_color);
+            if keyboard_state.key_down(key::DOWN) {
+                match &cursor_pos {
+                    CursorPos::START => cursor_pos = CursorPos::EXIT,
+                    CursorPos::EXIT => cursor_pos = CursorPos::START,
+                    CursorPos::OPTIONS => cursor_pos = CursorPos::OPTIONS,
+                }
+            } else if keyboard_state.key_down(key::UP) {
+                match &cursor_pos {
+                    CursorPos::START => cursor_pos = CursorPos::EXIT,
+                    CursorPos::OPTIONS => cursor_pos = CursorPos::OPTIONS,
+                    CursorPos::EXIT => cursor_pos = CursorPos::START,
+                }
+            }
+            draw_pause_selection_string(&cursor_pos, text_color, background_color, true, selection_color);
+            display::wait_for_vblank();
+            timing::msleep(200);
+        } else if keyboard_state.key_down(key::OK) {
+            match &cursor_pos {
+                CursorPos::START => return 1,
+                CursorPos::OPTIONS => cursor_pos = CursorPos::OPTIONS,
+                CursorPos::EXIT => return 0,
+            }
+        } else if keyboard_state.key_down(key::BACK) {
             return 1;
-        }else if keyboard_state.key_down(key::EXE){
-            return 0;
+        }
+    }
+}
+
+fn draw_pause_selection_string(
+    cursor_pos: &CursorPos,
+    text_color: Color,
+    background_color: Color,
+    selected: bool,
+    selection_color: Color
+) {
+    match cursor_pos {
+        CursorPos::START => {
+            draw_centered_string(
+                RESUME_TXT,
+                (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES,
+                true,
+                if selected{ selection_color } else {text_color},
+                background_color,
+            );
+            push_rect_uniform(
+                Rect {
+                    x: get_centered_text_left_coordo(RESUME_TXT, true) - 15,
+                    y: (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT/2 - SPACE_BETWEEN_LINES,
+                    width: 10,
+                    height: 2,
+                },
+                if selected {
+                    selection_color
+                } else {
+                    background_color
+                },
+            );
+        }
+        CursorPos::OPTIONS => {}
+        CursorPos::EXIT => {
+            draw_centered_string(
+                EXIT_TXT,
+                (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES,
+                true,
+                if selected{ selection_color } else {text_color},
+                background_color,
+            );
+            push_rect_uniform(
+                Rect {
+                    x: get_centered_text_left_coordo(EXIT_TXT, true) - 15,
+                    y: (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES + LARGE_CHAR_HEIGHT/2,
+                    width: 10,
+                    height: 2,
+                },
+                if selected {
+                    selection_color
+                } else {
+                    background_color
+                },
+            );
         }
     }
 }
