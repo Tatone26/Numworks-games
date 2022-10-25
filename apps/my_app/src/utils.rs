@@ -58,7 +58,7 @@ pub fn draw_centered_string(
     );
 }
 
-pub fn fading(dur: u32) {
+pub fn fading(dur: u32) { // conserves the original brightness. If brightness too low and duration too high, it's pretty bad.
     let mut start_brightness = brightness();
     if start_brightness <= 0 {
         start_brightness = 16
