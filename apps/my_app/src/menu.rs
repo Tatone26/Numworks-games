@@ -68,14 +68,16 @@ pub fn menu(
                 CursorPos::START => {
                     // Fading !
                     fading(FADING_TIME as u32);
-                    fill_screen(background_color);
                     return 1;
                 }
                 CursorPos::OPTIONS => {
                     _ = options(opt, text_color, background_color, selection_color);
                     return menu(title, opt, text_color, background_color, selection_color);
                 }
-                CursorPos::EXIT => return 0,
+                CursorPos::EXIT => {
+                    fading(FADING_TIME as u32);
+                    return 0;
+                }
             }
         } else if keyboard_state.key_down(key::DOWN) | keyboard_state.key_down(key::UP) {
             draw_selection_string(&cursor_pos, text_color, background_color, false);

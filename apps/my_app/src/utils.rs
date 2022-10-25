@@ -1,6 +1,6 @@
 use crate::eadk::backlight::{brightness, set_brightness};
 use crate::eadk::display::{self, draw_string};
-use crate::eadk::{timing, Color, Point, Rect};
+use crate::eadk::{timing, Color, Point, Rect, random};
 
 pub const LARGE_CHAR_WIDTH: u16 = 10;
 pub const SMALL_CHAR_WIDTH: u16 = 7;
@@ -59,10 +59,12 @@ pub fn draw_centered_string(
 }
 
 pub fn fading(dur: u32) { // conserves the original brightness. If brightness too low and duration too high, it's pretty bad.
-    let mut start_brightness = brightness();
-    if start_brightness <= 0 {
+    let start_brightness : u8;
+    if brightness() <= 0 {
         start_brightness = 16
-    };
+    }else{
+        start_brightness = brightness();
+    }
     let mut bs = start_brightness;
     while bs != 0 {
         set_brightness(bs);
@@ -71,4 +73,8 @@ pub fn fading(dur: u32) { // conserves the original brightness. If brightness to
     }
     fill_screen(Color::BLACK);
     set_brightness(start_brightness);
+}
+
+pub fn randint(a : u32, b : u32) -> u32{
+    return random() % (b-a) + a;
 }
