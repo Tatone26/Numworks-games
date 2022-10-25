@@ -1,5 +1,6 @@
+use crate::eadk::backlight::{brightness, set_brightness};
 use crate::eadk::display::{self, draw_string};
-use crate::eadk::{Color, Point, Rect};
+use crate::eadk::{timing, Color, Point, Rect};
 
 pub const LARGE_CHAR_WIDTH: u16 = 10;
 pub const SMALL_CHAR_WIDTH: u16 = 7;
@@ -55,4 +56,19 @@ pub fn draw_centered_string(
         text_color,
         background_color,
     );
+}
+
+pub fn fading(dur: u32) {
+    let mut start_brightness = brightness();
+    if start_brightness <= 0 {
+        start_brightness = 16
+    };
+    let mut bs = start_brightness;
+    while bs != 0 {
+        set_brightness(bs);
+        timing::msleep(dur / start_brightness as u32);
+        bs -= 1;
+    }
+    fill_screen(Color::BLACK);
+    set_brightness(start_brightness);
 }

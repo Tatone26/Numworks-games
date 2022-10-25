@@ -3,7 +3,7 @@ use crate::eadk::{display, key, keyboard, timing, Color, Point, Rect};
 use crate::BOOL_OPTIONS_NUMBER;
 
 use crate::utils::{
-    draw_centered_string, fill_screen, get_centered_text_left_coordo, LARGE_CHAR_HEIGHT,
+    draw_centered_string, fading, fill_screen, get_centered_text_left_coordo, LARGE_CHAR_HEIGHT,
 };
 
 #[derive(Debug)]
@@ -45,6 +45,8 @@ const START_TXT: &str = "Start\0";
 const OPTIONS_TXT: &str = "Options\0";
 const EXIT_TXT: &str = "Exit\0";
 
+const FADING_TIME: u16 = 1000; // le temps en millisecondes que met le menu à fondre, si on appuie sur start.
+
 pub fn menu(
     title: &str,
     opt: &mut [&mut MyOption<bool, 2>; 2],
@@ -63,7 +65,12 @@ pub fn menu(
         let keyboard_state = keyboard::scan();
         if keyboard_state.key_down(key::OK) {
             match &cursor_pos {
-                CursorPos::START => return 1,
+                CursorPos::START => {
+                    // Fading !
+                    fading(FADING_TIME as u32);
+                    fill_screen(background_color);
+                    return 1;
+                }
                 CursorPos::OPTIONS => {
                     _ = options(opt, text_color, background_color, selection_color);
                     return menu(title, opt, text_color, background_color, selection_color);
@@ -295,6 +302,7 @@ const RESUME_TXT: &str = "Resume\0";
 const PAUSE_RECT_SIZE: u16 = 20; // La marge sur le côté
 
 pub fn pause_menu(text_color: Color, background_color: Color, selection_color: Color) -> u16 {
+    // Le curseur utilise toujours CursorPos bien qu'on ne puisse pas sélectionner "options" ; il est possible que cela soit utile un jour.
     let mut cursor_pos: CursorPos = CursorPos::START;
     let rect_x: u16 = get_centered_text_left_coordo(RESUME_TXT, true);
     display::push_rect_uniform(
@@ -306,14 +314,32 @@ pub fn pause_menu(text_color: Color, background_color: Color, selection_color: C
         },
         background_color,
     );
-    draw_pause_selection_string(&cursor_pos, text_color, background_color, true, selection_color);
-    draw_pause_selection_string(&CursorPos::EXIT, text_color, background_color, false, selection_color);
+    draw_pause_selection_string(
+        &cursor_pos,
+        text_color,
+        background_color,
+        true,
+        selection_color,
+    );
+    draw_pause_selection_string(
+        &CursorPos::EXIT,
+        text_color,
+        background_color,
+        false,
+        selection_color,
+    );
     display::wait_for_vblank();
     timing::msleep(200);
     loop {
         let keyboard_state = keyboard::scan();
         if keyboard_state.key_down(key::DOWN) | keyboard_state.key_down(key::UP) {
-            draw_pause_selection_string(&cursor_pos, text_color, background_color, false, selection_color);
+            draw_pause_selection_string(
+                &cursor_pos,
+                text_color,
+                background_color,
+                false,
+                selection_color,
+            );
             if keyboard_state.key_down(key::DOWN) {
                 match &cursor_pos {
                     CursorPos::START => cursor_pos = CursorPos::EXIT,
@@ -327,7 +353,13 @@ pub fn pause_menu(text_color: Color, background_color: Color, selection_color: C
                     CursorPos::EXIT => cursor_pos = CursorPos::START,
                 }
             }
-            draw_pause_selection_string(&cursor_pos, text_color, background_color, true, selection_color);
+            draw_pause_selection_string(
+                &cursor_pos,
+                text_color,
+                background_color,
+                true,
+                selection_color,
+            );
             display::wait_for_vblank();
             timing::msleep(200);
         } else if keyboard_state.key_down(key::OK) {
@@ -347,7 +379,7 @@ fn draw_pause_selection_string(
     text_color: Color,
     background_color: Color,
     selected: bool,
-    selection_color: Color
+    selection_color: Color,
 ) {
     match cursor_pos {
         CursorPos::START => {
@@ -355,13 +387,17 @@ fn draw_pause_selection_string(
                 RESUME_TXT,
                 (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES,
                 true,
-                if selected{ selection_color } else {text_color},
+                if selected {
+                    selection_color
+                } else {
+                    text_color
+                },
                 background_color,
             );
             push_rect_uniform(
                 Rect {
                     x: get_centered_text_left_coordo(RESUME_TXT, true) - 15,
-                    y: (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT/2 - SPACE_BETWEEN_LINES,
+                    y: (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT / 2 - SPACE_BETWEEN_LINES,
                     width: 10,
                     height: 2,
                 },
@@ -378,13 +414,17 @@ fn draw_pause_selection_string(
                 EXIT_TXT,
                 (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES,
                 true,
-                if selected{ selection_color } else {text_color},
+                if selected {
+                    selection_color
+                } else {
+                    text_color
+                },
                 background_color,
             );
             push_rect_uniform(
                 Rect {
                     x: get_centered_text_left_coordo(EXIT_TXT, true) - 15,
-                    y: (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES + LARGE_CHAR_HEIGHT/2,
+                    y: (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES + LARGE_CHAR_HEIGHT / 2,
                     width: 10,
                     height: 2,
                 },

@@ -157,7 +157,7 @@ pub mod backlight {
 
     #[must_use]
     pub fn brightness() -> u8 {
-        unsafe { eadk_backlight_brightness() }
+        unsafe { eadk_backlight_brightness() } // 0 - 240, par pas de 16
     }
 
     extern "C" {

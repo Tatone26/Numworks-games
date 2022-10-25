@@ -24,7 +24,7 @@ pub static EADK_APP_API_LEVEL: u32 = 0;
 pub static EADK_APP_ICON: [u8; 4250] = *include_bytes!("../target/icon.nwi");
 
 // This constants have to change from one project to another.
-const BOOL_OPTIONS_NUMBER : usize = 2;
+const BOOL_OPTIONS_NUMBER: usize = 2;
 
 #[no_mangle]
 pub fn main() {
@@ -35,7 +35,7 @@ pub fn main() {
             possible_values: [true, false],
             possible_values_str: ["Vrai\0", "Faux\0"],
         },
-        &mut MyOption  {
+        &mut MyOption {
             name: "TestOptionYoupi\0",
             value: (false, "Faux\0"),
             possible_values: [true, false],
@@ -43,7 +43,7 @@ pub fn main() {
         },
     ];
     let start = menu(
-        "CECI EST UN TITRE!",
+        "CECI EST UN TITRE!\0",
         &mut opt,
         Color::BLACK,
         Color::WHITE,
