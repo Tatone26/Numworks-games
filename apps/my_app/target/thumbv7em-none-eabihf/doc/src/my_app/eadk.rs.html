@@ -461,7 +461,7 @@
 
     <span class="attribute">#[<span class="ident">must_use</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">brightness</span>() -&gt; <span class="ident">u8</span> {
-        <span class="kw">unsafe</span> { <span class="ident">eadk_backlight_brightness</span>() }
+        <span class="kw">unsafe</span> { <span class="ident">eadk_backlight_brightness</span>() } <span class="comment">// 0 - 240, par pas de 16</span>
     }
 
     <span class="kw">extern</span> <span class="string">&quot;C&quot;</span> {

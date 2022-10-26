@@ -2,9 +2,9 @@
 #![no_main]
 pub mod eadk;
 
-mod menu;
+pub mod menu;
 
-mod utils;
+pub mod utils;
 
 mod game;
 

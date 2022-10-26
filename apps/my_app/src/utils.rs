@@ -1,6 +1,6 @@
 use crate::eadk::backlight::{brightness, set_brightness};
 use crate::eadk::display::{self, draw_string};
-use crate::eadk::{timing, Color, Point, Rect, random};
+use crate::eadk::{random, timing, Color, Point, Rect};
 
 pub const LARGE_CHAR_WIDTH: u16 = 10;
 pub const SMALL_CHAR_WIDTH: u16 = 7;
@@ -8,6 +8,7 @@ pub const SMALL_CHAR_WIDTH: u16 = 7;
 pub const LARGE_CHAR_HEIGHT: u16 = 14;
 pub const SMALL_CHAR_HEIGHT: u16 = 8;
 
+/// Fills the screen with the given [Color]
 pub fn fill_screen(color: Color) {
     display::push_rect_uniform(
         Rect {
@@ -20,6 +21,7 @@ pub fn fill_screen(color: Color) {
     );
 }
 
+/// Returns the left x coordinate that centers the given string
 pub fn get_centered_text_left_coordo(string: &str, large: bool) -> u16 {
     let size: u16 = string.chars().count() as u16;
     match (display::SCREEN_WIDTH / 2).checked_sub(
@@ -30,13 +32,12 @@ pub fn get_centered_text_left_coordo(string: &str, large: bool) -> u16 {
                 SMALL_CHAR_WIDTH
             }),
     ) {
-        x @ Some(1_u16..=u16::MAX) => {
-            return x.unwrap()
-        }
+        x @ Some(1_u16..=u16::MAX) => return x.unwrap(),
         None | Some(0) => return 0u16,
     }
 }
 
+/// Draws the given string centered in the x coordinate
 pub fn draw_centered_string(
     string: &str,
     posy: u16,
@@ -53,11 +54,12 @@ pub fn draw_centered_string(
     );
 }
 
-pub fn fading(dur: u32) { // conserves the original brightness. If brightness too low and duration too high, it's pretty bad.
-    let start_brightness : u8;
+/// Make the screen fade to 0 [brightness], then back to original brightness
+pub fn fading(dur: u32) {
+    let start_brightness: u8;
     if brightness() <= 0 {
         start_brightness = 16
-    }else{
+    } else {
         start_brightness = brightness();
     }
     let mut bs = start_brightness;
@@ -70,6 +72,7 @@ pub fn fading(dur: u32) { // conserves the original brightness. If brightness to
     set_brightness(start_brightness);
 }
 
-pub fn randint(a : u32, b : u32) -> u32{
-    return random() % (b-a) + a;
+/// Gives a [random] integer between a and b (included)
+pub fn randint(a: u32, b: u32) -> u32 {
+    return random() % (b - a) + a;
 }

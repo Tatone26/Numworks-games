@@ -2,9 +2,11 @@ use crate::eadk::display::{draw_string, push_rect_uniform, SCREEN_HEIGHT, SCREEN
 use crate::eadk::{display, key, keyboard, timing, Color, Point, Rect};
 use crate::game::BOOL_OPTIONS_NUMBER;
 use crate::utils::{
-    draw_centered_string, fading, fill_screen, get_centered_text_left_coordo, LARGE_CHAR_HEIGHT, SMALL_CHAR_HEIGHT,
+    draw_centered_string, fading, fill_screen, get_centered_text_left_coordo, LARGE_CHAR_HEIGHT,
+    SMALL_CHAR_HEIGHT,
 };
 
+/// Used to symbolise the cursor position
 #[derive(Debug)]
 enum CursorPos {
     START,
@@ -12,6 +14,7 @@ enum CursorPos {
     EXIT,
 }
 
+/// An option
 #[derive(Debug, Copy, Clone)]
 pub struct MyOption<T: PartialEq + Copy, const COUNT: usize> {
     pub name: &'static str,
@@ -36,16 +39,24 @@ impl<T: PartialEq + Copy, const COUNT: usize> MyOption<T, COUNT> {
     }
 }
 
+/// The position of [START_TXT]
 const START_POS: u16 = 120;
+/// The position of [OPTIONS_TXT]
 const OPTIONS_POS: u16 = 160;
+/// The position of [EXIT_TXT]
 const EXIT_POS: u16 = 200;
 
-const START_TXT: &str = "Start\0";
-const OPTIONS_TXT: &str = "Options\0";
-const EXIT_TXT: &str = "Exit\0";
+/// The Start option text
+const START_TXT: &'static str = "Start\0";
+/// The Options option text
+const OPTIONS_TXT: &'static str = "Options\0";
+/// The Exit option text
+const EXIT_TXT: &'static str = "Exit\0";
 
-const FADING_TIME: u16 = 750; // le temps en millisecondes que met le menu à fondre, si on appuie sur start.
+/// The duration of every fadings in the menus
+const FADING_TIME: u16 = 750;
 
+/// Creates a fully fonctional start menu, with [Options][MyOption] !
 pub fn menu(
     title: &str,
     opt: &mut [&mut MyOption<bool, 2>; 2],
@@ -102,6 +113,7 @@ pub fn menu(
     }
 }
 
+/// Draws the line corresponding to the [CursorPos]
 fn draw_selection_string(
     cursor_pos: &CursorPos,
     text_color: Color,
@@ -140,10 +152,14 @@ fn draw_selection_string(
     );
 }
 
+/// For the [options] menu, the space between each line.
 const SPACE_BETWEEN_LINES: u16 = 20;
+/// Where in the x coordinate will the names of the [option][MyOption] be placed
 const XPOS_NAMES: u16 = 30;
+/// Where in the x coordinate will the values ([option][MyOption].value.1) be placed
 const XPOS_VALUES: u16 = 170;
 
+/// Create a fully fonctional option menu, which changes directly the [options][MyOption] values. (no option return)
 fn options(
     list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER],
     text_color: Color,
@@ -168,7 +184,12 @@ fn options(
             x.name,
             Point::new(
                 XPOS_NAMES,
-                y_pos + if x.name.len() > 12 {(LARGE_CHAR_HEIGHT- SMALL_CHAR_HEIGHT)/2} else {0},
+                y_pos
+                    + if x.name.len() > 12 {
+                        (LARGE_CHAR_HEIGHT - SMALL_CHAR_HEIGHT) / 2
+                    } else {
+                        0
+                    },
             ),
             x.name.len() < 12,
             text_color,
@@ -242,6 +263,7 @@ fn options(
     return 0;
 }
 
+/// Draws the line corresponding to the given option value
 fn draw_options_selection(
     text: &str,
     ypos: u16,
@@ -276,9 +298,12 @@ fn draw_options_selection(
     );
 }
 
-const RESUME_TXT: &str = "Resume\0";
-const PAUSE_RECT_SIZE: u16 = 20; // La marge sur le côté
+/// The text of the Start/Resume option
+const RESUME_TXT: &'static str = "Resume\0";
+/// How big is the rectangle on the top & bottom, *2 for left and right.
+const PAUSE_RECT_SIZE: u16 = 20;
 
+/// Creates a fully foncional pause menu
 pub fn pause_menu(text_color: Color, background_color: Color, selection_color: Color) -> u16 {
     // Le curseur utilise toujours CursorPos bien qu'on ne puisse pas sélectionner "options" ; il est possible que cela soit utile un jour.
     let mut cursor_pos: CursorPos = CursorPos::START;
@@ -353,6 +378,7 @@ pub fn pause_menu(text_color: Color, background_color: Color, selection_color: C
     }
 }
 
+/// Draws the line corresponding to the given [CursorPos] (for pause menu)
 fn draw_pause_selection_string(
     cursor_pos: &CursorPos,
     text_color: Color,
@@ -390,7 +416,7 @@ fn draw_pause_selection_string(
     push_rect_uniform(
         Rect {
             x: get_centered_text_left_coordo(text, true) - 15,
-            y: posy + LARGE_CHAR_HEIGHT/2,
+            y: posy + LARGE_CHAR_HEIGHT / 2,
             width: 10,
             height: 2,
         },

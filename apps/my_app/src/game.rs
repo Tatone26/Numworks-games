@@ -8,9 +8,10 @@ use crate::{
     utils::{draw_centered_string, fading, fill_screen, randint},
 };
 use eadk::Color;
-use heapless::Deque;
 use heapless::String;
+use heapless::{Deque, Vec};
 
+/// Used to get directions, and nothing else !
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Direction {
     UP,
@@ -19,7 +20,7 @@ enum Direction {
     RIGHT,
 }
 
-// This constants have to change from one project to another.
+/// The number of Boolean Options used. Public so menu() can use it.
 pub const BOOL_OPTIONS_NUMBER: usize = 2;
 
 const GRAY: Color = Color::from_rgb888(175, 175, 175);
@@ -27,14 +28,16 @@ const LIGHT_GRAY: Color = Color::from_rgb888(225, 225, 225);
 const DARK_GREEN: Color = Color::from_rgb888(0, 120, 0);
 const LIGHT_GREEN: Color = Color::from_rgb888(40, 200, 120);
 
+/// The size of a grid case. Everything is linked to this value.
 const CASE_SIZE: u16 = 10;
+/// The max y value on the grid
 const MAX_HEIGHT: u16 = SCREEN_HEIGHT / CASE_SIZE;
+/// THe max x value on the grid
 const MAX_WIDTH: u16 = SCREEN_WIDTH / CASE_SIZE;
-const MAX_ARRAY_SIZE: usize = (MAX_HEIGHT * MAX_WIDTH) as usize; // No array in this program should ever be higher than N*N, N being the number of cases.
-                                                                 // It is almost impossible for any array to be this big, and it may cause memory issues. Don't know. Just gonna try.
+/// No array in this program can exceed this size ; it can be used to set the size.
+const MAX_ARRAY_SIZE: usize = (MAX_HEIGHT * MAX_WIDTH) as usize;
 
-const SPEED: u16 = 250; // Number of millis between each move
-
+/// Menu, Options and Game start
 pub fn start() {
     let mut opt = [
         &mut MyOption {
@@ -58,22 +61,24 @@ pub fn start() {
         Color::GREEN,
     );
     if start == 1 {
-        game();
+        loop {
+            if game(if opt[0].value.0 { 100 } else { 250 }) == 0 {
+                return;
+            }
+        }
     } else {
         return;
     }
 }
 
-pub fn game() {
-    fill_screen(Color::WHITE);
-    draw_terrain();
+/// The entire game is here.
+pub fn game(speed: u16) -> u8 {
     //This mutable variables are the heart of everything. Really.
     let mut snake: Deque<Point, MAX_ARRAY_SIZE> = Deque::new();
     unsafe {
         snake.push_front_unchecked(Point::new(1, 1));
         snake.push_front_unchecked(Point::new(2, 1));
         snake.push_front_unchecked(Point::new(3, 1));
-
     }
     let mut last_move: u64 = timing::millis();
     let mut direction: Direction = Direction::RIGHT;
@@ -82,8 +87,12 @@ pub fn game() {
     while is_in_snake(&fruit_pos, &snake) {
         fruit_pos = get_random_point();
     }
+    let mut walls: Vec<Point, MAX_ARRAY_SIZE> = Vec::new();
     let mut points: u16 = 0;
 
+    fill_screen(Color::WHITE);
+    draw_terrain();
+    draw_snake(&snake);
     draw_box(fruit_pos.x, fruit_pos.y, Color::RED);
     loop {
         let keyboard_state = keyboard::scan();
@@ -107,7 +116,7 @@ pub fn game() {
             if action == 0 {
                 fading(500);
                 fill_screen(Color::BLACK);
-                return;
+                return 0;
             } else if action == 1 {
                 draw_terrain();
                 draw_snake(&snake);
@@ -115,7 +124,7 @@ pub fn game() {
                 // redraw the walls too, it is so fast that we can redraw everything and not just what was covered.
             }
         }
-        if last_move + SPEED as u64 <= timing::millis() {
+        if last_move + speed as u64 <= timing::millis() {
             match direction {
                 // need to check if the direction is not the opposite of the actual direction.
                 Direction::UP => {
@@ -145,13 +154,13 @@ pub fn game() {
             unsafe {
                 // Dangerous place ! Have to be really cautious about what I'm doing to this array !
                 front_point = snake.front().unwrap();
-                match get_point_from_dir(front_point, &direction, &snake) {
-                    // renvoie None si le nouveau point n'existe pas (< 0 ou trop grand)
+                match get_point_from_dir(front_point, &direction, &snake, &walls) {
+                    // renvoie None si le nouveau point n'existe pas, est un mur ou une partie du snake (derniere partie exclue)
                     x @ Some(_) => {
                         new_point = x.unwrap();
                         snake.push_front_unchecked(new_point);
                     }
-                    None => break,
+                    None => break, // You lose !
                 }
             }
             draw_snake(&snake);
@@ -163,6 +172,17 @@ pub fn game() {
                 }
                 draw_box(fruit_pos.x, fruit_pos.y, Color::RED);
                 points += 1;
+                if (points % 2) == 0 {
+                    // lets add walls
+                    let mut new_wall = get_random_point();
+                    while is_in_walls(&new_wall, &walls) | is_in_snake(&new_wall, &snake) {
+                        new_wall = get_random_point();
+                    }
+                    unsafe {
+                        walls.push_unchecked(new_wall);
+                    }
+                    draw_box(new_wall.x, new_wall.y, Color::BLACK);
+                }
             } else {
                 // if we didn't eat the fruit, then we get rid of the last case
                 let last_point = snake.pop_back().unwrap();
@@ -185,9 +205,15 @@ pub fn game() {
         .unwrap();
     string_points.push_str(" \0").unwrap();
     draw_centered_string(&string_points, 5, true, Color::BLACK, Color::WHITE);
-    loop {}
+    loop {
+        let keyboard_state = keyboard::scan();
+        if keyboard_state.key_down(key::OK) {
+            return 1;
+        }
+    }
 }
 
+/// Check if a given Point is in a Deque (the snake)
 fn is_in_snake(p: &Point, snake: &Deque<Point, MAX_ARRAY_SIZE>) -> bool {
     for i in snake {
         if (i.x == p.x) & (i.y == p.y) {
@@ -197,13 +223,30 @@ fn is_in_snake(p: &Point, snake: &Deque<Point, MAX_ARRAY_SIZE>) -> bool {
     return false;
 }
 
+/// Check if a given Point is in a Vec (the walls)
+fn is_in_walls(p: &Point, walls: &Vec<Point, MAX_ARRAY_SIZE>) -> bool {
+    for i in walls {
+        if (i.x == p.x) & (i.y == p.y) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Give a random Point, corresponding to a position on the game grid
 fn get_random_point() -> Point {
     let x = randint(0, (SCREEN_WIDTH / CASE_SIZE) as u32) as u16;
     let y = randint(0, (SCREEN_HEIGHT / CASE_SIZE) as u32) as u16;
     return Point::new(x, y);
 }
 
-fn get_point_from_dir(p: &Point, d: &Direction, snake : &Deque<Point, MAX_ARRAY_SIZE> ) -> Option<Point> {
+/// Return a Point from a Point and a Direction, None if the Point is non-valid
+fn get_point_from_dir(
+    p: &Point,
+    d: &Direction,
+    snake: &Deque<Point, MAX_ARRAY_SIZE>,
+    walls: &Vec<Point, MAX_ARRAY_SIZE>,
+) -> Option<Point> {
     let mut new_point = Point::new(p.x, p.y);
     match d {
         // Big boom here ! x and y can not be < 0 !! (or too big for that matter)
@@ -236,15 +279,19 @@ fn get_point_from_dir(p: &Point, d: &Direction, snake : &Deque<Point, MAX_ARRAY_
             }
         }
     }
-    if is_in_snake(&new_point, snake){
+    if is_in_walls(&new_point, walls) {
+        return None;
+    }
+    if is_in_snake(&new_point, snake) {
         let back = snake.back().unwrap();
-        if (new_point.x != back.x) | (new_point.y != back.y){
-            return None
+        if (new_point.x != back.x) | (new_point.y != back.y) {
+            return None;
         }
     }
     Some(new_point)
 }
 
+/// Draws the snake !
 fn draw_snake(snake: &Deque<Point, MAX_ARRAY_SIZE>) {
     for i in snake {
         if (i.x == snake.front().unwrap().x) & (i.y == snake.front().unwrap().y) {
@@ -255,6 +302,7 @@ fn draw_snake(snake: &Deque<Point, MAX_ARRAY_SIZE>) {
     }
 }
 
+/// Draws a box (case) of the grid
 fn draw_box(x: u16, y: u16, c: Color) {
     push_rect_uniform(
         Rect {
@@ -267,6 +315,7 @@ fn draw_box(x: u16, y: u16, c: Color) {
     );
 }
 
+/// Draws a terrain box (a box with the right color)
 fn draw_terrain_box(x: u16, y: u16) {
     if ((x % 2 == 0) & (y % 2 != 0)) | ((x % 2 != 0) & (y % 2 == 0)) {
         draw_box(x, y, GRAY)
@@ -275,6 +324,7 @@ fn draw_terrain_box(x: u16, y: u16) {
     }
 }
 
+/// Draws the entire terrain
 fn draw_terrain() {
     for x in 0..SCREEN_WIDTH / CASE_SIZE {
         for y in 0..SCREEN_HEIGHT / CASE_SIZE {
