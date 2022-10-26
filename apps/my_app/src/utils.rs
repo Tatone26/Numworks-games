@@ -6,6 +6,7 @@ pub const LARGE_CHAR_WIDTH: u16 = 10;
 pub const SMALL_CHAR_WIDTH: u16 = 7;
 
 pub const LARGE_CHAR_HEIGHT: u16 = 14;
+pub const SMALL_CHAR_HEIGHT: u16 = 8;
 
 pub fn fill_screen(color: Color) {
     display::push_rect_uniform(
@@ -29,14 +30,8 @@ pub fn get_centered_text_left_coordo(string: &str, large: bool) -> u16 {
                 SMALL_CHAR_WIDTH
             }),
     ) {
-        Some(1_u16..=u16::MAX) => {
-            return (display::SCREEN_WIDTH / 2)
-                - (size / 2)
-                    * if large {
-                        LARGE_CHAR_WIDTH
-                    } else {
-                        SMALL_CHAR_WIDTH
-                    }
+        x @ Some(1_u16..=u16::MAX) => {
+            return x.unwrap()
         }
         None | Some(0) => return 0u16,
     }

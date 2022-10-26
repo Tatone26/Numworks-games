@@ -1,9 +1,8 @@
 use crate::eadk::display::{draw_string, push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::eadk::{display, key, keyboard, timing, Color, Point, Rect};
-use crate::BOOL_OPTIONS_NUMBER;
-
+use crate::game::BOOL_OPTIONS_NUMBER;
 use crate::utils::{
-    draw_centered_string, fading, fill_screen, get_centered_text_left_coordo, LARGE_CHAR_HEIGHT,
+    draw_centered_string, fading, fill_screen, get_centered_text_left_coordo, LARGE_CHAR_HEIGHT, SMALL_CHAR_HEIGHT,
 };
 
 #[derive(Debug)]
@@ -45,7 +44,7 @@ const START_TXT: &str = "Start\0";
 const OPTIONS_TXT: &str = "Options\0";
 const EXIT_TXT: &str = "Exit\0";
 
-const FADING_TIME: u16 = 1000; // le temps en millisecondes que met le menu à fondre, si on appuie sur start.
+const FADING_TIME: u16 = 750; // le temps en millisecondes que met le menu à fondre, si on appuie sur start.
 
 pub fn menu(
     title: &str,
@@ -109,56 +108,36 @@ fn draw_selection_string(
     background_color: Color,
     selected: bool,
 ) {
+    let text: &str;
+    let y_pos: u16;
     match cursor_pos {
         CursorPos::START => {
-            draw_centered_string(START_TXT, START_POS, true, text_color, background_color);
-            push_rect_uniform(
-                Rect {
-                    x: get_centered_text_left_coordo(START_TXT, true) - 15,
-                    y: START_POS + LARGE_CHAR_HEIGHT / 2,
-                    width: 10,
-                    height: 2,
-                },
-                if selected {
-                    text_color
-                } else {
-                    background_color
-                },
-            );
+            text = START_TXT;
+            y_pos = START_POS;
         }
         CursorPos::OPTIONS => {
-            draw_centered_string(OPTIONS_TXT, OPTIONS_POS, true, text_color, background_color);
-            push_rect_uniform(
-                Rect {
-                    x: get_centered_text_left_coordo(OPTIONS_TXT, true) - 15,
-                    y: OPTIONS_POS + LARGE_CHAR_HEIGHT / 2,
-                    width: 10,
-                    height: 2,
-                },
-                if selected {
-                    text_color
-                } else {
-                    background_color
-                },
-            );
+            text = OPTIONS_TXT;
+            y_pos = OPTIONS_POS;
         }
         CursorPos::EXIT => {
-            draw_centered_string(EXIT_TXT, EXIT_POS, true, text_color, background_color);
-            push_rect_uniform(
-                Rect {
-                    x: get_centered_text_left_coordo(EXIT_TXT, true) - 15,
-                    y: EXIT_POS + LARGE_CHAR_HEIGHT / 2,
-                    width: 10,
-                    height: 2,
-                },
-                if selected {
-                    text_color
-                } else {
-                    background_color
-                },
-            );
+            text = EXIT_TXT;
+            y_pos = EXIT_POS;
         }
     }
+    draw_centered_string(text, y_pos, true, text_color, background_color);
+    push_rect_uniform(
+        Rect {
+            x: get_centered_text_left_coordo(text, true) - 15,
+            y: y_pos + LARGE_CHAR_HEIGHT / 2,
+            width: 10,
+            height: 2,
+        },
+        if selected {
+            text_color
+        } else {
+            background_color
+        },
+    );
 }
 
 const SPACE_BETWEEN_LINES: u16 = 20;
@@ -177,22 +156,19 @@ fn options(
     let first_y: u16;
     let items_number: u16 = list.iter().count() as u16;
     match (SCREEN_HEIGHT - (SCREEN_HEIGHT - LARGE_CHAR_HEIGHT) / 2)
-        .checked_sub((LARGE_CHAR_HEIGHT / 2) * items_number)
+        .checked_sub(((LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) / 2) * items_number)
     {
         None | Some(0) => first_y = 0,
-        Some(1u16..=u16::MAX) => {
-            first_y = (SCREEN_HEIGHT - (SCREEN_HEIGHT - LARGE_CHAR_HEIGHT) / 2)
-                - ((LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) / 2) * items_number
-        }
+        x_ @ Some(1u16..=u16::MAX) => first_y = x_.unwrap(),
     }
     for item in list.iter().enumerate() {
         let (i, x) = item;
-        let pos: u16 = i as u16;
+        let y_pos: u16 = first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * (i as u16);
         display::draw_string(
             x.name,
             Point::new(
                 XPOS_NAMES,
-                first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * pos,
+                y_pos + if x.name.len() > 12 {(LARGE_CHAR_HEIGHT- SMALL_CHAR_HEIGHT)/2} else {0},
             ),
             x.name.len() < 12,
             text_color,
@@ -200,8 +176,8 @@ fn options(
         );
         draw_options_selection(
             x.value.1,
-            first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * pos,
-            if pos == 0 { true } else { false },
+            y_pos,
+            if i == 0 { true } else { false },
             selection_color,
             background_color,
             text_color,
@@ -309,9 +285,10 @@ pub fn pause_menu(text_color: Color, background_color: Color, selection_color: C
     let rect_x: u16 = get_centered_text_left_coordo(RESUME_TXT, true);
     display::push_rect_uniform(
         Rect {
-            x: rect_x - PAUSE_RECT_SIZE,
+            // Can get dirty here !! x and y need to be unsigned, so if < 0 then big boom
+            x: rect_x - PAUSE_RECT_SIZE * 2,
             y: (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES - PAUSE_RECT_SIZE,
-            width: SCREEN_WIDTH - (rect_x - PAUSE_RECT_SIZE) * 2,
+            width: SCREEN_WIDTH - (rect_x - PAUSE_RECT_SIZE * 2) * 2,
             height: (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES + PAUSE_RECT_SIZE) * 2,
         },
         background_color,
@@ -383,59 +360,44 @@ fn draw_pause_selection_string(
     selected: bool,
     selection_color: Color,
 ) {
+    let text: &str;
+    let posy: u16;
     match cursor_pos {
         CursorPos::START => {
-            draw_centered_string(
-                RESUME_TXT,
-                (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES,
-                true,
-                if selected {
-                    selection_color
-                } else {
-                    text_color
-                },
-                background_color,
-            );
-            push_rect_uniform(
-                Rect {
-                    x: get_centered_text_left_coordo(RESUME_TXT, true) - 15,
-                    y: (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT / 2 - SPACE_BETWEEN_LINES,
-                    width: 10,
-                    height: 2,
-                },
-                if selected {
-                    selection_color
-                } else {
-                    background_color
-                },
-            );
+            text = RESUME_TXT;
+            posy = (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES;
         }
-        CursorPos::OPTIONS => {}
+        CursorPos::OPTIONS => {
+            text = OPTIONS_TXT;
+            posy = 0;
+        }
         CursorPos::EXIT => {
-            draw_centered_string(
-                EXIT_TXT,
-                (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES,
-                true,
-                if selected {
-                    selection_color
-                } else {
-                    text_color
-                },
-                background_color,
-            );
-            push_rect_uniform(
-                Rect {
-                    x: get_centered_text_left_coordo(EXIT_TXT, true) - 15,
-                    y: (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES + LARGE_CHAR_HEIGHT / 2,
-                    width: 10,
-                    height: 2,
-                },
-                if selected {
-                    selection_color
-                } else {
-                    background_color
-                },
-            );
+            text = EXIT_TXT;
+            posy = (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES;
         }
     }
+    draw_centered_string(
+        text,
+        posy,
+        true,
+        if selected {
+            selection_color
+        } else {
+            text_color
+        },
+        background_color,
+    );
+    push_rect_uniform(
+        Rect {
+            x: get_centered_text_left_coordo(text, true) - 15,
+            y: posy + LARGE_CHAR_HEIGHT/2,
+            width: 10,
+            height: 2,
+        },
+        if selected {
+            selection_color
+        } else {
+            background_color
+        },
+    );
 }
