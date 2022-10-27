@@ -20,7 +20,7 @@ pub struct MyOption<T: PartialEq + Copy, const COUNT: usize> {
     pub name: &'static str,
     pub value: (T, &'static str),
     pub possible_values: [T; COUNT],
-    pub possible_values_str: [&'static str; COUNT],
+    pub possible_values_str: [&'static str; COUNT], // TODO : Could maybe be merged together ? [(T, &'static str); COUNT]
 }
 
 impl<T: PartialEq + Copy, const COUNT: usize> MyOption<T, COUNT> {

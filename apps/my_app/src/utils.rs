@@ -1,5 +1,5 @@
 use crate::eadk::backlight::{brightness, set_brightness};
-use crate::eadk::display::{self, draw_string};
+use crate::eadk::display::{self, draw_string, SCREEN_WIDTH, SCREEN_HEIGHT};
 use crate::eadk::{random, timing, Color, Point, Rect};
 
 pub const LARGE_CHAR_WIDTH: u16 = 10;
@@ -7,6 +7,8 @@ pub const SMALL_CHAR_WIDTH: u16 = 7;
 
 pub const LARGE_CHAR_HEIGHT: u16 = 14;
 pub const SMALL_CHAR_HEIGHT: u16 = 8;
+
+pub const CENTER: Point = Point::new(SCREEN_WIDTH/2, SCREEN_HEIGHT/2);
 
 /// Fills the screen with the given [Color]
 pub fn fill_screen(color: Color) {
