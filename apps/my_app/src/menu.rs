@@ -14,28 +14,26 @@ enum CursorPos {
     EXIT,
 }
 
-/// An option
-#[derive(Debug, Copy, Clone)]
-pub struct MyOption<T: PartialEq + Copy, const COUNT: usize> {
+/// An Option of T type, with COUNT possible values
+#[derive(Debug)]
+pub struct MyOption<T, const COUNT: usize> {
     pub name: &'static str,
-    pub value: (T, &'static str),
-    pub possible_values: [T; COUNT],
-    pub possible_values_str: [&'static str; COUNT], // TODO : Could maybe be merged together ? [(T, &'static str); COUNT]
+    pub value: usize,
+    pub possible_values: [(T, &'static str); COUNT],
 }
 
-impl<T: PartialEq + Copy, const COUNT: usize> MyOption<T, COUNT> {
-    pub fn get_next_value(&self) -> (T, &'static str) {
-        for item in self.possible_values.iter().enumerate() {
-            let (i, x) = item;
-            if x == &self.value.0 {
-                if i < self.possible_values.len() - 1 {
-                    return (self.possible_values[i + 1], self.possible_values_str[i + 1]);
-                } else {
-                    return (self.possible_values[0], self.possible_values_str[0]);
-                }
-            }
+impl<T, const COUNT: usize> MyOption<T, COUNT> {
+    /// Set the value to the next one, 0 if needed
+    pub fn increment_value(&mut self) {
+        if self.value == COUNT -1{
+            self.value = 0
+        }else{
+            self.value += 1
         }
-        return (self.value.0, self.possible_values_str[0]);
+    }
+    /// Returns the value the option is currently set to
+    pub fn get_value(&self) -> &(T, &'static str){
+        return &self.possible_values[self.value]
     }
 }
 
@@ -59,7 +57,7 @@ const FADING_TIME: u16 = 750;
 /// Creates a fully fonctional start menu, with [Options][MyOption] !
 pub fn menu(
     title: &str,
-    opt: &mut [&mut MyOption<bool, 2>; 2],
+    opt: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER],
     text_color: Color,
     background_color: Color,
     selection_color: Color,
@@ -153,7 +151,7 @@ fn draw_selection_string(
 }
 
 /// For the [options] menu, the space between each line.
-const SPACE_BETWEEN_LINES: u16 = 20;
+const SPACE_BETWEEN_LINES: u16 = 14;
 /// Where in the x coordinate will the names of the [option][MyOption] be placed
 const XPOS_NAMES: u16 = 30;
 /// Where in the x coordinate will the values ([option][MyOption].value.1) be placed
@@ -196,7 +194,7 @@ fn options(
             background_color,
         );
         draw_options_selection(
-            x.value.1,
+            x.get_value().1,
             y_pos,
             if i == 0 { true } else { false },
             selection_color,
@@ -214,20 +212,20 @@ fn options(
         } else if keyboard_scan.key_down(key::UP) | keyboard_scan.key_down(key::DOWN) {
             let current_selection: &MyOption<bool, 2> = &list[cursor_pos as usize];
             draw_options_selection(
-                current_selection.value.1,
+                current_selection.get_value().1,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
                 false,
                 selection_color,
                 background_color,
                 text_color,
             );
-            if keyboard_scan.key_down(key::DOWN) {
+            if keyboard_scan.key_down(key::UP) {
                 if cursor_pos > 0 {
                     cursor_pos -= 1;
                 } else {
                     cursor_pos = (list.len() as u16) - 1;
                 }
-            } else if keyboard_scan.key_down(key::UP) {
+            } else if keyboard_scan.key_down(key::DOWN) {
                 if cursor_pos < list.len() as u16 - 1 {
                     cursor_pos += 1;
                 } else {
@@ -236,7 +234,7 @@ fn options(
             }
             let new_selection: &MyOption<bool, 2> = &list[cursor_pos as usize];
             draw_options_selection(
-                new_selection.value.1,
+                new_selection.get_value().1,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
                 true,
                 selection_color,
@@ -246,10 +244,10 @@ fn options(
             display::wait_for_vblank();
             timing::msleep(200);
         } else if keyboard_scan.key_down(key::OK) {
-            let mut selection: &mut MyOption<bool, 2> = list[cursor_pos as usize];
-            selection.value = selection.get_next_value();
+            let selection: &mut MyOption<bool, 2> = list[cursor_pos as usize];
+            selection.increment_value();
             draw_options_selection(
-                selection.value.1,
+                selection.get_value().1,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
                 true,
                 selection_color,
@@ -298,23 +296,23 @@ fn draw_options_selection(
     );
 }
 
-/// The text of the Start/Resume option
-const RESUME_TXT: &'static str = "Resume\0";
+/// The text of the Menu option
+const MENU_TXT: &'static str = "Menu\0";
 /// How big is the rectangle on the top & bottom, *2 for left and right.
-const PAUSE_RECT_SIZE: u16 = 20;
+const PAUSE_RECT_SIZE: u16 = 15;
 
 /// Creates a fully foncional pause menu
-pub fn pause_menu(text_color: Color, background_color: Color, selection_color: Color) -> u16 {
+pub fn pause_menu(text_color: Color, background_color: Color, selection_color: Color, resume_txt: &'static str, menu_offset: (u16, u16)) -> u8 {
     // Le curseur utilise toujours CursorPos bien qu'on ne puisse pas sélectionner "options" ; il est possible que cela soit utile un jour.
     let mut cursor_pos: CursorPos = CursorPos::START;
-    let rect_x: u16 = get_centered_text_left_coordo(RESUME_TXT, true);
+    let rect_x: u16 = get_centered_text_left_coordo(resume_txt, true);
     display::push_rect_uniform(
         Rect {
             // Can get dirty here !! x and y need to be unsigned, so if < 0 then big boom
-            x: rect_x - PAUSE_RECT_SIZE * 2,
-            y: (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES - PAUSE_RECT_SIZE,
+            x: rect_x - PAUSE_RECT_SIZE * 2  + menu_offset.0,
+            y: (SCREEN_HEIGHT / 2) - (LARGE_CHAR_HEIGHT/2)*3 - SPACE_BETWEEN_LINES - PAUSE_RECT_SIZE  + menu_offset.1,
             width: SCREEN_WIDTH - (rect_x - PAUSE_RECT_SIZE * 2) * 2,
-            height: (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES + PAUSE_RECT_SIZE) * 2,
+            height: (LARGE_CHAR_HEIGHT*3 + SPACE_BETWEEN_LINES*2 + (PAUSE_RECT_SIZE*2)),
         },
         background_color,
     );
@@ -324,6 +322,17 @@ pub fn pause_menu(text_color: Color, background_color: Color, selection_color: C
         background_color,
         true,
         selection_color,
+        resume_txt,
+        menu_offset
+    );
+    draw_pause_selection_string(
+        &CursorPos::OPTIONS,
+        text_color,
+        background_color,
+        false,
+        selection_color,
+        resume_txt,
+        menu_offset
     );
     draw_pause_selection_string(
         &CursorPos::EXIT,
@@ -331,6 +340,8 @@ pub fn pause_menu(text_color: Color, background_color: Color, selection_color: C
         background_color,
         false,
         selection_color,
+        resume_txt, 
+        menu_offset
     );
     display::wait_for_vblank();
     timing::msleep(200);
@@ -343,18 +354,20 @@ pub fn pause_menu(text_color: Color, background_color: Color, selection_color: C
                 background_color,
                 false,
                 selection_color,
+                resume_txt, 
+                menu_offset
             );
             if keyboard_state.key_down(key::DOWN) {
                 match &cursor_pos {
-                    CursorPos::START => cursor_pos = CursorPos::EXIT,
+                    CursorPos::START => cursor_pos = CursorPos::OPTIONS,
                     CursorPos::EXIT => cursor_pos = CursorPos::START,
-                    CursorPos::OPTIONS => cursor_pos = CursorPos::OPTIONS,
+                    CursorPos::OPTIONS => cursor_pos = CursorPos::EXIT,
                 }
             } else if keyboard_state.key_down(key::UP) {
                 match &cursor_pos {
                     CursorPos::START => cursor_pos = CursorPos::EXIT,
-                    CursorPos::OPTIONS => cursor_pos = CursorPos::OPTIONS,
-                    CursorPos::EXIT => cursor_pos = CursorPos::START,
+                    CursorPos::OPTIONS => cursor_pos = CursorPos::START,
+                    CursorPos::EXIT => cursor_pos = CursorPos::OPTIONS,
                 }
             }
             draw_pause_selection_string(
@@ -363,14 +376,16 @@ pub fn pause_menu(text_color: Color, background_color: Color, selection_color: C
                 background_color,
                 true,
                 selection_color,
+                resume_txt, 
+                menu_offset
             );
             display::wait_for_vblank();
             timing::msleep(200);
         } else if keyboard_state.key_down(key::OK) {
             match &cursor_pos {
-                CursorPos::START => return 1,
-                CursorPos::OPTIONS => cursor_pos = CursorPos::OPTIONS,
-                CursorPos::EXIT => return 0,
+                CursorPos::START => return 1, // Resume
+                CursorPos::OPTIONS => return 2, // Quit to menu
+                CursorPos::EXIT => return 0, // Quit the game
             }
         } else if keyboard_state.key_down(key::BACK) {
             return 1;
@@ -385,26 +400,28 @@ fn draw_pause_selection_string(
     background_color: Color,
     selected: bool,
     selection_color: Color,
+    resume_txt: &'static str,
+    menu_offset: (u16, u16)
 ) {
     let text: &str;
     let posy: u16;
     match cursor_pos {
         CursorPos::START => {
-            text = RESUME_TXT;
-            posy = (SCREEN_HEIGHT / 2) - LARGE_CHAR_HEIGHT - SPACE_BETWEEN_LINES;
+            text = resume_txt;
+            posy = (SCREEN_HEIGHT / 2) - (LARGE_CHAR_HEIGHT/2)*3 - SPACE_BETWEEN_LINES + menu_offset.1;
         }
         CursorPos::OPTIONS => {
-            text = OPTIONS_TXT;
-            posy = 0;
+            text = MENU_TXT;
+            posy = (SCREEN_HEIGHT / 2) - (LARGE_CHAR_HEIGHT/2) + menu_offset.1;
         }
         CursorPos::EXIT => {
             text = EXIT_TXT;
-            posy = (SCREEN_HEIGHT / 2) + SPACE_BETWEEN_LINES;
+            posy = (SCREEN_HEIGHT / 2) + (LARGE_CHAR_HEIGHT/2) + SPACE_BETWEEN_LINES + menu_offset.1;
         }
     }
-    draw_centered_string(
+    draw_string(
         text,
-        posy,
+        Point::new(get_centered_text_left_coordo(text, true) + menu_offset.0, posy),
         true,
         if selected {
             selection_color
@@ -415,7 +432,7 @@ fn draw_pause_selection_string(
     );
     push_rect_uniform(
         Rect {
-            x: get_centered_text_left_coordo(text, true) - 15,
+            x: get_centered_text_left_coordo(text, true) - 15  + menu_offset.0,
             y: posy + LARGE_CHAR_HEIGHT / 2,
             width: 10,
             height: 2,

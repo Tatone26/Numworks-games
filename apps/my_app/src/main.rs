@@ -10,7 +10,7 @@ mod game;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]
-pub static EADK_APP_NAME: [u8; 10] = *b"Snake 2.0\0";
+pub static EADK_APP_NAME: [u8; 6] = *b"SNAKE\0";
 
 #[used]
 #[link_section = ".rodata.eadk_api_level"]
@@ -18,7 +18,7 @@ pub static EADK_APP_API_LEVEL: u32 = 0;
 
 #[used]
 #[link_section = ".rodata.eadk_app_icon"]
-pub static EADK_APP_ICON: [u8; 4250] = *include_bytes!("../target/icon.nwi");
+pub static EADK_APP_ICON: [u8; 2286] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {

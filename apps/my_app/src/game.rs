@@ -5,7 +5,7 @@ use crate::{
         key, keyboard, timing, Point, Rect,
     },
     menu::{menu, pause_menu, MyOption},
-    utils::{draw_centered_string, fading, fill_screen, randint, CENTER},
+    utils::{draw_centered_string, fading, fill_screen, randint, CENTER, LARGE_CHAR_HEIGHT},
 };
 use eadk::Color;
 use heapless::String;
@@ -21,8 +21,9 @@ enum Direction {
 }
 
 /// The number of Boolean Options used. Public so menu() can use it.
-pub const BOOL_OPTIONS_NUMBER: usize = 2;
+pub const BOOL_OPTIONS_NUMBER: usize = 3;
 
+const DARK_GRAY: Color = Color::from_rgb888(60, 60, 80);
 const GRAY: Color = Color::from_rgb888(175, 175, 175);
 const LIGHT_GRAY: Color = Color::from_rgb888(225, 225, 225);
 const DARK_GREEN: Color = Color::from_rgb888(0, 120, 0);
@@ -36,57 +37,68 @@ static mut MAX_HEIGHT: u16 = SCREEN_HEIGHT / CASE_SIZE - 1;
 /// THe max x value on the grid
 static mut MAX_WIDTH: u16 = SCREEN_WIDTH / CASE_SIZE - 1;
 /// The offset of the grid
-static mut GRID_OFFSET: (u16, u16) = (0, 0);
+static mut GRID_OFFSET: (u16, u16) = (CASE_SIZE / 2, CASE_SIZE / 2);
 /// No array in this program can exceed this size ; it can be used to set the size.
 const MAX_ARRAY_SIZE: usize =
     ((SCREEN_HEIGHT / CASE_SIZE - 1) * SCREEN_WIDTH / CASE_SIZE - 1) as usize;
 
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt = [
+    let mut opt: [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER] = [
         &mut MyOption {
             name: "HYPER RAPIDE !\0",
-            value: (true, "Oui !\0"),
-            possible_values: [true, false],
-            possible_values_str: ["Oui !\0", "Non !\0"],
+            value: 0,
+            possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
         },
         &mut MyOption {
             name: "MINI TERRAIN !\0",
-            value: (true, "Oui !\0"),
-            possible_values: [true, false],
-            possible_values_str: ["Oui !\0", "Non !\0"],
+            value: 0,
+            possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
+        },
+        &mut MyOption {
+            name: "OBSTACLES !\0",
+            value: 0,
+            possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
         },
     ];
-    let start = menu(
-        "SNAKE 2.0\0",
-        &mut opt,
-        Color::BLACK,
-        Color::WHITE,
-        Color::GREEN,
-    );
-    if start == 1 {
-        if opt[1].value.0 {
-            unsafe {
-                MAX_HEIGHT = 11;
-                MAX_WIDTH = 16;
-                GRID_OFFSET = (
-                    CENTER.x - (MAX_WIDTH / 2) * CASE_SIZE,
-                    CENTER.y - (MAX_HEIGHT / 2) * CASE_SIZE,
-                )
+    loop {
+        let start = menu(
+            "SNAKE 2.0\0",
+            &mut opt,
+            Color::BLACK,
+            Color::WHITE,
+            Color::GREEN,
+        );
+        if start == 1 {
+            if opt[1].get_value().0 {
+                unsafe {
+                    MAX_HEIGHT = 11;
+                    MAX_WIDTH = 16;
+                    GRID_OFFSET = (
+                        CENTER.x - (MAX_WIDTH / 2) * CASE_SIZE,
+                        CENTER.y - (MAX_HEIGHT / 2) * CASE_SIZE,
+                    )
+                }
             }
-        }
-        loop {
-            if game(if opt[0].value.0 { 100 } else { 250 }) == 0 {
-                return;
+            loop {
+                let action = game(
+                    if opt[0].get_value().0 { 100 } else { 250 },
+                    opt[2].get_value().0,
+                );
+                if action == 0 {
+                    return;
+                } else if action == 2 {
+                    break;
+                }
             }
+        } else {
+            return;
         }
-    } else {
-        return;
     }
 }
 
 /// The entire game is here.
-pub fn game(speed: u16) -> u8 {
+pub fn game(speed: u16, has_walls: bool) -> u8 {
     //This mutable variables are the heart of everything. Really.
     let mut snake: Deque<Point, MAX_ARRAY_SIZE> = Deque::new();
     unsafe {
@@ -104,7 +116,6 @@ pub fn game(speed: u16) -> u8 {
     let mut walls: Vec<Point, MAX_ARRAY_SIZE> = Vec::new();
     let mut points: u16 = 0;
 
-    fill_screen(Color::WHITE);
     draw_terrain();
     draw_snake(&snake);
     draw_box(fruit_pos.x, fruit_pos.y, Color::RED);
@@ -121,16 +132,16 @@ pub fn game(speed: u16) -> u8 {
         } else if keyboard_state.key_down(key::LEFT) {
             direction = Direction::LEFT;
         } else if keyboard_state.key_down(key::BACKSPACE) {
-            let action = snake_pause(points);
-            if action == 1{
+            let action = snake_pause(points, false);
+            if action == 1 {
                 draw_terrain();
                 draw_snake(&snake);
                 draw_box(fruit_pos.x, fruit_pos.y, Color::RED);
                 for i in &walls {
                     draw_box(i.x, i.y, Color::BLACK);
                 }
-            }else{
-                return action
+            } else {
+                return action;
             }
         }
         // When the time is up !
@@ -160,7 +171,7 @@ pub fn game(speed: u16) -> u8 {
                     x @ Some(_) => next_direct_pos = x.unwrap(),
                     None => unsafe { next_direct_pos = Point::new(MAX_WIDTH, MAX_HEIGHT) },
                 }
-                if (points % 2) == 0 {
+                if has_walls & ((points % 2) == 0) {
                     // add walls
                     let mut new_wall = get_random_point();
                     while is_in_walls(&new_wall, &walls)
@@ -193,42 +204,33 @@ pub fn game(speed: u16) -> u8 {
         }
     }
     draw_centered_string(
-        "Perdu !\0",
-        SCREEN_HEIGHT / 2,
+        " Perdu ! \0",
+        SCREEN_HEIGHT/3 - LARGE_CHAR_HEIGHT,
         true,
         Color::RED,
         Color::WHITE,
     );
-    let mut string_points: String<15> = String::from(" Points : ");
-    string_points
-        .push_str(String::<15>::from(points).as_str())
-        .unwrap();
-    string_points.push_str(" \0").unwrap();
-    draw_centered_string(&string_points, 5, true, Color::BLACK, Color::WHITE);
-    loop {
-        let keyboard_state = keyboard::scan();
-        if keyboard_state.key_down(key::OK) {
-            return 1;
-        }
-    }
+    snake_pause(points, true)
 }
 
-fn snake_pause(points: u16)->u8{
+fn snake_pause(points: u16, death: bool) -> u8 {
     let mut string_points: String<15> = String::from(" Points : ");
     string_points
         .push_str(String::<15>::from(points).as_str())
         .unwrap();
     string_points.push_str(" \0").unwrap();
     draw_centered_string(&string_points, 5, true, Color::BLACK, Color::WHITE);
-    let action = pause_menu(Color::BLACK, Color::WHITE, DARK_GREEN);
-    if action == 0 {
+    let action = pause_menu(
+        Color::BLACK,
+        Color::WHITE,
+        DARK_GREEN,
+        if death { "Play again\0" } else { "Resume\0" },
+        (0, if death { 50 } else { 0 }),
+    );
+    if action != 1 {
         fading(500);
-        fill_screen(Color::BLACK);
-        return 0;
     }
-    else{
-        return 1
-    }
+    return action;
 }
 
 fn check_direction(direction: Direction, last_direction: Direction) -> Direction {
@@ -281,8 +283,8 @@ fn is_in_walls(p: &Point, walls: &Vec<Point, MAX_ARRAY_SIZE>) -> bool {
 /// Give a random Point, corresponding to a position on the game grid
 fn get_random_point() -> Point {
     unsafe {
-        let x = randint(0, (MAX_WIDTH-1) as u32) as u16;
-        let y = randint(0, (MAX_HEIGHT-1) as u32) as u16;
+        let x = randint(0, (MAX_WIDTH - 1) as u32) as u16;
+        let y = randint(0, (MAX_HEIGHT - 1) as u32) as u16;
         return Point::new(x, y);
     }
 }
@@ -305,7 +307,7 @@ fn get_point_from_dir(
             }
         }
         Direction::DOWN => unsafe {
-            if new_point.y < MAX_HEIGHT - 1{
+            if new_point.y < MAX_HEIGHT - 1 {
                 new_point.y += 1
             } else {
                 return None;
@@ -319,7 +321,7 @@ fn get_point_from_dir(
             }
         }
         Direction::RIGHT => unsafe {
-            if new_point.x < MAX_WIDTH - 1{
+            if new_point.x < MAX_WIDTH - 1 {
                 new_point.x += 1
             } else {
                 return None;
@@ -375,24 +377,23 @@ fn draw_terrain_box(x: u16, y: u16) {
 
 /// Draws the entire terrain
 fn draw_terrain() {
+    fill_screen(DARK_GRAY);
     unsafe {
-        if GRID_OFFSET != (0, 0) {
-            push_rect_uniform(
-                Rect {
-                    x: match GRID_OFFSET.0.checked_sub(CASE_SIZE/2){
-                        x @ Some(_) => x.unwrap(),
-                        None => 0,
-                    },
-                    y: match GRID_OFFSET.1.checked_sub(CASE_SIZE/2){
-                        x @ Some(_) => x.unwrap(),
-                        None => 0,
-                    },
-                    width: (MAX_WIDTH + 1)*CASE_SIZE,
-                    height: (MAX_HEIGHT + 1)*CASE_SIZE,
+        push_rect_uniform(
+            Rect {
+                x: match GRID_OFFSET.0.checked_sub(CASE_SIZE / 2) {
+                    x @ Some(_) => x.unwrap(),
+                    None => 0,
                 },
-                Color::BLACK,
-            );
-        }
+                y: match GRID_OFFSET.1.checked_sub(CASE_SIZE / 2) {
+                    x @ Some(_) => x.unwrap(),
+                    None => 0,
+                },
+                width: (MAX_WIDTH + 1) * CASE_SIZE,
+                height: (MAX_HEIGHT + 1) * CASE_SIZE,
+            },
+            Color::BLACK,
+        );
         for x in 0..(MAX_WIDTH) {
             for y in 0..(MAX_HEIGHT) {
                 draw_terrain_box(x, y);
