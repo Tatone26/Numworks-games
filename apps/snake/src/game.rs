@@ -4,7 +4,7 @@ use crate::{
         display::{self, push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
         key, keyboard, timing, Point, Rect,
     },
-    menu::{menu, pause_menu, MyOption},
+    menu::{menu, selection_menu, MenuConfig, MyOption},
     utils::{
         draw_centered_string, fading, fill_screen, randint, ColorConfig, CENTER, LARGE_CHAR_HEIGHT,
     },
@@ -27,6 +27,7 @@ pub const BOOL_OPTIONS_NUMBER: usize = 3;
 
 const DARK_GRAY: Color = Color::from_rgb888(60, 60, 80);
 const GRAY: Color = Color::from_rgb888(175, 175, 175);
+const BCKD_GRAY: Color = Color::from_rgb888(200, 200, 200);
 const LIGHT_GRAY: Color = Color::from_rgb888(225, 225, 225);
 const DARK_GREEN: Color = Color::from_rgb888(0, 120, 0);
 const LIGHT_GREEN: Color = Color::from_rgb888(40, 200, 120);
@@ -46,7 +47,7 @@ const MAX_ARRAY_SIZE: usize =
 /// The [ColorConfig] to use for most of the text in menus etc
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
-    bckgrd: Color::WHITE,
+    bckgrd: BCKD_GRAY,
     alt: DARK_GREEN,
 };
 
@@ -56,7 +57,7 @@ pub fn start() {
         &mut MyOption {
             name: "HYPER RAPIDE !\0",
             value: 0,
-            possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
+            possible_values: [(true, "EVIDEMMENT !\0"), (false, "Non !\0")],
         },
         &mut MyOption {
             name: "MINI TERRAIN !\0",
@@ -77,8 +78,8 @@ pub fn start() {
                     MAX_HEIGHT = 11;
                     MAX_WIDTH = 16;
                     GRID_OFFSET = (
-                        CENTER.x - (MAX_WIDTH / 2) * CASE_SIZE,
-                        CENTER.y - (MAX_HEIGHT / 2) * CASE_SIZE,
+                        CENTER.x - (MAX_WIDTH * CASE_SIZE)/2,
+                        CENTER.y - (MAX_HEIGHT * CASE_SIZE)/2,
                     )
                 }
             } else {
@@ -232,7 +233,18 @@ fn snake_pause(points: u16, death: bool) -> u8 {
         .unwrap();
     string_points.push_str(" \0").unwrap();
     draw_centered_string(&string_points, 5, true, &COLOR_CONFIG, false);
-    let action = pause_menu(&COLOR_CONFIG, if death { 50 } else { 0 });
+    let action = selection_menu(
+        &COLOR_CONFIG,
+        &MenuConfig {
+            first_choice: if death { "Play again\0" } else { "Resume\0" },
+            second_choice: "Menu\0",
+            null_choice: "Exit\0",
+            rect_margins: (20, 12),
+            dimensions: (SCREEN_WIDTH * 7 / 15, LARGE_CHAR_HEIGHT * 7),
+            offset: (0, if death { 50 } else { 0 }),
+            back_key_return: if death { 2 } else { 1 },
+        },
+    );
     if action != 1 {
         fading(500);
     }

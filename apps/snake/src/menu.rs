@@ -1,9 +1,9 @@
-use crate::eadk::display::{draw_string, push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH};
+use crate::eadk::display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::eadk::{display, key, keyboard, timing, Point, Rect};
 use crate::game::BOOL_OPTIONS_NUMBER;
 use crate::utils::{
-    draw_centered_string, fading, fill_screen, get_centered_text_left_coordo, ColorConfig,
-    LARGE_CHAR_HEIGHT, SMALL_CHAR_HEIGHT, draw_string_cfg,
+    draw_centered_string, draw_string_cfg, fading, fill_screen, get_centered_text_x_coordo,
+    get_string_size, ColorConfig, LARGE_CHAR_HEIGHT, SMALL_CHAR_HEIGHT,
 };
 
 /// Used to symbolise the cursor position
@@ -41,13 +41,13 @@ impl<T, const COUNT: usize> MyOption<T, COUNT> {
 /// This is THE thing to use to construct a beautiful menu !
 /// It may not be really intuitive, but it is efficient.
 pub struct MenuConfig {
-    first_choice: &'static str,
-    second_choice: &'static str,
-    null_choice: &'static str,
-    rect_margins: (u16, u16), // How much between text and sides
-    dimensions: (u16, u16), // Width and Height
-    offset: (u16, u16), // Offset of the entire menu
-    back_key_return: u8, // The return value bound to the BACK key
+    pub first_choice: &'static str,
+    pub second_choice: &'static str,
+    pub null_choice: &'static str,
+    pub rect_margins: (u16, u16), // How much between text and sides
+    pub dimensions: (u16, u16),   // Width and Height
+    pub offset: (u16, u16),       // Offset of the entire menu
+    pub back_key_return: u8,      // The return value bound to the BACK key
 }
 
 /// Duration of fadings, in milliseconds
@@ -69,9 +69,9 @@ pub fn menu(
                 second_choice: "Options\0",
                 null_choice: "Exit\0",
                 rect_margins: (10, 10),
-                dimensions: (SCREEN_WIDTH/2, SCREEN_HEIGHT / 2),
+                dimensions: (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
                 offset: (0, SCREEN_HEIGHT / 5),
-                back_key_return: 0
+                back_key_return: 0,
             },
         );
         if action == 2 {
@@ -83,7 +83,7 @@ pub fn menu(
     }
 }
 
-/// Creates a fully fonctional pause menu
+/// Creates a fully fonctional pause menu, mostly an exemple
 pub fn pause_menu(cfg: &ColorConfig, y_offset: u16) -> u8 {
     return selection_menu(
         cfg,
@@ -97,7 +97,7 @@ pub fn pause_menu(cfg: &ColorConfig, y_offset: u16) -> u8 {
                 LARGE_CHAR_HEIGHT * 3 + SPACE_BETWEEN_LINES * 4,
             ),
             offset: (0, y_offset),
-            back_key_return: 1
+            back_key_return: 1,
         },
     );
 }
@@ -108,13 +108,12 @@ const REPETITION_SPEED: u16 = 200;
 /// The working part of any menu.
 /// It currently works for only three choices (Start, Option and Exit for exemple)
 /// Returns 1 for first_choice, 2 for second_choice and 0 for null_choice
-fn selection_menu(color: &ColorConfig, config: &MenuConfig) -> u8 {
+pub fn selection_menu(color: &ColorConfig, config: &MenuConfig) -> u8 {
     let mut cursor_pos: CursorPos = CursorPos::START;
     display::push_rect_uniform(
         Rect {
-            // Can get dirty here !! x and y need to be unsigned, so if < 0 then big boom
-            x: SCREEN_WIDTH / 2 - config.dimensions.0 / 2 + config.offset.0,
-            y: SCREEN_HEIGHT / 2 - config.dimensions.1 / 2 + config.offset.1,
+            x: (SCREEN_WIDTH - config.dimensions.0)/ 2 + config.offset.0,
+            y: (SCREEN_HEIGHT - config.dimensions.1)/2 + config.offset.1,
             width: config.dimensions.0,
             height: config.dimensions.1,
         },
@@ -129,7 +128,9 @@ fn selection_menu(color: &ColorConfig, config: &MenuConfig) -> u8 {
     let mut last_action_key: u32 = key::ALPHA;
     loop {
         let keyboard_state = keyboard::scan();
-        if (keyboard_state.key_down(key::DOWN) | keyboard_state.key_down(key::UP)) & (timing::millis() >= (last_action + REPETITION_SPEED as u64)) {
+        if (keyboard_state.key_down(key::DOWN) | keyboard_state.key_down(key::UP))
+            & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
+        {
             draw_selection_string(&cursor_pos, color, config, false);
             if keyboard_state.key_down(key::DOWN) {
                 match &cursor_pos {
@@ -157,7 +158,8 @@ fn selection_menu(color: &ColorConfig, config: &MenuConfig) -> u8 {
             }
         } else if keyboard_state.key_down(key::BACK) {
             return config.back_key_return;
-        }else if !keyboard_state.key_down(last_action_key) { // if we let go of the key
+        } else if !keyboard_state.key_down(last_action_key) {
+            // if we let go of the key
             last_action = timing::millis() - REPETITION_SPEED as u64;
         }
     }
@@ -190,11 +192,11 @@ fn draw_selection_string(
                 - LARGE_CHAR_HEIGHT;
         }
     }
-    let x_coordos = get_centered_text_left_coordo(text, true) + config.offset.0;
+    let x_coordos = get_centered_text_x_coordo(text, true) + config.offset.0;
     draw_string_cfg(text, Point::new(x_coordos, y_pos), true, color, selected);
     push_rect_uniform(
         Rect {
-            x: get_centered_text_left_coordo(text, true) - 15,
+            x: get_centered_text_x_coordo(text, true) - 15,
             y: y_pos + LARGE_CHAR_HEIGHT / 2,
             width: 10,
             height: 2,
@@ -204,7 +206,7 @@ fn draw_selection_string(
 }
 
 /// For the [options] menu, the space between each line.
-const SPACE_BETWEEN_LINES: u16 = 14;
+const SPACE_BETWEEN_LINES: u16 = LARGE_CHAR_HEIGHT;
 /// Where in the x coordinate will the names of the [option][MyOption] be placed
 const XPOS_NAMES: u16 = 30;
 /// Where in the x coordinate will the values ([option][MyOption].value.1) be placed
@@ -226,18 +228,19 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
     for item in list.iter().enumerate() {
         let (i, x) = item;
         let y_pos: u16 = first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * (i as u16);
+        let large: bool = get_string_size(x.name, true) + XPOS_NAMES < XPOS_VALUES - 10;
         display::draw_string(
             x.name,
             Point::new(
                 XPOS_NAMES,
                 y_pos
-                    + if x.name.len() > 12 {
+                    + if !large {
                         (LARGE_CHAR_HEIGHT - SMALL_CHAR_HEIGHT) / 2
                     } else {
                         0
                     },
             ),
-            x.name.len() < 12,
+            large,
             cfg.text,
             cfg.bckgrd,
         );
@@ -287,6 +290,15 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
             timing::msleep(200);
         } else if keyboard_scan.key_down(key::OK) {
             let selection: &mut MyOption<bool, 2> = list[cursor_pos as usize];
+            push_rect_uniform(
+                Rect {
+                    x: XPOS_VALUES,
+                    y: first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
+                    width: get_string_size(selection.get_value().1, true),
+                    height: LARGE_CHAR_HEIGHT,
+                },
+                cfg.bckgrd,
+            );
             selection.increment_value();
             draw_options_selection(
                 selection.get_value().1,
@@ -303,12 +315,20 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
 
 /// Draws the line corresponding to the given option value
 fn draw_options_selection(text: &str, ypos: u16, selected: bool, cfg: &ColorConfig) {
-    draw_string(
+    let large: bool = get_string_size(text, true) < SCREEN_WIDTH - XPOS_VALUES;
+    draw_string_cfg(
         text,
-        Point::new(XPOS_VALUES, ypos),
-        true,
-        if selected { cfg.alt } else { cfg.text },
-        cfg.bckgrd,
+        Point::new(
+            XPOS_VALUES,
+            ypos + if !large {
+                (LARGE_CHAR_HEIGHT - SMALL_CHAR_HEIGHT) / 2
+            } else {
+                0
+            },
+        ),
+        large,
+        cfg,
+        selected,
     );
     push_rect_uniform(
         Rect {
