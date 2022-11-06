@@ -1,13 +1,18 @@
 use crate::eadk::backlight::{brightness, set_brightness};
 use crate::eadk::display::{self, draw_string, SCREEN_HEIGHT, SCREEN_WIDTH};
-use crate::eadk::{random, timing, Color, Point, Rect};
+use crate::eadk::{random, timing, Color, Point, Rect, keyboard};
 
+/// Width in pixels of a large character
 pub const LARGE_CHAR_WIDTH: u16 = 9;
-pub const SMALL_CHAR_WIDTH: u16 = 7;
+/// Width in pixels of a small character
+pub const SMALL_CHAR_WIDTH: u16 = 6;
 
-pub const LARGE_CHAR_HEIGHT: u16 = 15;
-pub const SMALL_CHAR_HEIGHT: u16 = 8;
+/// Height in pixels of a large character
+pub const LARGE_CHAR_HEIGHT: u16 = 16;
+/// Height in pixels of a small character
+pub const SMALL_CHAR_HEIGHT: u16 = 10;
 
+/// This center is the upper left corner of the 4 squares that make the center
 pub const CENTER: Point = Point::new(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
 
 /// A structure that facilitates passing color configuration to functions.
@@ -35,17 +40,16 @@ pub fn fill_screen(color: Color) {
 
 /// Returns the left x coordinate that centers the given string
 pub fn get_centered_text_x_coordo(string: &str, large: bool) -> u16 {
-    match (display::SCREEN_WIDTH / 2).checked_sub(get_string_size(string, large)/2)
+    match (display::SCREEN_WIDTH).checked_sub(get_string_pixel_size(string, large))
     {
-        x @ Some(1_u16..=u16::MAX) => return x.unwrap(),
+        x @ Some(1_u16..=u16::MAX) => return x.unwrap()/2,
         None | Some(0) => return 0u16,
     }
 }
 
-/// Returns the size in pixel of the given string
-pub fn get_string_size(string: &str, large: bool) -> u16 {
-    let size: u16 = string.chars().count() as u16;
-    return size
+/// Returns the size IN PIXELS of the given string
+pub fn get_string_pixel_size(string: &str, large: bool) -> u16 {
+    return string.chars().count() as u16
         * (if large {
             LARGE_CHAR_WIDTH
         } else {
@@ -62,12 +66,12 @@ pub fn draw_centered_string(
     // Use alt text color or not
     alt: bool,
 ) {
-    draw_string(
+    draw_string_cfg(
         string,
         Point::new(get_centered_text_x_coordo(string, large), posy),
         large,
-        if alt { cfg.alt } else { cfg.text },
-        cfg.bckgrd,
+        cfg,
+        alt,
     );
 }
 
@@ -92,16 +96,26 @@ pub fn fading(dur: u32) {
     }
     let mut bs = start_brightness;
     while bs != 0 {
-        set_brightness(bs);
-        timing::msleep(dur / start_brightness as u32);
         bs -= 1;
+        timing::msleep(dur / start_brightness as u32);
+        set_brightness(bs);
     }
     fill_screen(Color::BLACK);
-    set_brightness(start_brightness);
     display::wait_for_vblank();
+    set_brightness(start_brightness);
 }
 
 /// Gives a [random] integer between a and b (included)
 pub fn randint(a: u32, b: u32) -> u32 {
     return random() % (b - a) + a;
+}
+
+/// Bloque le programme tend qu'une touche est appuyée
+pub fn wait_for_no_keydown(){
+    loop {
+        let keyboard_state = keyboard::scan();
+        if !keyboard_state.any_down(){
+            break
+        }
+    }
 }

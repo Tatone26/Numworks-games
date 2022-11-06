@@ -3,7 +3,8 @@ use crate::eadk::{display, key, keyboard, timing, Point, Rect};
 use crate::game::BOOL_OPTIONS_NUMBER;
 use crate::utils::{
     draw_centered_string, draw_string_cfg, fading, fill_screen, get_centered_text_x_coordo,
-    get_string_size, ColorConfig, LARGE_CHAR_HEIGHT, SMALL_CHAR_HEIGHT,
+    get_string_pixel_size, wait_for_no_keydown, ColorConfig, CENTER, LARGE_CHAR_HEIGHT,
+    SMALL_CHAR_HEIGHT,
 };
 
 /// Used to symbolise the cursor position
@@ -58,9 +59,11 @@ pub fn menu(
     title: &str,
     opt: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER],
     cfg: &ColorConfig,
+    vis_addon: fn()
 ) -> u8 {
     loop {
         fill_screen(cfg.bckgrd);
+        vis_addon();
         draw_centered_string(title, 20, true, cfg, false);
         let action = selection_menu(
             cfg,
@@ -112,8 +115,8 @@ pub fn selection_menu(color: &ColorConfig, config: &MenuConfig) -> u8 {
     let mut cursor_pos: CursorPos = CursorPos::START;
     display::push_rect_uniform(
         Rect {
-            x: (SCREEN_WIDTH - config.dimensions.0)/ 2 + config.offset.0,
-            y: (SCREEN_HEIGHT - config.dimensions.1)/2 + config.offset.1,
+            x: (SCREEN_WIDTH - config.dimensions.0) / 2 + config.offset.0,
+            y: (SCREEN_HEIGHT - config.dimensions.1) / 2 + config.offset.1,
             width: config.dimensions.0,
             height: config.dimensions.1,
         },
@@ -123,7 +126,7 @@ pub fn selection_menu(color: &ColorConfig, config: &MenuConfig) -> u8 {
     draw_selection_string(&CursorPos::OPTIONS, color, config, false);
     draw_selection_string(&CursorPos::EXIT, color, config, false);
     display::wait_for_vblank();
-    timing::msleep(200);
+    wait_for_no_keydown();
     let mut last_action: u64 = timing::millis();
     let mut last_action_key: u32 = key::ALPHA;
     loop {
@@ -151,10 +154,15 @@ pub fn selection_menu(color: &ColorConfig, config: &MenuConfig) -> u8 {
             display::wait_for_vblank();
             last_action = timing::millis();
         } else if keyboard_state.key_down(key::OK) {
-            match &cursor_pos {
-                CursorPos::START => return 1,
-                CursorPos::OPTIONS => return 2,
-                CursorPos::EXIT => return 0,
+            loop {
+                let keyboard_state_test = keyboard::scan();
+                if !keyboard_state_test.key_down(key::OK) {
+                    match &cursor_pos {
+                        CursorPos::START => return 1,
+                        CursorPos::OPTIONS => return 2,
+                        CursorPos::EXIT => return 0,
+                    }
+                }
             }
         } else if keyboard_state.key_down(key::BACK) {
             return config.back_key_return;
@@ -178,16 +186,15 @@ fn draw_selection_string(
     match cursor_pos {
         CursorPos::START => {
             text = config.first_choice;
-            y_pos = SCREEN_HEIGHT / 2 + config.offset.1 + config.rect_margins.1
-                - config.dimensions.1 / 2;
+            y_pos = CENTER.y + config.offset.1 + config.rect_margins.1 - config.dimensions.1 / 2;
         }
         CursorPos::OPTIONS => {
             text = config.second_choice;
-            y_pos = SCREEN_HEIGHT / 2 + config.offset.1 - LARGE_CHAR_HEIGHT / 2;
+            y_pos = CENTER.y + config.offset.1 - LARGE_CHAR_HEIGHT / 2;
         }
         CursorPos::EXIT => {
             text = config.null_choice;
-            y_pos = SCREEN_HEIGHT / 2 + config.offset.1 + config.dimensions.1 / 2
+            y_pos = CENTER.y + config.offset.1 + config.dimensions.1 / 2
                 - config.rect_margins.1
                 - LARGE_CHAR_HEIGHT;
         }
@@ -219,16 +226,17 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
     // Only taking care of boolean options for now.
     let first_y: u16;
     let items_number: u16 = list.iter().count() as u16;
-    match (SCREEN_HEIGHT - (SCREEN_HEIGHT - LARGE_CHAR_HEIGHT) / 2)
-        .checked_sub(((LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) / 2) * items_number)
+    match (SCREEN_HEIGHT + LARGE_CHAR_HEIGHT)
+        .checked_sub((LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * items_number)
     {
         None | Some(0) => first_y = 0,
-        x_ @ Some(1u16..=u16::MAX) => first_y = x_.unwrap(),
+        x_ @ Some(1u16..=u16::MAX) => first_y = x_.unwrap() / 2,
     }
     for item in list.iter().enumerate() {
         let (i, x) = item;
         let y_pos: u16 = first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * (i as u16);
-        let large: bool = get_string_size(x.name, true) + XPOS_NAMES < XPOS_VALUES - 10;
+        let large: bool =
+            get_string_pixel_size(x.name, true) + XPOS_NAMES < XPOS_VALUES - LARGE_CHAR_HEIGHT * 2;
         display::draw_string(
             x.name,
             Point::new(
@@ -253,12 +261,16 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
     }
     let mut cursor_pos: u16 = 0;
     display::wait_for_vblank();
-    timing::msleep(200);
+    wait_for_no_keydown();
+    let mut last_action: u64 = timing::millis();
+    let mut last_action_key: u32 = key::ALPHA;
     loop {
         let keyboard_scan = keyboard::scan();
         if keyboard_scan.key_down(key::BACK) {
             break;
-        } else if keyboard_scan.key_down(key::UP) | keyboard_scan.key_down(key::DOWN) {
+        } else if (keyboard_scan.key_down(key::UP) | keyboard_scan.key_down(key::DOWN))
+            & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
+        {
             let current_selection: &MyOption<bool, 2> = &list[cursor_pos as usize];
             draw_options_selection(
                 current_selection.get_value().1,
@@ -272,12 +284,14 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
                 } else {
                     cursor_pos = (list.len() as u16) - 1;
                 }
+                last_action_key = key::UP;
             } else if keyboard_scan.key_down(key::DOWN) {
                 if cursor_pos < list.len() as u16 - 1 {
                     cursor_pos += 1;
                 } else {
                     cursor_pos = 0;
                 }
+                last_action_key = key::DOWN;
             }
             let new_selection: &MyOption<bool, 2> = &list[cursor_pos as usize];
             draw_options_selection(
@@ -287,14 +301,16 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
                 cfg,
             );
             display::wait_for_vblank();
-            timing::msleep(200);
-        } else if keyboard_scan.key_down(key::OK) {
+            last_action = timing::millis();
+        } else if keyboard_scan.key_down(key::OK)
+            & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
+        {
             let selection: &mut MyOption<bool, 2> = list[cursor_pos as usize];
             push_rect_uniform(
                 Rect {
                     x: XPOS_VALUES,
                     y: first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
-                    width: get_string_size(selection.get_value().1, true),
+                    width: SCREEN_WIDTH - XPOS_VALUES,
                     height: LARGE_CHAR_HEIGHT,
                 },
                 cfg.bckgrd,
@@ -307,7 +323,11 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
                 cfg,
             );
             display::wait_for_vblank();
-            timing::msleep(200);
+            last_action_key = key::OK;
+            last_action = timing::millis();
+        } else if !keyboard_scan.key_down(last_action_key) {
+            // if we let go of the key, then we can use a key just after (even the same one)
+            last_action = timing::millis() - REPETITION_SPEED as u64;
         }
     }
     return 0;
@@ -315,7 +335,7 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
 
 /// Draws the line corresponding to the given option value
 fn draw_options_selection(text: &str, ypos: u16, selected: bool, cfg: &ColorConfig) {
-    let large: bool = get_string_size(text, true) < SCREEN_WIDTH - XPOS_VALUES;
+    let large: bool = get_string_pixel_size(text, true) < SCREEN_WIDTH - XPOS_VALUES;
     draw_string_cfg(
         text,
         Point::new(

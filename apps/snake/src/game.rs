@@ -6,7 +6,8 @@ use crate::{
     },
     menu::{menu, selection_menu, MenuConfig, MyOption},
     utils::{
-        draw_centered_string, fading, fill_screen, randint, ColorConfig, CENTER, LARGE_CHAR_HEIGHT,
+        draw_centered_string, fading, fill_screen, randint, wait_for_no_keydown, ColorConfig,
+        CENTER, LARGE_CHAR_HEIGHT,
     },
 };
 use eadk::Color;
@@ -34,6 +35,7 @@ const LIGHT_GREEN: Color = Color::from_rgb888(40, 200, 120);
 
 /// The size of a grid case. Everything is linked to this value.
 const CASE_SIZE: u16 = 10;
+
 /// The max y value on the grid
 /// - 1 because the grid starts at (0, 0)
 static mut MAX_HEIGHT: u16 = SCREEN_HEIGHT / CASE_SIZE - 1;
@@ -51,18 +53,50 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
     alt: DARK_GREEN,
 };
 
+const MENU_FIGURE_Y : u16 = 70;
+/// Menu Visual Addon
+fn menu_vis_addon() {
+    push_rect_uniform(
+        Rect {
+            x: CENTER.x - CASE_SIZE * 7,
+            y: MENU_FIGURE_Y,
+            width: CASE_SIZE * 6,
+            height: CASE_SIZE * 2,
+        },
+        DARK_GREEN,
+    );
+    push_rect_uniform(
+        Rect {
+            x: CENTER.x - CASE_SIZE,
+            y: MENU_FIGURE_Y,
+            width: CASE_SIZE * 2,
+            height: CASE_SIZE * 2,
+        },
+        LIGHT_GREEN,
+    );
+    push_rect_uniform(
+        Rect {
+            x: CENTER.x + CASE_SIZE * 3,
+            y: MENU_FIGURE_Y,
+            width: CASE_SIZE * 2,
+            height: CASE_SIZE * 2,
+        },
+        Color::RED,
+    );
+}
+
 /// Menu, Options and Game start
 pub fn start() {
     let mut opt: [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER] = [
         &mut MyOption {
             name: "HYPER RAPIDE !\0",
             value: 0,
-            possible_values: [(true, "EVIDEMMENT !\0"), (false, "Non !\0")],
+            possible_values: [(true, "EVIDEMMENT!\0"), (false, "Non !\0")],
         },
         &mut MyOption {
             name: "MINI TERRAIN !\0",
             value: 0,
-            possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
+            possible_values: [(true, "Oui !\0"), (false, "Non !!\0")],
         },
         &mut MyOption {
             name: "OBSTACLES !\0",
@@ -71,22 +105,22 @@ pub fn start() {
         },
     ];
     loop {
-        let start = menu("SNAKE 2.0\0", &mut opt, &COLOR_CONFIG);
+        let start = menu("SNAKE 2.0\0", &mut opt, &COLOR_CONFIG, menu_vis_addon);
         if start == 1 {
             if opt[1].get_value().0 {
                 unsafe {
                     MAX_HEIGHT = 11;
                     MAX_WIDTH = 16;
                     GRID_OFFSET = (
-                        CENTER.x - (MAX_WIDTH * CASE_SIZE)/2,
-                        CENTER.y - (MAX_HEIGHT * CASE_SIZE)/2,
+                        CENTER.x - (MAX_WIDTH * CASE_SIZE) / 2,
+                        CENTER.y - (MAX_HEIGHT * CASE_SIZE) / 2,
                     )
                 }
             } else {
                 unsafe {
                     MAX_HEIGHT = SCREEN_HEIGHT / CASE_SIZE - 1;
                     MAX_WIDTH = SCREEN_WIDTH / CASE_SIZE - 1;
-                    GRID_OFFSET = (CASE_SIZE / 2, CASE_SIZE / 2)
+                    GRID_OFFSET = (CASE_SIZE / 2, CASE_SIZE / 2);
                 }
             }
             loop {
@@ -128,6 +162,8 @@ pub fn game(speed: u16, has_walls: bool) -> u8 {
     draw_terrain();
     draw_snake(&snake);
     draw_box(fruit_pos.x, fruit_pos.y, Color::RED);
+    display::wait_for_vblank();
+    wait_for_no_keydown();
     timing::msleep(300);
     loop {
         let keyboard_state = keyboard::scan();
@@ -140,7 +176,7 @@ pub fn game(speed: u16, has_walls: bool) -> u8 {
             direction = Direction::RIGHT;
         } else if keyboard_state.key_down(key::LEFT) {
             direction = Direction::LEFT;
-        } else if keyboard_state.key_down(key::BACKSPACE) {
+        } else if keyboard_state.key_down(key::OK) {
             let action = snake_pause(points, false);
             if action == 1 {
                 draw_terrain();
@@ -149,6 +185,7 @@ pub fn game(speed: u16, has_walls: bool) -> u8 {
                 for i in &walls {
                     draw_box(i.x, i.y, Color::BLACK);
                 }
+                display::wait_for_vblank();
             } else {
                 return action;
             }
@@ -218,7 +255,7 @@ pub fn game(speed: u16, has_walls: bool) -> u8 {
         true,
         &ColorConfig {
             text: Color::BLACK,
-            bckgrd: Color::WHITE,
+            bckgrd: BCKD_GRAY,
             alt: Color::RED,
         },
         true,
@@ -412,10 +449,25 @@ fn draw_terrain() {
             },
             Color::BLACK,
         );
-        for x in 0..(MAX_WIDTH) {
-            for y in 0..(MAX_HEIGHT) {
-                draw_terrain_box(x, y);
+        push_rect_uniform(
+            Rect {
+                x: GRID_OFFSET.0,
+                y: GRID_OFFSET.1,
+                width: MAX_WIDTH * CASE_SIZE,
+                height: MAX_HEIGHT * CASE_SIZE,
+            },
+            LIGHT_GRAY,
+        );
+        for x in (1..(MAX_WIDTH)).step_by(2) {
+            for y in (0..(MAX_HEIGHT)).step_by(2) {
+                draw_box(x, y, GRAY)
+            }
+        }
+        for x in (0..MAX_WIDTH).step_by(2) {
+            for y in (1..MAX_HEIGHT).step_by(2) {
+                draw_box(x, y, GRAY)
             }
         }
     }
+    //display::wait_for_vblank();
 }
