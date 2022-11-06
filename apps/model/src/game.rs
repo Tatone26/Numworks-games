@@ -1,4 +1,4 @@
-use crate::{menu::{MyOption, menu, pause_menu}, utils::{ColorConfig, draw_centered_string}, eadk::{Color}};
+use crate::{menu::{MyOption, menu, pause_menu}, utils::{ColorConfig, draw_centered_string}, eadk::{Color, display::push_rect_uniform, Rect}};
 
 /// The number of Boolean Options used. Public so menu() can use it.
 pub const BOOL_OPTIONS_NUMBER: usize = 1;
@@ -12,6 +12,9 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 
 static mut EXEMPLE: bool = false;
 
+fn vis_addon(){
+    push_rect_uniform(Rect{x:0, y:0, width:10, height:10}, Color::BLACK);
+}
 /// Menu, Options and Game start
 pub fn start() {
     let mut opt: [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER] = [
@@ -22,7 +25,7 @@ pub fn start() {
         }
     ];
     loop {
-        let start = menu("SNAKE 2.0\0", &mut opt, &COLOR_CONFIG); // The menu does everything itself !
+        let start = menu("SNAKE 2.0\0", &mut opt, &COLOR_CONFIG, vis_addon); // The menu does everything itself !
         if start == 1 {
             unsafe{
                 EXEMPLE = opt[0].get_value().0; // You could use mutable statics, but it is not very good
