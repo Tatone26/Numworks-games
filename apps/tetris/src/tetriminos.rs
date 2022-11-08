@@ -87,37 +87,37 @@ pub const T_SHAPE: Tetrimino = Tetrimino {
 pub const J_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::J,
     rotation: 3,
-    color: Color::RED,
+    color: Color::BLUE,
     pos: SignedPoint { x: 5, y: 0 },
 };
 pub const Z_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::Z,
     rotation: 0,
-    color: Color::RED,
+    color: Color::GREEN,
     pos: SignedPoint { x: 5, y: 0 },
 };
 pub const O_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::O,
     rotation: 0,
-    color: Color::RED,
+    color: Color::from_rgb888(255, 255, 0),
     pos: SignedPoint { x: 5, y: 0 },
 };
 pub const S_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::S,
     rotation: 0,
-    color: Color::RED,
+    color: Color::from_rgb888(0, 255, 255),
     pos: SignedPoint { x: 5, y: 0 },
 };
 pub const L_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::L,
     rotation: 1,
-    color: Color::RED,
+    color: Color::from_rgb888(255, 0, 255),
     pos: SignedPoint { x: 5, y: 0 },
 };
 pub const I_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::I,
     rotation: 1,
-    color: Color::RED,
+    color: Color::from_rgb888(100, 255, 100),
     pos: SignedPoint { x: 5, y: 0 },
 };
 

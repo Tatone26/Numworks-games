@@ -1,5 +1,5 @@
 use crate::{
-    eadk::{key, keyboard, timing, Color},
+    eadk::{key, keyboard, timing, Color, display},
     menu::{menu, pause_menu, MyOption},
     tetriminos::{get_new_tetrimino, Tetrimino},
     ui::{draw_stable_ui, draw_tetrimino},
@@ -92,19 +92,32 @@ pub fn game() -> u8 {
             & (keyboard_state.key_down(key::LEFT) | keyboard_state.key_down(key::RIGHT))
         {
             // MOVE
-            draw_tetrimino(&actual_tetri, true);
-            if keyboard_state.key_down(key::LEFT) {
-                actual_tetri.pos.x -= 1
-            } else {
-                actual_tetri.pos.x += 1
+            let direction: i16;
+            if keyboard_state.key_down(key::LEFT){
+                direction = -1
+            }else{
+                direction = 1
             }
-            draw_tetrimino(&actual_tetri, false);
-            last_move_time = timing::millis();
-            move_button_down = true;
+            let mut can_move: bool = true;
+            for p in actual_tetri.get_blocks(){
+                if (actual_tetri.pos.x + p.0 + direction < 0) | (actual_tetri.pos.x + p.0 + direction > PLAYFIELD_WIDTH as i16 - 1) {
+                    can_move = false;
+                } else if grid[(actual_tetri.pos.x + p.0 + direction) as usize][(actual_tetri.pos.y + p.1) as usize].is_some() {
+                    can_move = false;
+                }
+            }
+            if can_move{
+                draw_tetrimino(&actual_tetri, true);
+                actual_tetri.pos.x += direction;
+                draw_tetrimino(&actual_tetri, false);
+                last_move_time = timing::millis();
+                move_button_down = true;
+            }
         } else if (!rotate_button_down | (last_rotate_time + ROTATE_SPEED < timing::millis()))
             & keyboard_state.key_down(key::OK)
         {
-            // ROTATE
+            // ROTATE 
+            // TODO : kicks (verification if possible rotation first, then tests with differents kicks)
             draw_tetrimino(&actual_tetri, true);
             actual_tetri.rotate_left();
             draw_tetrimino(&actual_tetri, false);
@@ -163,5 +176,6 @@ pub fn game() -> u8 {
                 return action;
             }
         }
+        display::wait_for_vblank();
     }
 }
