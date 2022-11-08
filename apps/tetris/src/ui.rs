@@ -9,7 +9,7 @@ use crate::{
         BACKGROUND_DARK_GRAY, BACKGROUND_GRAY, CASE_SIZE, COLOR_CONFIG, HIGH_SCORE,
         PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH,
     },
-    utils::{draw_string_cfg, CENTER, LARGE_CHAR_HEIGHT},
+    utils::{draw_string_cfg, CENTER, LARGE_CHAR_HEIGHT}, tetriminos::Tetrimino,
 };
 
 /// Draws a box of the given size, at the given pos on the grid, with a given title (first-line text), following the ui style
@@ -159,4 +159,27 @@ pub fn draw_line(line: u16) {
         &COLOR_CONFIG,
         false,
     );
+}
+
+/// Draws a given tetrimino.
+pub fn draw_tetrimino(tetri: &Tetrimino, clear: bool) {
+    // TODO : Needs to not try to draw when negative position !!!
+    for p in tetri.get_blocks() {
+        if ((tetri.pos.x + p.0) >= 0) & ((tetri.pos.y + p.1) >= 0) {
+            push_rect_uniform(
+                Rect {
+                    x: CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE
+                        + ((tetri.pos.x + p.0) as u16) * CASE_SIZE,
+                    y: CASE_SIZE * 2 + ((tetri.pos.y + p.1) as u16) * CASE_SIZE,
+                    width: CASE_SIZE,
+                    height: CASE_SIZE,
+                },
+                if clear {
+                    COLOR_CONFIG.bckgrd
+                } else {
+                    tetri.color
+                },
+            )
+        }
+    }
 }

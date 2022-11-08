@@ -1,7 +1,7 @@
 use core::f32::consts::PI;
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Color {
     pub rgb565: u16,
 }

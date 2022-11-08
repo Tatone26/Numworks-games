@@ -1,9 +1,9 @@
 use crate::{
-    eadk::{display::push_rect_uniform, key, keyboard, timing, Color, Point, Rect},
+    eadk::{key, keyboard, timing, Color},
     menu::{menu, pause_menu, MyOption},
-    tetriminos::{Tetrimino, I_SHAPE, J_SHAPE, L_SHAPE, O_SHAPE, S_SHAPE, T_SHAPE, Z_SHAPE},
-    ui::{draw_stable_ui, draw_level},
-    utils::{draw_centered_string, randint, ColorConfig, CENTER},
+    tetriminos::{get_new_tetrimino, Tetrimino},
+    ui::{draw_stable_ui, draw_tetrimino},
+    utils::{draw_centered_string, ColorConfig},
 };
 
 /// The number of Boolean Options used. Public so menu() can use it.
@@ -59,25 +59,46 @@ pub const CASE_SIZE: u16 = 10;
 pub const PLAYFIELD_HEIGHT: u16 = 20;
 pub const PLAYFIELD_WIDTH: u16 = 10;
 
+pub const PL_HE: usize = 20;
+pub const PL_WI: usize = 10;
+
 const ROTATE_SPEED: u64 = 200;
+const MOVE_SPEED: u64 = 300;
 
 /// The entire game is here.
 pub fn game() -> u8 {
     draw_stable_ui();
     let mut actual_tetri: Tetrimino = get_new_tetrimino();
     draw_tetrimino(&actual_tetri, false);
-    let mut fall_speed: u64 = 500; // decrease with level increase
+    let mut fall_speed: u64 = 500; // TODO: decrease with level increase
     let mut last_fall_time: u64 = timing::millis();
     let mut last_move_time: u64 = timing::millis();
     let mut move_button_down: bool = false;
     let mut last_rotate_time: u64 = timing::millis();
     let mut rotate_button_down: bool = false;
+
+    let mut grid: [[Option<Color>; PL_HE]; PL_WI] = [Default::default(); PL_WI];
+    /*
+    grid.add_color_at(0, 5, Color::GREEN);
+    let c : Color = match grid.get_color_at(0, 5){
+        x @ Some(_) => x.unwrap(),
+        None => Color::RED,
+    };
+    push_rect_uniform(Rect{x:0, y:0, width : 10, height : 10}, c);
+    */
     loop {
         let keyboard_state = keyboard::scan();
-        if (!move_button_down | (last_move_time + fall_speed < timing::millis())) // if we touch the button for the first time in this frame, or if we maintained it pressed and some time has passed
+        if (!move_button_down | (last_move_time + MOVE_SPEED < timing::millis())) // if we touch the button for the first time in this frame, or if we maintained it pressed and some time has passed
             & (keyboard_state.key_down(key::LEFT) | keyboard_state.key_down(key::RIGHT))
         {
             // MOVE
+            draw_tetrimino(&actual_tetri, true);
+            if keyboard_state.key_down(key::LEFT) {
+                actual_tetri.pos.x -= 1
+            } else {
+                actual_tetri.pos.x += 1
+            }
+            draw_tetrimino(&actual_tetri, false);
             last_move_time = timing::millis();
             move_button_down = true;
         } else if (!rotate_button_down | (last_rotate_time + ROTATE_SPEED < timing::millis()))
@@ -92,9 +113,33 @@ pub fn game() -> u8 {
         }
         if last_fall_time + fall_speed < timing::millis() {
             // FALL
-            draw_tetrimino(&actual_tetri, true);
-            actual_tetri.pos.y += 1;
-            draw_tetrimino(&actual_tetri, false);
+            let mut need_to_fall = true;
+            for p in actual_tetri.get_blocks() {
+                if actual_tetri.pos.y + p.1 == PLAYFIELD_HEIGHT as i16 - 1 {
+                    need_to_fall = false;
+                    break;
+                } else if grid[(actual_tetri.pos.x + p.0) as usize] // Dangerous because can get outside of grid if wrongly used -> dedicated struct ? 
+                    [(actual_tetri.pos.y + p.1 + 1) as usize]
+                    .is_some()
+                {
+                    need_to_fall = false;
+                    break;
+                }
+            }
+            if need_to_fall {
+                draw_tetrimino(&actual_tetri, true);
+                actual_tetri.pos.y += 1;
+                draw_tetrimino(&actual_tetri, false);
+            } else {
+                // THAT'S WORKING I THINK BITCHES
+                for p in actual_tetri.get_blocks() {
+                    grid[(actual_tetri.pos.x + p.0) as usize]
+                        [(actual_tetri.pos.y + p.1) as usize] = Some(actual_tetri.color);
+                }
+                actual_tetri = get_new_tetrimino();
+                draw_tetrimino(&actual_tetri, false);
+            }
+            // TODO : Fix to the blocks if needed
             last_fall_time = timing::millis();
         }
 
@@ -103,7 +148,6 @@ pub fn game() -> u8 {
         {
             move_button_down = false;
         }
-
         if rotate_button_down & !keyboard_state.key_down(key::OK) {
             rotate_button_down = false;
         }
@@ -119,38 +163,5 @@ pub fn game() -> u8 {
                 return action;
             }
         }
-    }
-}
-
-/// Draws a given tetrimino.
-fn draw_tetrimino(tetri: &Tetrimino, clear: bool) {
-    // TODO : Needs to not try to draw when negative position !!!
-    for p in tetri.get_blocks() {
-        push_rect_uniform(
-            Rect {
-                x: CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE
-                    + ((tetri.pos.x + p.0) as u16) * CASE_SIZE,
-                y: CASE_SIZE * 2 + ((tetri.pos.y + p.1) as u16) * CASE_SIZE,
-                width: CASE_SIZE,
-                height: CASE_SIZE,
-            },
-            if clear {
-                COLOR_CONFIG.bckgrd
-            } else {
-                tetri.color
-            },
-        )
-    }
-}
-
-fn get_new_tetrimino() -> Tetrimino {
-    match randint(0, 6) {
-        0 => return T_SHAPE,
-        1 => return J_SHAPE,
-        2 => return O_SHAPE,
-        3 => return L_SHAPE,
-        4 => return I_SHAPE,
-        5 => return S_SHAPE,
-        _ => return Z_SHAPE,
     }
 }

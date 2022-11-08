@@ -1,4 +1,4 @@
-use crate::eadk::{Color, Point};
+use crate::{eadk::Color, utils::randint};
 
 pub enum TetriType {
     T,
@@ -120,3 +120,15 @@ pub const I_SHAPE: Tetrimino = Tetrimino {
     color: Color::RED,
     pos: SignedPoint { x: 5, y: 0 },
 };
+
+pub fn get_new_tetrimino() -> Tetrimino {
+    match randint(0, 6) {
+        0 => return T_SHAPE,
+        1 => return J_SHAPE,
+        2 => return O_SHAPE,
+        3 => return L_SHAPE,
+        4 => return I_SHAPE,
+        5 => return S_SHAPE,
+        _ => return Z_SHAPE,
+    }
+}
