@@ -1,5 +1,8 @@
+use heapless::Vec;
+
 use crate::{eadk::Color, utils::randint};
 
+#[derive(Clone)]
 pub enum TetriType {
     T,
     J,
@@ -10,12 +13,23 @@ pub enum TetriType {
     I,
 }
 
+/// Exactly like a point, but signed
+#[derive(Clone, Copy)]
 pub struct SignedPoint {
-    pub x : i16,
-    pub y : i16,
+    pub x: i16,
+    pub y: i16,
+}
+
+impl SignedPoint {
+    /*
+    pub const fn from_unsigned_point(p : Point) -> SignedPoint{
+        return SignedPoint { x: p.x as i16, y: p.y as i16 }
+    }
+    */
 }
 
 /// Represents a shape, its type, rotation (0-3), color
+#[derive(Clone)]
 pub struct Tetrimino {
     pub tetri: TetriType,
     pub rotation: u8,
@@ -24,6 +38,7 @@ pub struct Tetrimino {
 }
 
 impl Tetrimino {
+    /// Rotate the tetri to the right
     pub fn rotate_right(&mut self) {
         // needs tp check if can be rotated or not lol
         if self.rotation < 3 {
@@ -33,6 +48,7 @@ impl Tetrimino {
         }
     }
 
+    /// Rotate the tetri to the left
     pub fn rotate_left(&mut self) {
         if self.rotation > 0 {
             self.rotation -= 1
@@ -41,6 +57,8 @@ impl Tetrimino {
         }
     }
 
+    /// Returns the position of all blocks of the tetri
+    /// The center of the tetri is (0, 0) every time, so need to call something like tetri.pos.x + x to get absolute pos
     pub fn get_blocks(&self) -> [(i16, i16); 4] {
         match self.tetri {
             TetriType::T => match self.rotation {
@@ -74,6 +92,19 @@ impl Tetrimino {
                 0 | 2 => return [(0, 0), (0, 1), (0, -1), (0, -2)],
                 _ => return [(0, 0), (1, 0), (-1, 0), (-2, 0)],
             },
+        }
+    }
+
+    pub fn get_blocks_grid_pos(&self) -> [SignedPoint; 4] {
+        let mut res = Vec::<SignedPoint, 4>::new();
+        for (i, e) in self.get_blocks().iter().enumerate() {
+            res.push(SignedPoint {
+                x: e.0 + self.pos.x,
+                y: e.1 + self.pos.y,
+            });
+        }
+        unsafe {
+            return res.into_array().unwrap_unchecked();
         }
     }
 }
@@ -121,6 +152,7 @@ pub const I_SHAPE: Tetrimino = Tetrimino {
     pos: SignedPoint { x: 5, y: 0 },
 };
 
+/// Returns a new random tetrimino
 pub fn get_new_tetrimino() -> Tetrimino {
     match randint(0, 6) {
         0 => return T_SHAPE,
@@ -131,4 +163,25 @@ pub fn get_new_tetrimino() -> Tetrimino {
         5 => return S_SHAPE,
         _ => return Z_SHAPE,
     }
+}
+
+pub fn get_random_bag() -> Vec<Tetrimino, 7> {
+    let mut res = Vec::<Tetrimino, 7>::new();
+    let mut tetri_list: Vec<Tetrimino, 7> = Vec::from_slice(&[
+        T_SHAPE, J_SHAPE, O_SHAPE, L_SHAPE, I_SHAPE, S_SHAPE, Z_SHAPE,
+    ])
+    .unwrap();
+
+    for _ in 0..6 {
+        unsafe {
+            res.push(tetri_list.swap_remove(randint(0, tetri_list.len() as u32 - 1) as usize))
+                .unwrap_unchecked();
+        }
+    }
+
+    unsafe {
+        res.push(tetri_list.swap_remove(0)).unwrap_unchecked();
+    }
+
+    return res;
 }

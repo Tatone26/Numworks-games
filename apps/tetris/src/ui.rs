@@ -3,13 +3,14 @@ use heapless::String;
 use crate::{
     eadk::{
         display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
-        Point, Rect,
+        timing, Color, Point, Rect,
     },
     game::{
         BACKGROUND_DARK_GRAY, BACKGROUND_GRAY, CASE_SIZE, COLOR_CONFIG, HIGH_SCORE,
         PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH,
     },
-    utils::{draw_string_cfg, CENTER, LARGE_CHAR_HEIGHT}, tetriminos::Tetrimino,
+    tetriminos::Tetrimino,
+    utils::{draw_string_cfg, CENTER, LARGE_CHAR_HEIGHT},
 };
 
 /// Draws a box of the given size, at the given pos on the grid, with a given title (first-line text), following the ui style
@@ -90,7 +91,7 @@ pub fn draw_stable_ui() {
         COLOR_CONFIG.bckgrd,
     );
     draw_ui_base(" LEVEL\0", Point::new(24, 14), 6, 8);
-    draw_level(1);
+    draw_level(0);
     draw_string_cfg(
         "  LINE\0",
         Point::new(
@@ -101,7 +102,7 @@ pub fn draw_stable_ui() {
         &COLOR_CONFIG,
         false,
     );
-    draw_line(0);
+    draw_lines_number(0);
     draw_ui_base("NEXT\0", Point::new(2, 2), 6, 8);
     draw_ui_base("HOLD\0", Point::new(2, 14), 6, 8);
 }
@@ -144,7 +145,7 @@ pub fn draw_level(level: u16) {
     );
 }
 
-pub fn draw_line(line: u16) {
+pub fn draw_lines_number(line: u16) {
     let mut line_txt: String<7> = String::<7>::new();
     let line_str: String<6> = String::<6>::from(line);
     for _ in 0..(6 - line_str.chars().count()) {
@@ -163,17 +164,11 @@ pub fn draw_line(line: u16) {
 
 /// Draws a given tetrimino.
 pub fn draw_tetrimino(tetri: &Tetrimino, clear: bool) {
-    // TODO : Needs to not try to draw when negative position !!!
-    for p in tetri.get_blocks() {
-        if ((tetri.pos.x + p.0) >= 0) & ((tetri.pos.y + p.1) >= 0) {
-            push_rect_uniform(
-                Rect {
-                    x: CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE
-                        + ((tetri.pos.x + p.0) as u16) * CASE_SIZE,
-                    y: CASE_SIZE * 2 + ((tetri.pos.y + p.1) as u16) * CASE_SIZE,
-                    width: CASE_SIZE,
-                    height: CASE_SIZE,
-                },
+    for pos in tetri.get_blocks_grid_pos() {
+        if (pos.x >= 0) & (pos.y >= 0) {
+            draw_block(
+                pos.x as u16,
+                pos.y as u16,
                 if clear {
                     COLOR_CONFIG.bckgrd
                 } else {
@@ -182,4 +177,97 @@ pub fn draw_tetrimino(tetri: &Tetrimino, clear: bool) {
             )
         }
     }
+}
+
+pub fn draw_next_tetrimino(tetri: &Tetrimino) {
+    push_rect_uniform(
+        Rect {
+            x: CASE_SIZE * 2,
+            y: CASE_SIZE * 4,
+            width: 6 * CASE_SIZE,
+            height: 4 * CASE_SIZE,
+        },
+        COLOR_CONFIG.bckgrd,
+    );
+    for (x, y) in tetri.get_blocks() {
+        push_rect_uniform(
+            Rect {
+                x: (5 + x) as u16 * CASE_SIZE,
+                y: (6 + y) as u16 * CASE_SIZE,
+                width: CASE_SIZE,
+                height: CASE_SIZE,
+            },
+            tetri.color,
+        );
+    }
+}
+
+pub fn draw_held_tetrimino(tetri: &Tetrimino) {
+    push_rect_uniform(
+        Rect {
+            x: CASE_SIZE * 2,
+            y: CASE_SIZE * 16,
+            width: 6 * CASE_SIZE,
+            height: 4 * CASE_SIZE,
+        },
+        COLOR_CONFIG.bckgrd,
+    );
+    for (x, y) in tetri.get_blocks() {
+        push_rect_uniform(
+            Rect {
+                x: (5 + x) as u16 * CASE_SIZE,
+                y: (18 + y) as u16 * CASE_SIZE,
+                width: CASE_SIZE,
+                height: CASE_SIZE,
+            },
+            tetri.color,
+        );
+    }
+}
+
+pub fn draw_line(y: u16, color: Color) {
+    push_rect_uniform(
+        Rect {
+            x: CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE,
+            y: CASE_SIZE * 2 + y * CASE_SIZE,
+            width: PLAYFIELD_WIDTH * CASE_SIZE,
+            height: CASE_SIZE,
+        },
+        color,
+    );
+}
+
+pub fn draw_block(x: u16, y: u16, color: Color) {
+    push_rect_uniform(
+        Rect {
+            x: CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE + x * CASE_SIZE,
+            y: CASE_SIZE * 2 + y * CASE_SIZE,
+            width: CASE_SIZE,
+            height: CASE_SIZE,
+        },
+        color,
+    )
+}
+
+#[must_use = "to debug"]
+pub fn debug_check() {
+    push_rect_uniform(
+        Rect {
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+        },
+        Color::GREEN,
+    );
+    timing::msleep(200);
+    push_rect_uniform(
+        Rect {
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+        },
+        Color::BLACK,
+    );
 }
