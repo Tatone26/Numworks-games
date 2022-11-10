@@ -14,7 +14,7 @@ pub enum TetriType {
 }
 
 /// Exactly like a point, but signed
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct SignedPoint {
     pub x: i16,
     pub y: i16,
@@ -74,13 +74,17 @@ impl Tetrimino {
                 _ => return [(-1, 0), (0, 0), (1, 0), (1, 1)],
             },
             TetriType::Z => match self.rotation {
-                0 | 2 => return [(-1, 0), (0, 0), (0, 1), (1, 1)],
-                _ => return [(0, 0), (0, 1), (1, 0), (1, -1)],
+                0 => return [(-1, -1), (0, -1), (0, 0), (1, 0)],
+                1 => return [(0, 0), (0, 1), (1, 0), (1, -1)],
+                2 => return [(-1, 0), (0, 0), (0, 1), (1, 1)],
+                _ => return [(-1, 1), (-1, 0), (0, 0), (0, -1)]
             },
             TetriType::O => return [(0, 0), (-1, 0), (-1, 1), (0, 1)],
             TetriType::S => match self.rotation {
-                0 | 2 => return [(1, 0), (0, 0), (0, 1), (-1, 1)],
-                _ => return [(0, 0), (1, 1), (1, 0), (0, -1)],
+                0 => return [(-1, 0), (0, 0), (0, -1), (1, -1)],
+                1 => return [(0, 0), (1, 1), (1, 0), (0, -1)],
+                2 => return [(1, 0), (0, 0), (0, 1), (-1, 1)],
+                _ => return [(-1, -1), (-1, 0), (0, 0), (0, 1)]
             },
             TetriType::L => match self.rotation {
                 0 => return [(1, 1), (0, 1), (0, 0), (0, -1)],
@@ -97,22 +101,21 @@ impl Tetrimino {
 
     pub fn get_blocks_grid_pos(&self) -> [SignedPoint; 4] {
         let mut res = Vec::<SignedPoint, 4>::new();
-        for (i, e) in self.get_blocks().iter().enumerate() {
+        for (_, e) in self.get_blocks().iter().enumerate() {
             res.push(SignedPoint {
                 x: e.0 + self.pos.x,
                 y: e.1 + self.pos.y,
-            });
+            })
+            .unwrap();
         }
-        unsafe {
-            return res.into_array().unwrap_unchecked();
-        }
+        return res.into_array().unwrap();
     }
 }
 
 pub const T_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::T,
     rotation: 2,
-    color: Color::RED,
+    color: Color::from_rgb888(180, 0, 255),
     pos: SignedPoint { x: 5, y: 0 },
 };
 pub const J_SHAPE: Tetrimino = Tetrimino {
@@ -124,7 +127,7 @@ pub const J_SHAPE: Tetrimino = Tetrimino {
 pub const Z_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::Z,
     rotation: 0,
-    color: Color::GREEN,
+    color: Color::RED,
     pos: SignedPoint { x: 5, y: 0 },
 };
 pub const O_SHAPE: Tetrimino = Tetrimino {
@@ -136,34 +139,21 @@ pub const O_SHAPE: Tetrimino = Tetrimino {
 pub const S_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::S,
     rotation: 0,
-    color: Color::from_rgb888(0, 255, 255),
+    color: Color::GREEN,
     pos: SignedPoint { x: 5, y: 0 },
 };
 pub const L_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::L,
     rotation: 1,
-    color: Color::from_rgb888(255, 0, 255),
+    color: Color::from_rgb888(255, 115, 0),
     pos: SignedPoint { x: 5, y: 0 },
 };
 pub const I_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::I,
     rotation: 1,
-    color: Color::from_rgb888(100, 255, 100),
+    color: Color::from_rgb888(0, 255, 255),
     pos: SignedPoint { x: 5, y: 0 },
 };
-
-/// Returns a new random tetrimino
-pub fn get_new_tetrimino() -> Tetrimino {
-    match randint(0, 6) {
-        0 => return T_SHAPE,
-        1 => return J_SHAPE,
-        2 => return O_SHAPE,
-        3 => return L_SHAPE,
-        4 => return I_SHAPE,
-        5 => return S_SHAPE,
-        _ => return Z_SHAPE,
-    }
-}
 
 pub fn get_random_bag() -> Vec<Tetrimino, 7> {
     let mut res = Vec::<Tetrimino, 7>::new();

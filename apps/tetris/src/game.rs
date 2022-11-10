@@ -8,7 +8,7 @@ use crate::{
     menu::{menu, pause_menu, MyOption},
     tetriminos::{get_random_bag, Tetrimino},
     ui::{
-        draw_block, draw_held_tetrimino, draw_level, draw_line, draw_lines_number,
+        debug_check, draw_block, draw_held_tetrimino, draw_level, draw_line, draw_lines_number,
         draw_next_tetrimino, draw_score, draw_stable_ui, draw_tetrimino,
     },
     utils::{draw_centered_string, ColorConfig},
@@ -117,18 +117,21 @@ pub const CASE_SIZE: u16 = 10;
 pub const PLAYFIELD_HEIGHT: u16 = 20;
 pub const PLAYFIELD_WIDTH: u16 = 10;
 
-const ROTATE_SPEED: u64 = 200;
-const MOVE_SPEED: u64 = 300;
-const SOFT_DROP_SPEED: u64 = 200;
+const ROTATE_SPEED: u64 = 150;
+const DELAYED_AUTO_SHIFT: u64 = 167;
+const AUTO_MOVE_SPEED: u64 = 33;
+const SOFT_DROP_SPEED: u64 = 33;
 
 /// The entire game is here.
 pub fn game() -> u8 {
     draw_stable_ui();
 
+    // Is it possible to not have all those variables ? Maybe some struct ?
     let mut fall_speed: u64 = 500; // TODO: decrease with level increase
     let mut last_fall_time: u64 = timing::millis();
     let mut last_move_time: u64 = timing::millis();
     let mut move_button_down: bool = false;
+    let mut auto_repeat_on: bool = false;
     let mut last_rotate_time: u64 = timing::millis();
     let mut rotate_button_down: bool = false;
     let mut soft_drop_button_down: bool = false;
@@ -152,7 +155,7 @@ pub fn game() -> u8 {
 
     loop {
         let keyboard_state = keyboard::scan();
-        if (!move_button_down | (last_move_time + MOVE_SPEED < timing::millis())) // if we touch the button for the first time in this frame, or if we maintained it pressed and some time has passed
+        if (!move_button_down | ((last_move_time + AUTO_MOVE_SPEED < timing::millis()) & auto_repeat_on)) // if we touch the button for the first time in this frame, or if we maintained it pressed and some time has passed
             & (keyboard_state.key_down(key::LEFT) | keyboard_state.key_down(key::RIGHT))
         {
             // MOVE
@@ -173,12 +176,15 @@ pub fn game() -> u8 {
             & keyboard_state.key_down(key::OK)
         {
             // ROTATE
-            // TODO : kicks (verification if possible rotation first, then tests with differents kicks)
-            draw_tetrimino(&actual_tetri, true);
-            actual_tetri.rotate_left();
-            draw_tetrimino(&actual_tetri, false);
-            last_rotate_time = timing::millis();
-            rotate_button_down = true;
+            if can_rotate_left(&actual_tetri, &grid) {
+                draw_tetrimino(&actual_tetri, true);
+                actual_tetri.rotate_left();
+                draw_tetrimino(&actual_tetri, false);
+                last_rotate_time = timing::millis();
+                rotate_button_down = true;
+            }else{
+                // TODO : kicks (verification if possible rotation first, then tests with differents kicks)
+            }
         } else if !held_button_down & !held_blocked & keyboard_state.key_down(key::BACK) {
             // HOLD
             held_blocked = true;
@@ -226,27 +232,30 @@ pub fn game() -> u8 {
                 for p in actual_tetri.get_blocks_grid_pos() {
                     grid.set_color_at(p.x, p.y, actual_tetri.color);
                 }
+
                 let clear_lines_y = get_clear_lines(&actual_tetri, &grid);
-                score += get_points_from_lines(&clear_lines_y, level);
-                draw_score(score);
+                if !clear_lines_y.is_empty() {
+                    score = add_points(&clear_lines_y, level, score);
 
-                (level_lines, level) = add_lines(clear_lines_y.len() as u16, level, level_lines);
+                    (level_lines, level) =
+                        add_lines(clear_lines_y.len() as u16, level, level_lines);
 
-                // Removes every cleared line
-                for i in &clear_lines_y {
-                    grid.remove_line(*i);
-                }
+                    // Removes every cleared line
+                    for i in &clear_lines_y {
+                        grid.remove_line(*i);
+                    }
 
-                // BRINGS LINES DOWN (display done at the same time for optimisation) -> lol no
-                for (i, e) in clear_lines_y.iter().enumerate() {
-                    for j in (0..*e + i as i16).rev() {
-                        for x in 0..PLAYFIELD_WIDTH {
-                            let last_color = grid.get_color_at(x as i16, j as i16);
-                            if last_color.is_some() {
-                                grid.set_color_at(x as i16, j as i16 + 1, last_color.unwrap());
+                    // BRINGS LINES DOWN (display done at the same time for optimisation) -> lol not optimised at all because drawing too much things
+                    for (i, e) in clear_lines_y.iter().enumerate() {
+                        for j in (0..*e + i as i16).rev() {
+                            for x in 0..PLAYFIELD_WIDTH {
+                                let last_color = grid.get_color_at(x as i16, j as i16);
+                                if last_color.is_some() {
+                                    grid.set_color_at(x as i16, j as i16 + 1, last_color.unwrap());
+                                }
                             }
+                            grid.remove_line(j as i16);
                         }
-                        grid.remove_line(j as i16);
                     }
                 }
 
@@ -268,6 +277,10 @@ pub fn game() -> u8 {
             & !(keyboard_state.key_down(key::LEFT) | keyboard_state.key_down(key::RIGHT))
         {
             move_button_down = false;
+            auto_repeat_on = false;
+        }
+        if move_button_down & (last_move_time + DELAYED_AUTO_SHIFT < timing::millis()) {
+            auto_repeat_on = true;
         }
         if rotate_button_down & !keyboard_state.key_down(key::OK) {
             rotate_button_down = false;
@@ -309,36 +322,48 @@ fn get_clear_lines(tetri: &Tetrimino, grid: &Grid) -> Vec<i16, 4> {
     let mut clear_lines_y = Vec::<i16, 4>::new();
     for pos in tetri.get_blocks_grid_pos() {
         if check_line(pos.y, &grid) & !clear_lines_y.contains(&(pos.y)) {
-            if clear_lines_y.len() == 0 {
-                clear_lines_y.push(pos.y).unwrap();
-            } else {
-                // get sorted index
-                let mut new_index: usize = 0;
-                for (i, e) in clear_lines_y.iter().enumerate() {
-                    if (pos.y) < *e {
-                        new_index = i;
-                        break;
-                    }
+            // get sorted index
+            let mut new_index: usize = 0;
+            for (i, e) in clear_lines_y.iter().enumerate() {
+                if (pos.y) < *e {
+                    new_index = i;
+                    break;
                 }
-                clear_lines_y.insert(new_index, pos.y).unwrap();
             }
+            clear_lines_y.insert(new_index, pos.y).unwrap();
         }
     }
-    clear_lines_y.reverse(); // because we want to start the tests by the lowest line, so the highest y number
+    clear_lines_y.reverse();
     return clear_lines_y;
 }
 
 /// Returns the number of points gained by clearing the given lines
-fn get_points_from_lines(cleared_lines: &Vec<i16, 4>, level: u16) -> u32 {
+fn add_points(cleared_lines: &Vec<i16, 4>, level: u16, points: u32) -> u32 {
     let mut sum: u32 = 0;
 
-    let mut used_lines = Vec::<i16, 4>::new();
-
-    for i in cleared_lines {
-        //todo!()
+    if cleared_lines.len() == 1 {
+        sum += 40
+    } else if cleared_lines.len() == 4 {
+        sum += 1200
+    } else if cleared_lines.len() == 2 {
+        if cleared_lines[0].abs_diff(cleared_lines[1]) == 1 {
+            sum += 100
+        } else {
+            sum += 80
+        }
+    } else {
+        // len == 3
+        if (cleared_lines[0].abs_diff(cleared_lines[1]) == 1)
+            & (cleared_lines[1].abs_diff(cleared_lines[2]) == 1)
+        {
+            sum += 300
+        } else {
+            sum += 140
+        }
     }
 
-    return sum;
+    draw_score((sum * (level as u32 + 1)) + points);
+    return (sum * (level as u32 + 1)) + points;
 }
 
 /// Returns true if the tetrimino can go to that direction.
@@ -370,4 +395,10 @@ fn add_lines(number: u16, level: u16, current_lines: u16) -> (u16, u16) {
     } else {
         return (new_number, level);
     }
+}
+
+fn can_rotate_left(tetri: &Tetrimino, grid: &Grid) -> bool {
+    let mut rotated_tetri = tetri.clone();
+    rotated_tetri.rotate_left();
+    return can_move(&rotated_tetri, (0, 0), &grid);
 }

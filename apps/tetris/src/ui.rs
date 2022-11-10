@@ -249,7 +249,6 @@ pub fn draw_block(x: u16, y: u16, color: Color) {
     )
 }
 
-#[must_use = "to debug"]
 pub fn debug_check() {
     push_rect_uniform(
         Rect {
