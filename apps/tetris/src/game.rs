@@ -190,7 +190,7 @@ pub fn game() -> u8 {
             held_blocked = true;
             held_button_down = true;
             let temp = actual_tetri.clone();
-            if held_tetri.is_some() {
+            if held_tetri.is_some() { // Needs to check if position possible
                 draw_tetrimino(&actual_tetri, true);
                 actual_tetri = held_tetri.unwrap();
                 actual_tetri.pos = temp.pos; // Needs to kick !!
@@ -367,8 +367,8 @@ fn add_points(cleared_lines: &Vec<i16, 4>, level: u16, points: u32) -> u32 {
 }
 
 /// Returns true if the tetrimino can go to that direction.
-fn can_move(tetri: &Tetrimino, direction: (i16, i16), grid: &Grid) -> bool {
-    for pos in tetri.get_blocks_grid_pos() {
+fn can_move(future_tetri: &Tetrimino, direction: (i16, i16), grid: &Grid) -> bool {
+    for pos in future_tetri.get_blocks_grid_pos() {
         if (pos.x + direction.0 < 0)
             | (pos.x + direction.0 > PLAYFIELD_WIDTH as i16 - 1)
             | (pos.y + direction.1 > PLAYFIELD_HEIGHT as i16 - 1)
