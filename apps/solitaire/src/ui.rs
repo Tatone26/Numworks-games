@@ -3,11 +3,12 @@ use crate::{
         display::{draw_string, push_rect_uniform},
         Color, Point, Rect,
     },
-    game::Card,
+    game::{Card, Stack, Table},
+    utils::fill_screen,
 };
 
-const NICE_GREEN: Color = Color::from_rgb888(0, 82, 62);
-const GRAY: Color = Color::from_rgb888(80, 80, 80);
+pub const NICE_GREEN: Color = Color::from_rgb888(0, 82, 62);
+pub const GRAY: Color = Color::from_rgb888(80, 80, 80);
 
 const SUIT_COLORS: [Color; 4] = [
     Color::RED,
@@ -23,19 +24,7 @@ const SELECT_COLORS: [Color; 2] = [
     Color::from_rgb888(220, 100, 0),
 ];
 
-pub fn draw_card(
-    card: Card,
-    outline: Color,
-    outline_size: u16,
-    clear: bool,
-    abs_pos: Option<Point>,
-) {
-    let pos;
-    if abs_pos.is_some() {
-        pos = abs_pos.unwrap();
-    } else {
-        pos = get_abs_pos(card);
-    }
+pub fn draw_card(card: &Card, outline: Color, outline_size: u16, clear: bool, pos: Point) {
     push_rect_uniform(
         Rect {
             x: pos.x,
@@ -43,7 +32,7 @@ pub fn draw_card(
             width: 35,
             height: 52,
         },
-        if !clear { outline } else { NICE_GREEN },
+        if !clear { outline } else { Color::GREEN },
     );
     if !clear {
         push_rect_uniform(
@@ -82,8 +71,8 @@ pub fn draw_card(
             );
             draw_string(
                 LETTERS[(card.number.unwrap() - 1) as usize],
-                Point::new(pos.x + 3, pos.y + 3),
-                false,
+                Point::new(pos.x + 3, pos.y + 2),
+                true,
                 Color::BLACK,
                 Color::WHITE,
             );
@@ -91,4 +80,111 @@ pub fn draw_card(
     }
 }
 
-fn get_abs_pos(card: Card) {}
+pub fn get_abs_pos_card(stack: &Stack, pos: u8, index: u16) -> Point {
+    let position: Point = get_abs_pos_stack(pos);
+    if pos == 4 {
+        return position; // TODO
+    } else if 6 <= pos {
+        if stack.length() > 9 {
+            return Point::new(position.x, position.y + 15 * index);
+        } else {
+            return Point::new(position.x, position.y + 10 * index);
+        }
+    } else {
+        return position;
+    }
+}
+
+pub fn draw_selection(stack: &Stack, pos: u8, size: u8) {
+    let cards = stack.get_all_cards();
+    for i in 0..size {
+        let k = &cards[i as usize];
+        draw_card(
+            k,
+            SELECT_COLORS[1],
+            3,
+            false,
+            get_abs_pos_card(stack, pos, stack.get_card_index(k)),
+        );
+    }
+}
+
+pub fn clear_selection(stack: &Stack, pos: u8, size: u8) {
+    let cards = stack.get_all_cards();
+    for i in 0..size {
+        let k = &cards[i as usize];
+        draw_card(
+            k,
+            Color::BLACK,
+            1,
+            false,
+            get_abs_pos_card(stack, pos, stack.get_card_index(k)),
+        );
+    }
+}
+
+pub fn draw_stack(stack: &Stack, pos: u8) {
+    for k in stack.get_all_cards() {
+        draw_card(
+            k,
+            Color::BLACK,
+            1,
+            false,
+            get_abs_pos_card(stack, pos, stack.get_card_index(k)),
+        )
+    }
+}
+
+fn get_abs_pos_stack(pos: u8) -> Point {
+    if 6 <= pos && pos <= 12 {
+        return Point::new(15 + 42 * (pos as u16 - 6), 70);
+    } else if pos <= 3 {
+        return Point::new(20 + (pos as u16) * 38, 10);
+    } else if pos == 4 {
+        return Point::new(223, 10);
+    } else if pos == 5 {
+        return Point::new(275, 10);
+    } else {
+        panic!()
+    }
+}
+
+pub fn draw_table(table: &Table) {
+    fill_screen(NICE_GREEN);
+    for (i, s) in table.final_stacks.iter().enumerate() {
+        let card = s.get_last_card();
+        draw_card(
+            card,
+            Color::BLACK,
+            1,
+            false,
+            get_abs_pos_card(s, i as u8, s.get_card_index(card)),
+        );
+        if card.number.is_none() {
+            push_rect_uniform(
+                Rect {
+                    x: 22 + 38 * (i as u16),
+                    y: 5,
+                    width: 31,
+                    height: 3,
+                },
+                SUIT_COLORS[i],
+            );
+        }
+    }
+    for (i, s) in table.stacks.iter().enumerate() {
+        draw_stack(&s, (i + 6) as u8)
+    }
+    let deck_card = table.deck.get_last_card();
+    draw_card(
+        table.deck.get_last_card(),
+        Color::BLACK,
+        1,
+        false,
+        get_abs_pos_card(
+            &table.deck,
+            5,
+            table.deck.get_card_index(table.deck.get_last_card()),
+        ),
+    );
+}
