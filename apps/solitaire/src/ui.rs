@@ -160,31 +160,54 @@ pub fn draw_table(table: &Table) {
             false,
             get_abs_pos_card(s, i as u8, s.get_card_index(card)),
         );
-        if card.number.is_none() {
-            push_rect_uniform(
-                Rect {
-                    x: 22 + 38 * (i as u16),
-                    y: 5,
-                    width: 31,
-                    height: 3,
-                },
-                SUIT_COLORS[i],
-            );
-        }
+        push_rect_uniform(
+            Rect {
+                x: 22 + 38 * (i as u16),
+                y: 5,
+                width: 31,
+                height: 3,
+            },
+            SUIT_COLORS[i],
+        );
     }
     for (i, s) in table.stacks.iter().enumerate() {
         draw_stack(&s, (i + 6) as u8)
     }
-    let deck_card = table.deck.get_last_card();
-    draw_card(
-        table.deck.get_last_card(),
-        Color::BLACK,
-        1,
-        false,
-        get_abs_pos_card(
-            &table.deck,
-            5,
-            table.deck.get_card_index(table.deck.get_last_card()),
-        ),
-    );
+    let last_three_visible_cards = table.get_last_three_visible_deck_cards();
+    for i in last_three_visible_cards {
+        draw_card(
+            i,
+            Color::BLACK,
+            1,
+            false,
+            get_abs_pos_card(
+                &table.deck,
+                4,
+                0, // TODO
+            ),
+        );
+    }
+    let deck_cards = table.deck.get_all_cards();
+    let deck_card = deck_cards.get((table.turned_deck_index - 1) as usize);
+    if deck_card.is_some() {
+        draw_card(
+            deck_card.unwrap(),
+            Color::BLACK,
+            1,
+            false,
+            get_abs_pos_stack(5),
+        );
+    } else {
+        draw_card(
+            &Card {
+                number: None,
+                suit: 0,
+                shown: false,
+            },
+            Color::BLACK,
+            1,
+            false,
+            get_abs_pos_stack(5),
+        );
+    }
 }

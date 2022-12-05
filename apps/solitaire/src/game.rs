@@ -120,7 +120,19 @@ impl Stack {
                 return i as u16;
             }
         }
+        if card.number.is_none(){
+            return 0
+        }
         panic!()
+    }
+
+    pub fn get_card_from_index(&self, index: u8) -> &Card {
+        let card = self.stack.get(index as usize);
+        if card.is_some(){
+            return card.unwrap();
+        }else{
+            return &Card{number : None, suit : 0, shown : false}
+        }
     }
 
     pub fn remove_last_card(&mut self) {
@@ -175,6 +187,7 @@ impl Table {
         for k in mixed_cards {
             random_table.deck.add_card_on_top(k);
         }
+        random_table.turned_deck_index = random_table.deck.length() - 2;
         return random_table;
     }
 
@@ -188,6 +201,14 @@ impl Table {
         } else {
             panic!()
         }
+    }
+
+    pub fn get_last_three_visible_deck_cards(&self) -> Vec<&Card, 3> {
+        let mut res = Vec::<&Card, 3>::new();
+        for k in self.turned_deck_index..self.deck.length(){
+            res.push(self.deck.get_card_from_index(k));
+        }   
+        return res
     }
 
 }
