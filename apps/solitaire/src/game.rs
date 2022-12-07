@@ -3,12 +3,12 @@ use heapless::Vec;
 use crate::{
     eadk::{
         display::{self, push_rect_uniform},
-        key, keyboard, timing, Color, Rect,
+        key, keyboard, timing, Color, Rect, Point,
     },
     menu::{menu, pause_menu, MyOption},
     ui::{
         clear_selection, draw_normal_card, draw_selection, draw_selection_card, draw_table,
-        get_abs_pos_stack, NICE_GREEN,
+        get_abs_pos_stack, NICE_GREEN, draw_card, draw_last_deck_cards,
     },
     utils::{fill_screen, randint, ColorConfig},
 };
@@ -150,7 +150,7 @@ impl Table {
         for k in self.turned_deck_index..self.deck.len() {
             res.push(self.deck.get_card_from_index(k)).unwrap();
         }
-        if res.len() == 0 {
+        if res.is_empty() {
             res.push(&NONE_CARD).unwrap();
         }
         return res;
@@ -250,23 +250,27 @@ fn next_position(pos: u8, direction: u8) -> u8 {
             return pos - 6;
         } else if pos == 10 || pos == 11 {
             return 4;
-        } else {
+        } else if pos == 12 {
             return 5;
+        } else {
+            return pos;
         }
     } else if direction == 2 {
         if pos <= 3 {
             return pos + 6;
         } else if pos == 4 {
             return 10;
-        } else {
+        } else if pos == 5{
             return 12;
+        } else{
+            return pos
         }
     } else {
         return pos;
     }
 }
 
-const REPETITION_SPEED: u64 = 250;
+const REPETITION_SPEED: u64 = 150;
 
 /// The entire game is here.
 pub fn game(exemple: bool) -> u8 {
@@ -300,9 +304,7 @@ pub fn game(exemple: bool) -> u8 {
                 if last_pos != 4 {
                     clear_selection(table.get_stack_from_pos(last_pos), last_pos, selection_size);
                 } else {
-                    for k in table.get_last_three_visible_deck_cards() {
-                        draw_normal_card(k, &table.deck, 4)
-                    }
+                    draw_last_deck_cards(&table);
                 }
                 if cursor_position != 4 {
                     draw_selection(

@@ -94,7 +94,7 @@ pub fn draw_normal_card(card: &Card, stack: &Stack, pos: u8) {
 pub fn get_abs_pos_card(stack: &Stack, pos: u8, index: u16) -> Point {
     let position: Point = get_abs_pos_stack(pos);
     if pos == 4 {
-        return position; // TODO
+        return Point::new(position.x - 15 * (index % 3), position.y); // TODO
     } else if 6 <= pos {
         if stack.len() > 9 {
             return Point::new(
@@ -164,6 +164,14 @@ pub fn get_abs_pos_stack(pos: u8) -> Point {
     }
 }
 
+pub fn draw_last_deck_cards(table: &Table) {
+    let last_three_visible_cards = table.get_last_three_visible_deck_cards();
+    let pos = get_abs_pos_stack(4);
+    for (i, k) in last_three_visible_cards.iter().enumerate() {
+        draw_card(k, Color::BLACK, 1, false, Point::new(pos.x - 15*(last_three_visible_cards.len()-1-i)as u16, pos.y));
+    }
+}
+
 pub fn draw_table(table: &Table) {
     fill_screen(NICE_GREEN);
     for (i, s) in table.final_stacks.iter().enumerate() {
@@ -182,10 +190,7 @@ pub fn draw_table(table: &Table) {
     for (i, s) in table.stacks.iter().enumerate() {
         draw_stack(&s, (i + 6) as u8)
     }
-    let last_three_visible_cards = table.get_last_three_visible_deck_cards();
-    for k in last_three_visible_cards {
-        draw_normal_card(k, &table.deck, 4);
-    }
+    draw_last_deck_cards(table);
     let deck_cards = table.deck.get_all_cards();
     let deck_card = deck_cards.get((table.turned_deck_index - 1) as usize);
     if deck_card.is_some() {
