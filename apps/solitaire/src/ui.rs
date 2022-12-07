@@ -3,7 +3,7 @@ use crate::{
         display::{draw_string, push_rect_uniform},
         Color, Point, Rect,
     },
-    game::{Card, Stack, Table},
+    game::{Card, Stack, Table, NONE_CARD},
     utils::fill_screen,
 };
 
@@ -71,7 +71,7 @@ pub fn draw_card(card: &Card, outline: Color, outline_size: u16, clear: bool, po
             );
             draw_string(
                 LETTERS[(card.number.unwrap() - 1) as usize],
-                Point::new(pos.x + 3, pos.y + 2),
+                Point::new(pos.x + 4, pos.y + 3),
                 true,
                 Color::BLACK,
                 Color::WHITE,
@@ -80,62 +80,77 @@ pub fn draw_card(card: &Card, outline: Color, outline_size: u16, clear: bool, po
     }
 }
 
+/// Draws any card, not selected and from a normal stack.
+pub fn draw_normal_card(card: &Card, stack: &Stack, pos: u8) {
+    draw_card(
+        card,
+        Color::BLACK,
+        1,
+        false,
+        get_abs_pos_card(stack, pos, stack.get_card_index(card)),
+    );
+}
+
 pub fn get_abs_pos_card(stack: &Stack, pos: u8, index: u16) -> Point {
     let position: Point = get_abs_pos_stack(pos);
     if pos == 4 {
         return position; // TODO
     } else if 6 <= pos {
-        if stack.length() > 9 {
-            return Point::new(position.x, position.y + 15 * index);
+        if stack.len() > 9 {
+            return Point::new(
+                position.x,
+                position.y + 15 * (stack.len() as u16 - index),
+            );
         } else {
-            return Point::new(position.x, position.y + 10 * index);
+            return Point::new(
+                position.x,
+                position.y + 10 * (stack.len() as u16 - index),
+            );
         }
     } else {
         return position;
     }
 }
 
-pub fn draw_selection(stack: &Stack, pos: u8, size: u8) {
-    let cards = stack.get_all_cards();
+pub fn draw_selection(stack: &Stack, pos: u8, size: u8, selected: bool) {
     for i in 0..size {
-        let k = &cards[i as usize];
-        draw_card(
+        let k = stack.get_card_from_index(i);
+        draw_selection_card(
             k,
-            SELECT_COLORS[1],
-            3,
-            false,
+            selected,
             get_abs_pos_card(stack, pos, stack.get_card_index(k)),
         );
     }
 }
 
+pub fn draw_selection_card(card: &Card, selected: bool, abs_pos: Point) {
+    draw_card(
+        card,
+        if selected {
+            SELECT_COLORS[1]
+        } else {
+            SELECT_COLORS[0]
+        },
+        3,
+        false,
+        abs_pos,
+    );
+}
+
 pub fn clear_selection(stack: &Stack, pos: u8, size: u8) {
-    let cards = stack.get_all_cards();
     for i in 0..size {
-        let k = &cards[i as usize];
-        draw_card(
-            k,
-            Color::BLACK,
-            1,
-            false,
-            get_abs_pos_card(stack, pos, stack.get_card_index(k)),
-        );
+        let k = stack.get_card_from_index(i);
+        draw_normal_card(k, stack, pos);
     }
 }
 
 pub fn draw_stack(stack: &Stack, pos: u8) {
-    for k in stack.get_all_cards() {
-        draw_card(
-            k,
-            Color::BLACK,
-            1,
-            false,
-            get_abs_pos_card(stack, pos, stack.get_card_index(k)),
-        )
+    for k in stack.get_all_cards().iter().rev() {
+        draw_normal_card(k, stack, pos);
     }
 }
 
-fn get_abs_pos_stack(pos: u8) -> Point {
+pub fn get_abs_pos_stack(pos: u8) -> Point {
     if 6 <= pos && pos <= 12 {
         return Point::new(15 + 42 * (pos as u16 - 6), 70);
     } else if pos <= 3 {
@@ -153,13 +168,7 @@ pub fn draw_table(table: &Table) {
     fill_screen(NICE_GREEN);
     for (i, s) in table.final_stacks.iter().enumerate() {
         let card = s.get_last_card();
-        draw_card(
-            card,
-            Color::BLACK,
-            1,
-            false,
-            get_abs_pos_card(s, i as u8, s.get_card_index(card)),
-        );
+        draw_normal_card(card, s, i as u8);
         push_rect_uniform(
             Rect {
                 x: 22 + 38 * (i as u16),
@@ -174,40 +183,14 @@ pub fn draw_table(table: &Table) {
         draw_stack(&s, (i + 6) as u8)
     }
     let last_three_visible_cards = table.get_last_three_visible_deck_cards();
-    for i in last_three_visible_cards {
-        draw_card(
-            i,
-            Color::BLACK,
-            1,
-            false,
-            get_abs_pos_card(
-                &table.deck,
-                4,
-                0, // TODO
-            ),
-        );
+    for k in last_three_visible_cards {
+        draw_normal_card(k, &table.deck, 4);
     }
     let deck_cards = table.deck.get_all_cards();
     let deck_card = deck_cards.get((table.turned_deck_index - 1) as usize);
     if deck_card.is_some() {
-        draw_card(
-            deck_card.unwrap(),
-            Color::BLACK,
-            1,
-            false,
-            get_abs_pos_stack(5),
-        );
+        draw_normal_card(deck_card.unwrap(), &table.deck, 5);
     } else {
-        draw_card(
-            &Card {
-                number: None,
-                suit: 0,
-                shown: false,
-            },
-            Color::BLACK,
-            1,
-            false,
-            get_abs_pos_stack(5),
-        );
+        draw_card(&NONE_CARD, Color::BLACK, 1, false, get_abs_pos_stack(5));
     }
 }

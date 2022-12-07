@@ -1,10 +1,16 @@
 use heapless::Vec;
 
 use crate::{
-    eadk::{display::push_rect_uniform, Color, Rect, random},
+    eadk::{
+        display::{self, push_rect_uniform},
+        key, keyboard, timing, Color, Rect,
+    },
     menu::{menu, pause_menu, MyOption},
-    ui::{draw_stack, draw_card, get_abs_pos_card, NICE_GREEN, draw_table},
-    utils::{randint, ColorConfig, fill_screen},
+    ui::{
+        clear_selection, draw_normal_card, draw_selection, draw_selection_card, draw_table,
+        get_abs_pos_stack, NICE_GREEN,
+    },
+    utils::{fill_screen, randint, ColorConfig},
 };
 
 /// The number of Boolean Options used. Public so menu() can use it.
@@ -67,81 +73,17 @@ pub struct Card {
     pub shown: bool,
 }
 
+pub const NONE_CARD: Card = Card {
+    number: None,
+    suit: 0,
+    shown: false,
+};
+
 pub struct Table {
     pub deck: Stack,
     pub final_stacks: [Stack; 4],
     pub stacks: [Stack; 7],
-    pub turned_deck_index: u8
-}
-
-pub struct Stack {
-    stack: Vec<Card, 52>,
-}
-
-impl Stack {
-    pub const fn new() -> Self {
-        return Stack {
-            stack: Vec::<Card, 52>::new(),
-        };
-    }
-
-    pub fn add_card_on_top(&mut self, card: Card) {
-        self.stack.push(card).unwrap();
-    }
-
-    pub fn get_all_cards(&self) -> &Vec<Card, 52> {
-        return &self.stack;
-    }
-
-    pub fn get_last_card(&self) -> &Card {
-        let card = self.stack.last();
-        if card.is_some() {
-            return self.stack.last().unwrap();
-        } else {
-            return &Card {
-                number: None,
-                suit: 0,
-                shown: false,
-            };
-        }
-    }
-
-    pub fn is_empty(&self) -> bool {
-        return self.stack.is_empty();
-    }
-
-    pub fn length(&self) -> u8 {
-        return self.stack.len() as u8;
-    }
-
-    pub fn get_card_index(&self, card: &Card) -> u16 {
-        for (i, k) in self.get_all_cards().iter().enumerate() {
-            if k.suit == card.suit && k.number == card.number {
-                return i as u16;
-            }
-        }
-        if card.number.is_none(){
-            return 0
-        }
-        panic!()
-    }
-
-    pub fn get_card_from_index(&self, index: u8) -> &Card {
-        let card = self.stack.get(index as usize);
-        if card.is_some(){
-            return card.unwrap();
-        }else{
-            return &Card{number : None, suit : 0, shown : false}
-        }
-    }
-
-    pub fn remove_last_card(&mut self) {
-        self.stack.pop().unwrap();
-    }
-
-    pub fn turn_last_card(&mut self) {
-        self.stack.last_mut().unwrap().shown = true
-    }
+    pub turned_deck_index: u8,
 }
 
 impl Table {
@@ -178,16 +120,16 @@ impl Table {
             turned_deck_index: 0,
         };
         for i in 0..7 {
-            for j in 0..i+1 {
+            for _ in 0..i + 1 {
                 random_table.stacks[i].add_card_on_top(*mixed_cards.last().unwrap());
                 mixed_cards.pop();
             }
-            random_table.stacks[i].turn_last_card();
+            random_table.stacks[i].turn_first_card();
         }
         for k in mixed_cards {
             random_table.deck.add_card_on_top(k);
         }
-        random_table.turned_deck_index = random_table.deck.length() - 2;
+        random_table.turned_deck_index = random_table.deck.len();
         return random_table;
     }
 
@@ -196,7 +138,7 @@ impl Table {
             return &self.stacks[(cursor - 6) as usize];
         } else if cursor <= 3 {
             return &self.final_stacks[cursor as usize];
-        } else if cursor == 5 || cursor == 6 {
+        } else if cursor == 4 || cursor == 5 {
             return &self.deck;
         } else {
             panic!()
@@ -205,19 +147,183 @@ impl Table {
 
     pub fn get_last_three_visible_deck_cards(&self) -> Vec<&Card, 3> {
         let mut res = Vec::<&Card, 3>::new();
-        for k in self.turned_deck_index..self.deck.length(){
-            res.push(self.deck.get_card_from_index(k));
-        }   
-        return res
+        for k in self.turned_deck_index..self.deck.len() {
+            res.push(self.deck.get_card_from_index(k)).unwrap();
+        }
+        if res.len() == 0 {
+            res.push(&NONE_CARD).unwrap();
+        }
+        return res;
+    }
+}
+
+pub struct Stack {
+    stack: Vec<Card, 52>,
+}
+
+impl Stack {
+    pub const fn new() -> Self {
+        return Stack {
+            stack: Vec::<Card, 52>::new(),
+        };
     }
 
+    pub fn add_card_on_top(&mut self, card: Card) {
+        self.stack.push(card).unwrap();
+    }
+
+    pub fn get_all_cards(&self) -> &Vec<Card, 52> {
+        return &self.stack;
+    }
+
+    pub fn get_last_card(&self) -> &Card {
+        let card = self.stack.last();
+        if card.is_some() {
+            return self.stack.last().unwrap();
+        } else {
+            return &NONE_CARD;
+        }
+    }
+
+    pub fn remove_last_card(&mut self) {
+        self.stack.pop().unwrap();
+    }
+
+    pub fn is_empty(&self) -> bool {
+        return self.stack.is_empty();
+    }
+
+    pub fn len(&self) -> u8 {
+        return self.stack.len() as u8;
+    }
+
+    pub fn get_card_index(&self, card: &Card) -> u16 {
+        for (i, k) in self.get_all_cards().iter().enumerate() {
+            if k.suit == card.suit && k.number == card.number {
+                return i as u16;
+            }
+        }
+        if card.number.is_none() {
+            return 0;
+        }
+        panic!()
+    }
+
+    pub fn get_card_from_index(&self, index: u8) -> &Card {
+        let card = self.stack.get(index as usize);
+        if card.is_some() {
+            return card.unwrap();
+        } else {
+            return &NONE_CARD;
+        }
+    }
+
+    pub fn turn_first_card(&mut self) {
+        self.stack.first_mut().unwrap().shown = true
+    }
 }
+
+fn next_position(pos: u8, direction: u8) -> u8 {
+    // direction being 0, 1, 2 or 3 for left, up, down, right (key::LEFT etc)
+    if direction == 0 {
+        if 6 < pos && pos <= 12 {
+            return pos - 1;
+        } else if pos == 6 {
+            return 12;
+        } else if 0 < pos && pos <= 5 {
+            return pos - 1;
+        } else {
+            return pos;
+        }
+    } else if direction == 3 {
+        if 6 <= pos && pos < 12 {
+            return pos + 1;
+        } else if pos == 12 {
+            return 6;
+        } else if pos < 5 {
+            return pos + 1;
+        } else {
+            return pos;
+        }
+    } else if direction == 1 {
+        if 6 <= pos && pos <= 9 {
+            return pos - 6;
+        } else if pos == 10 || pos == 11 {
+            return 4;
+        } else {
+            return 5;
+        }
+    } else if direction == 2 {
+        if pos <= 3 {
+            return pos + 6;
+        } else if pos == 4 {
+            return 10;
+        } else {
+            return 12;
+        }
+    } else {
+        return pos;
+    }
+}
+
+const REPETITION_SPEED: u64 = 250;
 
 /// The entire game is here.
 pub fn game(exemple: bool) -> u8 {
     fill_screen(NICE_GREEN);
-    let mut table = Table::new_table();
+    let table = Table::new_table();
+    let mut cursor_position: u8 = 9;
+    let mut last_click: u64 = timing::millis();
+    let mut selection_size: u8 = 1;
     draw_table(&table);
-    loop{}
+    draw_selection(
+        table.get_stack_from_pos(cursor_position),
+        cursor_position,
+        1,
+        false,
+    );
+    loop {
+        let keyboard_state = keyboard::scan();
+        if last_click + REPETITION_SPEED < timing::millis() {
+            let last_pos: u8 = cursor_position;
+            if keyboard_state.key_down(key::UP) {
+                cursor_position = next_position(cursor_position, key::UP as u8);
+            } else if keyboard_state.key_down(key::DOWN) {
+                cursor_position = next_position(cursor_position, key::DOWN as u8);
+            } else if keyboard_state.key_down(key::LEFT) {
+                cursor_position = next_position(cursor_position, key::LEFT as u8);
+            } else if keyboard_state.key_down(key::RIGHT) {
+                cursor_position = next_position(cursor_position, key::RIGHT as u8);
+            } else if keyboard_state.key_down(key::OK) {
+            }
+            if last_pos != cursor_position {
+                if last_pos != 4 {
+                    clear_selection(table.get_stack_from_pos(last_pos), last_pos, selection_size);
+                } else {
+                    for k in table.get_last_three_visible_deck_cards() {
+                        draw_normal_card(k, &table.deck, 4)
+                    }
+                }
+                if cursor_position != 4 {
+                    draw_selection(
+                        table.get_stack_from_pos(cursor_position),
+                        cursor_position,
+                        selection_size,
+                        false,
+                    );
+                } else {
+                    let k = table.get_last_three_visible_deck_cards()[0];
+                    draw_selection_card(k, false, get_abs_pos_stack(4));
+                }
+                display::wait_for_vblank();
+            }
+            if keyboard_state.any_down() {
+                last_click = timing::millis();
+            }
+        }
+         if !keyboard_state.any_down() {
+            last_click = 0;
+        }
+    }
     return pause_menu(&COLOR_CONFIG, 100);
 }
