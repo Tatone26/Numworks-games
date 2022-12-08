@@ -1,12 +1,12 @@
 #![no_std]
 #![no_main]
 
-use eadk::{timing, Color};
+use eadk::Color;
 use global_menu::{apps_menu, App};
 use snake::game_snake;
 use solitaire::game_solitaire;
 use tetris::game_tetris;
-use utils::{fill_screen, ColorConfig};
+use utils::ColorConfig;
 
 pub mod eadk;
 pub mod menu;
