@@ -1,1 +1,0 @@
-window.ALL_CRATES = ["cfg_if","getrandom","my_app","ppv_lite86","rand","rand_chacha","rand_core"];

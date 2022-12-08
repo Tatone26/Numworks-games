@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":[["eadk_keyboard_scan",""],["scan",""]]};

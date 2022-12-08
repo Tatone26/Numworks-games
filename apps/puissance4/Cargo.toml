@@ -1,5 +1,5 @@
 [package]
-name = "my_app"
+name = "connect_four"
 version = "0.1.0"
 edition = "2021"
 

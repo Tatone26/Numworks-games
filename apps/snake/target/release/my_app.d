@@ -1,1 +1,0 @@
-C:\Users\Anatole\OneDrive\Documents\Prog\python\calculatrice_numworks\Numworks\apps\my_app\target\release\my_app.exe: C:\Users\Anatole\OneDrive\Documents\Prog\python\calculatrice_numworks\Numworks\apps\my_app\src\main.rs
