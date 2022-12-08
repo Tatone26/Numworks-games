@@ -1,6 +1,6 @@
 use crate::eadk::display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::eadk::{display, key, keyboard, timing, Point, Rect};
-use crate::game::BOOL_OPTIONS_NUMBER;
+use crate::game_solitaire::BOOL_OPTIONS_NUMBER;
 use crate::utils::{
     draw_centered_string, draw_string_cfg, fading, fill_screen, get_centered_text_x_coordo,
     get_string_pixel_size, wait_for_no_keydown, ColorConfig, CENTER, LARGE_CHAR_HEIGHT,

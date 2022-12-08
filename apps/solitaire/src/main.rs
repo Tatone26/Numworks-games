@@ -7,8 +7,8 @@ pub mod menu;
 
 pub mod utils;
 
-mod game;
-pub mod ui;
+mod game_solitaire;
+pub mod ui_solitaire;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]
@@ -24,5 +24,5 @@ pub static EADK_APP_ICON: [u8; 2286] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {
-    game::start();
+    game_solitaire::start();
 }

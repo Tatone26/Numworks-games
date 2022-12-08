@@ -1,0 +1,10 @@
+C:\Users\Anatole\OneDrive\Documents\Prog\python\calculatrice_numworks\Numworks\apps\my_app\target\thumbv7em-none-eabihf\debug\deps\ppv_lite86-b0e9e42be16584de.rmeta: C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\lib.rs C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\soft.rs C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\types.rs C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\generic.rs
+
+C:\Users\Anatole\OneDrive\Documents\Prog\python\calculatrice_numworks\Numworks\apps\my_app\target\thumbv7em-none-eabihf\debug\deps\libppv_lite86-b0e9e42be16584de.rlib: C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\lib.rs C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\soft.rs C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\types.rs C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\generic.rs
+
+C:\Users\Anatole\OneDrive\Documents\Prog\python\calculatrice_numworks\Numworks\apps\my_app\target\thumbv7em-none-eabihf\debug\deps\ppv_lite86-b0e9e42be16584de.d: C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\lib.rs C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\soft.rs C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\types.rs C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\generic.rs
+
+C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\lib.rs:
+C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\soft.rs:
+C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\types.rs:
+C:\Users\Anatole\.cargo\registry\src\github.com-1ecc6299db9ec823\ppv-lite86-0.2.16\src\generic.rs:
