@@ -1,18 +1,20 @@
 #![no_std]
 #![no_main]
 
-use eadk::{Color, timing};
+use eadk::{timing, Color};
+use global_menu::{apps_menu, App};
 use snake::game_snake;
 use solitaire::game_solitaire;
 use tetris::game_tetris;
-use utils::fill_screen;
+use utils::{fill_screen, ColorConfig};
 
 pub mod eadk;
 pub mod menu;
 pub mod utils;
 
-pub mod solitaire;
+mod global_menu;
 pub mod snake;
+pub mod solitaire;
 pub mod tetris;
 
 #[used]
@@ -29,9 +31,26 @@ pub static EADK_APP_ICON: [u8; 2286] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {
-    fill_screen(Color::BLACK);
-    timing::msleep(500);
-    game_solitaire::start();
-    game_snake::start();
-    game_tetris::start();
+    apps_menu(
+        &ColorConfig {
+            text: Color::BLACK,
+            bckgrd: Color::WHITE,
+            alt: Color::GREEN,
+        },
+        [&App {
+            name: "Solitaire\0",
+            launching_function: game_solitaire::start,
+            rules: "test\0",
+        }, 
+        &App {
+            name: "Snake\0",
+            launching_function: game_snake::start,
+            rules: "test\0",
+        },
+        &App {
+            name: "Tetris\0",
+            launching_function: game_tetris::start,
+            rules: "test\0",
+        },], 
+    );
 }
