@@ -4,4 +4,7 @@ Thanks to @ZetaMap, you can run those scripts on your pc with the Kandinksy and 
 
 I don't think this github page will ever interest anyone but I made it public anyway... On numworks.com, you have a repository of lots of programs (and you can submit your owns apparently).
 
-PS : ignore pong and tetris, they are not working right now. There are some good versions online somewhere else.
+I use this repo to save all my code, so a LOT of things here don't work, like pong, tetris, chess... It is just some tests !
+I don't care about professionnalism so my commit's names don't make any sense, and you should NOT read too much of my code. (for your own safety)
+
+Feel free to download my python code, but I don't think I will create or change anything for now. In the apps folder, I'm working on some games written in Rust that you can install at numworks.com/apps but the binaries are very hard to find right now !
