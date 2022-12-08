@@ -6,7 +6,7 @@ use crate::{
     menu::MenuConfig,
     utils::{
         draw_centered_string, fill_screen, wait_for_no_keydown, ColorConfig, CENTER,
-        LARGE_CHAR_HEIGHT, get_centered_text_x_coordo,
+        LARGE_CHAR_HEIGHT, get_centered_text_x_coordo, fading,
     },
 };
 
@@ -54,6 +54,7 @@ pub fn apps_menu<const N: usize>(color: &ColorConfig, apps: [&App; N]) -> u8 {
             display::wait_for_vblank();
             last_action = timing::millis();
         } else if keyboard_state.key_down(key::OK) {
+            fading(150);
             (apps[cursor_pos as usize].launching_function)();
             fill_screen(color.bckgrd);
             draw_selection(&apps, cursor_pos, color);
