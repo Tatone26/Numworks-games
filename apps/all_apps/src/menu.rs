@@ -1,6 +1,5 @@
 use crate::eadk::display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::eadk::{display, key, keyboard, timing, Point, Rect};
-//use crate::game_solitaire::BOOL_OPTIONS_NUMBER;
 use crate::utils::{
     draw_centered_string, draw_string_cfg, fading, fill_screen, get_centered_text_x_coordo,
     get_string_pixel_size, wait_for_no_keydown, ColorConfig, CENTER, LARGE_CHAR_HEIGHT,
@@ -55,9 +54,9 @@ pub struct MenuConfig {
 const FADING_TIME: u32 = 500;
 
 /// Creates a fully fonctional start menu, with [Options][MyOption] as second choice
-pub fn menu(
+pub fn menu<const N : usize>(
     title: &str,
-    opt: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER],
+    opt: &mut [&mut MyOption<bool, 2>; N],
     cfg: &ColorConfig,
     vis_addon: fn()
 ) -> u8 {
@@ -220,7 +219,7 @@ const XPOS_NAMES: u16 = 30;
 const XPOS_VALUES: u16 = 170;
 
 /// Create a fully fonctional option menu, which changes directly the [options][MyOption] values. (no option return)
-fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &ColorConfig) -> u8 {
+fn options<const N : usize>(list: &mut [&mut MyOption<bool, 2>; N], cfg: &ColorConfig) -> u8 {
     fill_screen(cfg.bckgrd);
     draw_centered_string("OPTIONS\0", 20u16, true, cfg, false);
     // Only taking care of boolean options for now.
