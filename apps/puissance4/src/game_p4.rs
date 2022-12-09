@@ -2,12 +2,12 @@ use heapless::Vec;
 
 use crate::{
     eadk::{
-        display::{self, push_rect_uniform},
+        display::{self, push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
         key, keyboard, timing, Color, Rect,
     },
-    menu::{menu, MyOption, pause_menu},
-    ui_p4::{clear_selection_coin, draw_coin, draw_grid, draw_selection_coin},
-    utils::{wait_for_no_keydown, ColorConfig},
+    menu::{menu, selection_menu, MenuConfig, MyOption},
+    ui_p4::{clear_selection_coin, draw_coin, draw_grid, draw_selection_coin, victory},
+    utils::{wait_for_no_keydown, ColorConfig, LARGE_CHAR_HEIGHT},
 };
 
 /// The number of Boolean Options used. Public so menu() can use it.
@@ -82,7 +82,9 @@ pub fn game(_exemple: bool) -> u8 {
             blue_pos = selection(blue_pos, Color::BLUE);
         }
         place_coin(blue_pos, 1, &mut table);
-        if check(&table).is_some() {
+        let check_1 = check(&table);
+        if check_1.is_some() {
+            victory(check_1);
             break; // TODO : Afficher ligne, vainqueur, message etc...
         }
         red_pos = selection(red_pos, Color::RED);
@@ -90,8 +92,35 @@ pub fn game(_exemple: bool) -> u8 {
             red_pos = selection(red_pos, Color::RED);
         }
         place_coin(red_pos, 2, &mut table);
+        let check_2 = check(&table);
+        if check_2.is_some() | table_is_full(&table) {
+            victory(check_2);
+            break;
+        }
     }
-    return pause_menu(&COLOR_CONFIG, 50); // !TODO : menu de rejouer, menu, quitter à l'horizontal ? 
+    let menu_config = MenuConfig {
+        first_choice: "Replay\0",
+        second_choice: "Menu\0",
+        null_choice: "Exit\0",
+        rect_margins: (0, 0),
+        dimensions: (SCREEN_WIDTH, LARGE_CHAR_HEIGHT),
+        offset: (0, SCREEN_HEIGHT / 2 - LARGE_CHAR_HEIGHT),
+        back_key_return: 2,
+    };
+    return selection_menu(&COLOR_CONFIG, &menu_config, true);
+}
+
+
+
+fn table_is_full(table: &Vec<Vec<u8, 6>, 7>) -> bool {
+    for i in table {
+        for j in i {
+            if *j == 0 {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 fn place_coin(x: u16, number: u8, table: &mut Vec<Vec<u8, 6>, 7>) {

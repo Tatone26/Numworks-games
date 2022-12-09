@@ -281,6 +281,7 @@ fn snake_pause(points: u16, death: bool) -> u8 {
             offset: (0, if death { 50 } else { 0 }),
             back_key_return: if death { 2 } else { 1 },
         },
+        false
     );
     if action != 1 {
         fading(500);
