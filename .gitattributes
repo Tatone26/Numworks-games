@@ -1,5 +1,10 @@
 # Auto detect text files and perform LF normalization
 * text=auto
 
-*.html linguist-generated
-*.d linguist-generated
+apps/model/target/* linguist-generated
+apps/snake/target/* linguist-generated
+apps/solitaire/target/* linguist-generated
+apps/tetris/target/* linguist-generated
+apps/all_apps/target/* linguist-generated
+
+
