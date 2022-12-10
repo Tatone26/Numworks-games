@@ -1,19 +1,8 @@
-// def print_grid():
-//     fill_rect(50, 50, 212, 170, black)
-//     for x in range(7):
-//         fill_rect(52 + x * 30, 50, 28, 168, white)
-//         for y in range(6):
-//             if not darkMode:
-//                 print_coin(x, y, (240, 240, 240))
-//             else:
-//                 print_coin(x, y, (30, 30, 30))
-
 use crate::{
     eadk::{display::push_rect_uniform, Color, Rect},
-    utils::{fill_screen, CENTER, draw_centered_string, ColorConfig},
+    game_p4::{FIRST_COLOR, MAX_HEIGHT_SIZE, MAX_WIDTH_SIZE, SECOND_COLOR, THIRD_COLOR},
+    utils::{draw_centered_string, fill_screen, ColorConfig, CENTER},
 };
-
-// fill_rect(53 + 30 * posx, 191 - 28 * posy, 26, 26, color)
 
 const COIN_SIZE: u16 = 22;
 const LEFT_POS: u16 = CENTER.x - 3 * (COIN_SIZE + 4) - COIN_SIZE / 2 - 2;
@@ -31,8 +20,8 @@ pub fn draw_coin(x: u16, y: u16, color: Color) {
     );
     push_rect_uniform(
         Rect {
-            x: LEFT_POS + 3 + (COIN_SIZE + 4)*x,
-            y: UP_POS + 9 + (COIN_SIZE + 1)*(5-y),
+            x: LEFT_POS + 3 + (COIN_SIZE + 4) * x,
+            y: UP_POS + 9 + (COIN_SIZE + 1) * (5 - y),
             width: 3,
             height: 10,
         },
@@ -40,8 +29,8 @@ pub fn draw_coin(x: u16, y: u16, color: Color) {
     );
     push_rect_uniform(
         Rect {
-            x: LEFT_POS + COIN_SIZE + (COIN_SIZE + 4)*x,
-            y: UP_POS + 9 + (COIN_SIZE + 1)*(5-y),
+            x: LEFT_POS + COIN_SIZE + (COIN_SIZE + 4) * x,
+            y: UP_POS + 9 + (COIN_SIZE + 1) * (5 - y),
             width: 3,
             height: 10,
         },
@@ -49,8 +38,8 @@ pub fn draw_coin(x: u16, y: u16, color: Color) {
     );
     push_rect_uniform(
         Rect {
-            x: LEFT_POS + 9 + (COIN_SIZE + 4)*x,
-            y: UP_POS + 3 + (COIN_SIZE + 1)*(5-y),
+            x: LEFT_POS + 9 + (COIN_SIZE + 4) * x,
+            y: UP_POS + 3 + (COIN_SIZE + 1) * (5 - y),
             width: 10,
             height: 3,
         },
@@ -58,8 +47,8 @@ pub fn draw_coin(x: u16, y: u16, color: Color) {
     );
     push_rect_uniform(
         Rect {
-            x: LEFT_POS + 9 + (COIN_SIZE + 4)*x,
-            y: UP_POS + COIN_SIZE + (COIN_SIZE + 1)*(5-y),
+            x: LEFT_POS + 9 + (COIN_SIZE + 4) * x,
+            y: UP_POS + COIN_SIZE + (COIN_SIZE + 1) * (5 - y),
             width: 10,
             height: 3,
         },
@@ -67,43 +56,56 @@ pub fn draw_coin(x: u16, y: u16, color: Color) {
     )
 }
 
-pub fn draw_grid() {
-    fill_screen(Color::WHITE);
+pub fn draw_grid(three_players: bool, c: &ColorConfig) {
+    fill_screen(c.bckgrd);
     push_rect_uniform(
         Rect {
             x: LEFT_POS,
             y: UP_POS,
-            width: (COIN_SIZE + 4) * 7 + 2,
+            width: (COIN_SIZE + 4) * {
+                if !three_players {
+                    7
+                } else {
+                    MAX_WIDTH_SIZE as u16
+                }
+            } + 2,
             height: COIN_SIZE * 6 + 11,
         },
-        Color::BLACK,
+        c.text,
     );
-    for x in 0..7 {
+    for x in 0..if !three_players {
+        7
+    } else {
+        MAX_WIDTH_SIZE as u16
+    } {
         push_rect_uniform(
             Rect {
-                x: LEFT_POS + 2 + (COIN_SIZE + 4) * x,
+                x: LEFT_POS + 2 + (COIN_SIZE + 4) * x as u16,
                 y: UP_POS,
                 width: COIN_SIZE + 2,
                 height: COIN_SIZE * 6 + 9,
             },
-            Color::WHITE,
+            c.bckgrd,
         );
-        for y in 0..6 {
+        for y in 0..MAX_HEIGHT_SIZE {
             push_rect_uniform(
                 Rect {
-                    x: LEFT_POS + 3 + (COIN_SIZE + 4) * x,
-                    y: UP_POS + 3 + (COIN_SIZE + 1) * (5 - y),
+                    x: LEFT_POS + 3 + (COIN_SIZE + 4) * x as u16,
+                    y: UP_POS + 3 + (COIN_SIZE + 1) * (5 - y as u16),
                     width: COIN_SIZE,
                     height: COIN_SIZE,
                 },
-                Color::from_rgb888(220, 220, 220),
+                if c.bckgrd.rgb565 < 0x7BEF {
+                    Color::from_rgb888(50, 50, 50)
+                } else {
+                    Color::from_rgb888(200, 200, 200)
+                },
             )
         }
     }
 }
 
-
-pub fn draw_selection_coin(x:u16, color:Color){
+pub fn draw_selection_coin(x: u16, color: Color) {
     push_rect_uniform(
         Rect {
             x: LEFT_POS + 6 + (COIN_SIZE + 4) * x,
@@ -115,7 +117,7 @@ pub fn draw_selection_coin(x:u16, color:Color){
     );
     push_rect_uniform(
         Rect {
-            x: LEFT_POS + 3 + (COIN_SIZE + 4)*x,
+            x: LEFT_POS + 3 + (COIN_SIZE + 4) * x,
             y: UP_POS - COIN_SIZE + 3,
             width: 3,
             height: 10,
@@ -124,7 +126,7 @@ pub fn draw_selection_coin(x:u16, color:Color){
     );
     push_rect_uniform(
         Rect {
-            x: LEFT_POS + COIN_SIZE + (COIN_SIZE + 4)*x,
+            x: LEFT_POS + COIN_SIZE + (COIN_SIZE + 4) * x,
             y: UP_POS - COIN_SIZE + 3,
             width: 3,
             height: 10,
@@ -133,7 +135,7 @@ pub fn draw_selection_coin(x:u16, color:Color){
     );
     push_rect_uniform(
         Rect {
-            x: LEFT_POS + 9 + (COIN_SIZE + 4)*x,
+            x: LEFT_POS + 9 + (COIN_SIZE + 4) * x,
             y: UP_POS - COIN_SIZE - 3,
             width: 10,
             height: 3,
@@ -142,7 +144,7 @@ pub fn draw_selection_coin(x:u16, color:Color){
     );
     push_rect_uniform(
         Rect {
-            x: LEFT_POS + 9 + (COIN_SIZE + 4)*x,
+            x: LEFT_POS + 9 + (COIN_SIZE + 4) * x,
             y: UP_POS - 6,
             width: 10,
             height: 3,
@@ -151,7 +153,7 @@ pub fn draw_selection_coin(x:u16, color:Color){
     )
 }
 
-pub fn clear_selection_coin(x: u16){
+pub fn clear_selection_coin(x: u16, c: &ColorConfig) {
     push_rect_uniform(
         Rect {
             x: LEFT_POS + 3 + (COIN_SIZE + 4) * x,
@@ -159,11 +161,11 @@ pub fn clear_selection_coin(x: u16){
             width: COIN_SIZE,
             height: COIN_SIZE,
         },
-        Color::WHITE
+        c.bckgrd,
     )
 }
 
-pub fn victory(check: Option<(u8, (u16, u16), (u16, u16))>) {
+pub fn victory(check: Option<(u8, (u16, u16), (u16, u16))>, c: &ColorConfig) {
     let victor;
     let pos1; // TODO
     let pos2;
@@ -171,17 +173,19 @@ pub fn victory(check: Option<(u8, (u16, u16), (u16, u16))>) {
     let green: Color = Color::from_rgb888(30, 200, 30);
     (victor, pos1, pos2) = check.unwrap();
     if victor == 1 {
-        color = Color::BLUE
+        color = FIRST_COLOR
+    } else if victor == 2 {
+        color = SECOND_COLOR
     } else {
-        color = Color::RED
+        color = THIRD_COLOR
     };
     draw_centered_string(
         "PUISSANCE 4 !\0",
         10,
         true,
         &ColorConfig {
-            text: Color::BLACK,
-            bckgrd: Color::WHITE,
+            text: c.text,
+            bckgrd: c.bckgrd,
             alt: color,
         },
         true,

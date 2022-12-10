@@ -20,7 +20,7 @@ pub static EADK_APP_API_LEVEL: u32 = 0;
 
 #[used]
 #[link_section = ".rodata.eadk_app_icon"]
-pub static EADK_APP_ICON: [u8; 2286] = *include_bytes!("../target/icon.nwi");
+pub static EADK_APP_ICON: [u8; 1751] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {
