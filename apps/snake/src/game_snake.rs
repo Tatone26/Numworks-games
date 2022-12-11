@@ -91,12 +91,12 @@ pub fn start() {
         &mut MyOption {
             name: "HYPER RAPIDE !\0",
             value: 0,
-            possible_values: [(true, "EVIDEMMENT!\0"), (false, "Non !\0")],
+            possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
         },
         &mut MyOption {
             name: "MINI TERRAIN !\0",
             value: 0,
-            possible_values: [(true, "Oui !\0"), (false, "Non !!\0")],
+            possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
         },
         &mut MyOption {
             name: "OBSTACLES !\0",
@@ -105,7 +105,7 @@ pub fn start() {
         },
     ];
     loop {
-        let start = menu("SNAKE 2.0\0", &mut opt, &COLOR_CONFIG, menu_vis_addon);
+        let start = menu("SNAKE\0", &mut opt, &COLOR_CONFIG, menu_vis_addon);
         if start == 1 {
             if opt[1].get_value().0 {
                 unsafe {

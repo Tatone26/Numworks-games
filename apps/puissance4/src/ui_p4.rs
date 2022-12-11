@@ -1,6 +1,6 @@
 use crate::{
     eadk::{display::push_rect_uniform, Color, Rect},
-    game_p4::{FIRST_COLOR, MAX_HEIGHT_SIZE, MAX_WIDTH_SIZE, SECOND_COLOR, THIRD_COLOR},
+    game_p4::{MAX_HEIGHT_SIZE, MAX_WIDTH_SIZE, PLAYERS_COLORS},
     utils::{draw_centered_string, fill_screen, ColorConfig, CENTER},
 };
 
@@ -8,6 +8,7 @@ const COIN_SIZE: u16 = 22;
 const LEFT_POS: u16 = CENTER.x - 3 * (COIN_SIZE + 4) - COIN_SIZE / 2 - 2;
 const UP_POS: u16 = 60;
 
+/// DON'T TOUCH THTAT IT WORKS
 pub fn draw_coin(x: u16, y: u16, color: Color) {
     push_rect_uniform(
         Rect {
@@ -73,11 +74,11 @@ pub fn draw_grid(three_players: bool, c: &ColorConfig) {
         },
         c.text,
     );
-    for x in 0..if !three_players {
+    for x in 0..(if !three_players {
         7
     } else {
         MAX_WIDTH_SIZE as u16
-    } {
+    }) {
         push_rect_uniform(
             Rect {
                 x: LEFT_POS + 2 + (COIN_SIZE + 4) * x as u16,
@@ -172,13 +173,7 @@ pub fn victory(check: Option<(u8, (u16, u16), (u16, u16))>, c: &ColorConfig) {
     let color: Color;
     let green: Color = Color::from_rgb888(30, 200, 30);
     (victor, pos1, pos2) = check.unwrap();
-    if victor == 1 {
-        color = FIRST_COLOR
-    } else if victor == 2 {
-        color = SECOND_COLOR
-    } else {
-        color = THIRD_COLOR
-    };
+    color = PLAYERS_COLORS[(victor - 1) as usize];
     draw_centered_string(
         "PUISSANCE 4 !\0",
         10,

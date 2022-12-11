@@ -7,7 +7,7 @@ use crate::{
     },
     menu::{menu, selection_menu, MenuConfig, MyOption},
     ui_p4::{clear_selection_coin, draw_coin, draw_grid, draw_selection_coin, victory},
-    utils::{wait_for_no_keydown, ColorConfig, LARGE_CHAR_HEIGHT, draw_centered_string},
+    utils::{draw_centered_string, wait_for_no_keydown, ColorConfig, LARGE_CHAR_HEIGHT},
 };
 
 /// The number of Boolean Options used. Public so menu() can use it.
@@ -23,9 +23,9 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 static mut THREE_PLAYERS: bool = false;
 
 fn vis_addon() {
-    draw_coin(2, 5, FIRST_COLOR);
-    draw_coin(3, 5, SECOND_COLOR);
-    draw_coin(4, 5, FIRST_COLOR)
+    draw_coin(2, 5, PLAYERS_COLORS[0]);
+    draw_coin(3, 5, PLAYERS_COLORS[1]);
+    draw_coin(4, 5, PLAYERS_COLORS[0])
 }
 /// Menu, Options and Game start
 pub fn start() {
@@ -50,7 +50,11 @@ pub fn start() {
             loop {
                 let color_config: ColorConfig;
                 if opt[1].get_value().0 {
-                    color_config = ColorConfig { text: COLOR_CONFIG.bckgrd, bckgrd: COLOR_CONFIG.text, alt: COLOR_CONFIG.alt }
+                    color_config = ColorConfig {
+                        text: COLOR_CONFIG.bckgrd,
+                        bckgrd: COLOR_CONFIG.text,
+                        alt: COLOR_CONFIG.alt,
+                    }
                 } else {
                     color_config = COLOR_CONFIG
                 }
@@ -73,9 +77,7 @@ pub fn start() {
 pub const MAX_WIDTH_SIZE: usize = 8;
 pub const MAX_HEIGHT_SIZE: usize = 6;
 
-pub const FIRST_COLOR: Color = Color::RED;
-pub const SECOND_COLOR: Color = Color::BLUE;
-pub const THIRD_COLOR: Color = Color::from_rgb888(250, 200, 0);
+pub const PLAYERS_COLORS: [Color; 3] = [Color::RED, Color::BLUE, Color::from_rgb888(250, 200, 0)];
 
 /// The entire game is here.
 pub fn game(three_players: bool, c: &ColorConfig) -> u8 {
@@ -87,75 +89,35 @@ pub fn game(three_players: bool, c: &ColorConfig) -> u8 {
         }
         table.push(new_vec).unwrap();
     }
-    let mut first_player_pos: u16 = 3;
-    let mut second_player_pos: u16 = 3;
-    let mut third_player_pos: u16 = 3;
+    let mut players_pos: [u16; 3] = [3, 3, 3];
     draw_grid(three_players, c);
-    loop {
-        first_player_pos = selection(first_player_pos, FIRST_COLOR, three_players, c);
-        while !table
-            .get(first_player_pos as usize)
-            .unwrap()
-            .last()
-            .eq(&Some(&0))
-        {
-            first_player_pos = selection(first_player_pos, FIRST_COLOR, three_players, c);
-        }
-        place_coin(first_player_pos, 1, &mut table);
-        let check_1 = check(&table);
-        if check_1.is_some() {
-            victory(check_1, c);
-            break;
-        }
-        if table_is_full(&table, three_players) {
-            draw_centered_string("Egalite !\0", 10, true, c, false);
-            break;
-        }
-        second_player_pos = selection(second_player_pos, SECOND_COLOR, three_players, c);
-        while !table
-            .get(second_player_pos as usize)
-            .unwrap()
-            .last()
-            .eq(&Some(&0))
-        {
-            second_player_pos = selection(second_player_pos, SECOND_COLOR, three_players, c);
-        }
-        place_coin(second_player_pos, 2, &mut table);
-        let check_2 = check(&table);
-        if check_2.is_some() {
-            victory(check_2, c);
-            break;
-        }
-        if table_is_full(&table, three_players) {
-            draw_centered_string("Egalité !\0", 10, true, c, false);
-            break;
-        }
-        if three_players {
-            third_player_pos = selection(third_player_pos, THIRD_COLOR, three_players, c);
+    'gameloop: loop {
+        for p in 0..if !three_players { 2 } else { 3 } {
+            players_pos[p] = selection(players_pos[p], PLAYERS_COLORS[p], three_players, c);
             while !table
-                .get(third_player_pos as usize)
+                .get(players_pos[p] as usize)
                 .unwrap()
                 .last()
                 .eq(&Some(&0))
             {
-                third_player_pos = selection(third_player_pos, THIRD_COLOR, three_players, c);
+                players_pos[p] = selection(players_pos[p], PLAYERS_COLORS[p], three_players, c);
             }
-            place_coin(third_player_pos, 3, &mut table);
-            let check_3 = check(&table);
-            if check_3.is_some() {
-                victory(check_3, c);
-                break;
+            place_coin(players_pos[p], p as u8 + 1, &mut table);
+            let check = check(&table);
+            if check.is_some() {
+                victory(check, c);
+                break 'gameloop;
             }
             if table_is_full(&table, three_players) {
-                draw_centered_string("Egalité !\0", 10, true, c, false);
-                break;
+                draw_centered_string("Egalite !\0", 10, true, c, false);
+                break 'gameloop;
             }
         }
     }
     let menu_config = MenuConfig {
-        first_choice: "Replay\0",
+        first_choice: "Rejouer\0",
         second_choice: "Menu\0",
-        null_choice: "Exit\0",
+        null_choice: "Quitter\0",
         rect_margins: (0, 0),
         dimensions: (SCREEN_WIDTH, LARGE_CHAR_HEIGHT),
         offset: (0, SCREEN_HEIGHT / 2 - LARGE_CHAR_HEIGHT),
@@ -168,25 +130,19 @@ fn table_is_full(
     table: &Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>,
     three_players: bool,
 ) -> bool {
-    if three_players {
-        for i in table {
-            for j in i {
-                if *j == 0 {
-                    return false;
-                }
-            }
-        }
-        return true;
+    let range_x = if three_players {
+        0..table.len()
     } else {
-        for i in 0..table.len() - 1 {
-            for j in table.get(i).unwrap() {
-                if *j == 0 {
-                    return false;
-                }
+        0..table.len() - 1
+    };
+    for i in range_x {
+        for j in table.get(i).unwrap() {
+            if *j == 0 {
+                return false;
             }
         }
-        return true;
     }
+    return true;
 }
 
 fn place_coin(x: u16, number: u8, table: &mut Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>) {
@@ -200,19 +156,7 @@ fn place_coin(x: u16, number: u8, table: &mut Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_
             y += 1
         }
     }
-    draw_coin(
-        x,
-        y,
-        if number == 2 {
-            SECOND_COLOR
-        } else if number == 1 {
-            FIRST_COLOR
-        } else if number == 3 {
-            THIRD_COLOR
-        } else {
-            Color::WHITE
-        },
-    );
+    draw_coin(x, y, PLAYERS_COLORS[(number - 1) as usize]);
 }
 
 const REPETITION_SPEED: u64 = 250;
@@ -236,13 +180,7 @@ fn selection(initial_pos: u16, color: Color, three_players: bool, c: &ColorConfi
                 }
             } else if keyboard_state.key_down(key::RIGHT) {
                 last_action_key = key::RIGHT;
-                if pos < {
-                    if !three_players {
-                        6
-                    } else {
-                        7
-                    }
-                } {
+                if pos < (if !three_players { 6 } else { 7 }) {
                     pos += 1;
                 }
             }
