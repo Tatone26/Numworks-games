@@ -3,6 +3,7 @@
 
 *.html linguist-generated=true
 *.d linguist-generated=true
+*.js linguist-generated=true
 
 
 
