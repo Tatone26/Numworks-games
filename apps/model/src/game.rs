@@ -1,4 +1,4 @@
-use crate::{menu::{MyOption, menu, pause_menu}, utils::{ColorConfig, draw_centered_string}, eadk::{Color, display::push_rect_uniform, Rect}};
+use crate::{menu::{MyOption, menu, pause_menu}, utils::{ColorConfig, draw_centered_string, fill_screen, draw_image}, eadk::{Color, display::{push_rect_uniform, push_rect}, Rect, timing}};
 
 /// The number of Boolean Options used. Public so menu() can use it.
 pub const BOOL_OPTIONS_NUMBER: usize = 1;
@@ -45,8 +45,12 @@ pub fn start() {
 }
 
 /// The entire game is here.
-pub fn game(exemple: bool) -> u8 {
-    draw_centered_string("Hello World !\0", 5, true, &COLOR_CONFIG, exemple);
-    return pause_menu(&COLOR_CONFIG, 0);
+pub fn game(_exemple: bool) -> u8 {
+    let test_image = *include_bytes!("./icon_snake.ppm");
+    draw_image(test_image, 100, 100);
+    loop {
+        
+    };
+    return 1
 }
 

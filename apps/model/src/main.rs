@@ -11,7 +11,7 @@ mod game;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]
-pub static EADK_APP_NAME: [u8; 6] = *b"SNAKE\0";
+pub static EADK_APP_NAME: [u8; 6] = *b"TESTS\0";
 
 #[used]
 #[link_section = ".rodata.eadk_api_level"]

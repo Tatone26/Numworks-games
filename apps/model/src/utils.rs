@@ -1,5 +1,7 @@
+use heapless::Vec;
+
 use crate::eadk::backlight::{brightness, set_brightness};
-use crate::eadk::display::{self, draw_string, SCREEN_HEIGHT, SCREEN_WIDTH};
+use crate::eadk::display::{self, draw_string, SCREEN_HEIGHT, SCREEN_WIDTH, push_rect};
 use crate::eadk::{random, timing, Color, Point, Rect, keyboard};
 
 /// Width in pixels of a large character
@@ -118,4 +120,53 @@ pub fn wait_for_no_keydown(){
             break
         }
     }
+}
+
+pub fn decimal_to_ascii_number(number: u8)->Option<u8>{
+    if !(48 <= number && number <= 57){
+        return None;
+    }else {
+        return Some(number - 48)
+    }
+}
+
+pub fn draw_image<const N:usize>(image_bytes : [u8; N], x: u16, y:u16){
+    let mut word = Vec::<u8, N>::new();
+    let mut header_reader: u8 = 0;
+    let mut width: u16 = 0;
+    let mut height: u16 = 0;
+    let mut image_start: usize = 0;
+    for i in 0..image_bytes.len(){
+        let b = image_bytes[i];
+        if b == 10 {
+            if header_reader == 0 {
+                // add stuff
+            }else if header_reader == 1 {
+                let mut number = 0;
+                for n in &word{
+                    let converted = decimal_to_ascii_number(*n);
+                    if converted.is_none() {
+                        width = number;
+                        number = 0;
+                    }else {
+                        number = number*10 + converted.unwrap() as u16;
+                    }
+                }
+                height = number;
+            }else if header_reader == 2 {
+                image_start = i + 1;
+                break
+            }
+            //do something
+            header_reader += 1;
+            word.clear();
+        }else{
+            word.push(b).unwrap();
+        }
+    }
+    let mut test_pixels : [Color; N] = [Color::BLACK; N];
+    for i in 0..(width*height) as usize {
+        test_pixels[i] = Color::from_rgb888(image_bytes[i*3 + image_start], image_bytes[i*3+1 + image_start], image_bytes[i*3+2 + image_start])
+    }
+    push_rect(Rect { x, y, width, height}, &test_pixels);
 }
