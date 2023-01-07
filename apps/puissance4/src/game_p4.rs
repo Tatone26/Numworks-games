@@ -23,9 +23,11 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 static mut THREE_PLAYERS: bool = false;
 
 fn vis_addon() {
-    draw_coin(2, 5, PLAYERS_COLORS[0]);
-    draw_coin(3, 5, PLAYERS_COLORS[1]);
-    draw_coin(4, 5, PLAYERS_COLORS[0])
+    unsafe {
+        draw_selection_coin(2, 0, &COLOR_CONFIG, 25);
+        draw_selection_coin(3, 1, &COLOR_CONFIG, 25);
+        draw_selection_coin(4, if THREE_PLAYERS { 2 } else { 0 }, &COLOR_CONFIG, 25);
+    }
 }
 /// Menu, Options and Game start
 pub fn start() {
@@ -77,7 +79,7 @@ pub fn start() {
 pub const MAX_WIDTH_SIZE: usize = 8;
 pub const MAX_HEIGHT_SIZE: usize = 6;
 
-pub const PLAYERS_COLORS: [Color; 3] = [Color::RED, Color::BLUE, Color::from_rgb888(250, 200, 0)];
+pub const PLAYERS_COLORS: [Color; 3] = [Color::BLUE, Color::RED, Color::from_rgb888(250, 200, 0)];
 
 /// The entire game is here.
 pub fn game(three_players: bool, c: &ColorConfig) -> u8 {
@@ -93,16 +95,16 @@ pub fn game(three_players: bool, c: &ColorConfig) -> u8 {
     draw_grid(three_players, c);
     'gameloop: loop {
         for p in 0..if !three_players { 2 } else { 3 } {
-            players_pos[p] = selection(players_pos[p], PLAYERS_COLORS[p], three_players, c);
+            players_pos[p] = selection(players_pos[p], p as u16, three_players, c);
             while !table
                 .get(players_pos[p] as usize)
                 .unwrap()
                 .last()
                 .eq(&Some(&0))
             {
-                players_pos[p] = selection(players_pos[p], PLAYERS_COLORS[p], three_players, c);
+                players_pos[p] = selection(players_pos[p], p as u16, three_players, c);
             }
-            place_coin(players_pos[p], p as u8 + 1, &mut table);
+            place_coin(players_pos[p], p as u8 + 1, &mut table, c);
             let check = check(&table);
             if check.is_some() {
                 victory(check, c);
@@ -145,7 +147,12 @@ fn table_is_full(
     return true;
 }
 
-fn place_coin(x: u16, number: u8, table: &mut Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>) {
+fn place_coin(
+    x: u16,
+    number: u8,
+    table: &mut Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>,
+    c: &ColorConfig,
+) {
     let vec_x = table.get_mut(x as usize).unwrap();
     let mut y = 0;
     for i in vec_x {
@@ -156,17 +163,17 @@ fn place_coin(x: u16, number: u8, table: &mut Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_
             y += 1
         }
     }
-    draw_coin(x, y, PLAYERS_COLORS[(number - 1) as usize]);
+    draw_coin(x, y, number as u16 - 1, c, false);
 }
 
 const REPETITION_SPEED: u64 = 250;
 
-fn selection(initial_pos: u16, color: Color, three_players: bool, c: &ColorConfig) -> u16 {
+fn selection(initial_pos: u16, color: u16, three_players: bool, c: &ColorConfig) -> u16 {
     let mut pos = initial_pos;
     wait_for_no_keydown();
     let mut last_action: u64 = timing::millis();
     let mut last_action_key: u32 = key::ALPHA;
-    draw_selection_coin(initial_pos, color);
+    draw_selection_coin(initial_pos, color, c, 0);
     loop {
         let keyboard_state = keyboard::scan();
         if (keyboard_state.key_down(key::LEFT) | keyboard_state.key_down(key::RIGHT))
@@ -186,7 +193,7 @@ fn selection(initial_pos: u16, color: Color, three_players: bool, c: &ColorConfi
             }
             if old_pos != pos {
                 clear_selection_coin(old_pos, c);
-                draw_selection_coin(pos, color);
+                draw_selection_coin(pos, color, c, 0);
                 display::wait_for_vblank();
             }
             last_action = timing::millis();
