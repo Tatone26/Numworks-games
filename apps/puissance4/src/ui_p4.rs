@@ -5,7 +5,7 @@ use crate::{
 };
 
 const COIN_SIZE: u16 = 21;
-const LEFT_POS: u16 = CENTER.x - (COIN_SIZE+4) / 2 - (COIN_SIZE + 4)*3;
+const LEFT_POS: u16 = CENTER.x - (COIN_SIZE + 4) / 2 - (COIN_SIZE + 4) * 3;
 const UP_POS: u16 = 60;
 
 static COINS_TILE_MAP: [u8; 19859] = *include_bytes!("./coins.ppm");
@@ -18,13 +18,7 @@ pub fn draw_coin(x: u16, y: u16, color: u16, c: &ColorConfig, vic: bool) {
         21,
         21,
         1,
-        if vic {
-            COIN_SIZE * 4
-        } else if c.bckgrd.rgb565 > 0x7BEF {
-            COIN_SIZE * 3
-        } else {
-            COIN_SIZE * 2
-        },
+        if vic { COIN_SIZE } else { 0 },
         color * COIN_SIZE,
     );
 }
@@ -87,11 +81,7 @@ pub fn draw_selection_coin(x: u16, color: u16, c: &ColorConfig, y_offset: i16) {
         21,
         21,
         1,
-        if c.bckgrd.rgb565 > 0x7BEF {
-            0
-        } else {
-            COIN_SIZE
-        },
+        0,
         color * COIN_SIZE,
     );
 }

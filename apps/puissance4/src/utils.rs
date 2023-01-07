@@ -131,13 +131,10 @@ pub fn decimal_to_ascii_number(number: u8) -> Option<u8> {
     }
 }
 
+const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
+
 /// Draws a .ppm image from its bytes (read as u8 with include_bytes)
-pub fn draw_image<const N: usize, const PIXELS: usize>(
-    image_bytes: &[u8; N],
-    x: u16,
-    y: u16,
-    upscaling: u16,
-) {
+pub fn draw_image<const N: usize>(image_bytes: &[u8; N], x: u16, y: u16, upscaling: u16) {
     let mut width: u16 = 0;
     let mut height: u16 = 0;
     let mut image_start: usize = 0;
@@ -182,19 +179,22 @@ pub fn draw_image<const N: usize, const PIXELS: usize>(
     for i in 0..(width * height) as usize {
         let y_temp: u16 = y + y_pos * upscaling;
         if y_temp < SCREEN_HEIGHT {
-            push_rect_uniform(
-                Rect {
-                    x: x + x_pos * upscaling,
-                    y: y_temp,
-                    width: upscaling,
-                    height: upscaling,
-                },
-                Color::from_rgb888(
-                    image_bytes[i * 3 + image_start],
-                    image_bytes[i * 3 + 1 + image_start],
-                    image_bytes[i * 3 + 2 + image_start],
-                ),
+            let c = Color::from_rgb888(
+                image_bytes[i * 3 + image_start],
+                image_bytes[i * 3 + 1 + image_start],
+                image_bytes[i * 3 + 2 + image_start],
             );
+            if c.rgb565 != TRANSPARENCY_COLOR.rgb565 {
+                push_rect_uniform(
+                    Rect {
+                        x: x + x_pos * upscaling,
+                        y: y_temp,
+                        width: upscaling,
+                        height: upscaling,
+                    },
+                    c,
+                );
+            }
         }
         x_pos += 1;
         if x_pos >= width {
@@ -256,26 +256,34 @@ pub fn draw_image_from_tilemap<const N: usize>(
     for _ in 0..(width * height) as usize {
         let y_temp: u16 = y + y_pos * scaling;
         if y_temp < SCREEN_HEIGHT {
-            push_rect_uniform(
-                Rect {
-                    x: x + x_pos * scaling,
-                    y: y_temp,
-                    width: scaling,
-                    height: scaling,
-                },
-                Color::from_rgb888(
-                    tilemap[image_start + 3*(x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize],
-                    tilemap[image_start + 3*(x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize + 1],
-                    tilemap[image_start + 3*(x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize + 2],
-                ),
+            let c = Color::from_rgb888(
+                tilemap
+                    [image_start + 3 * (x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize],
+                tilemap[image_start
+                    + 3 * (x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize
+                    + 1],
+                tilemap[image_start
+                    + 3 * (x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize
+                    + 2],
             );
+            if c.rgb565 != TRANSPARENCY_COLOR.rgb565 {
+                push_rect_uniform(
+                    Rect {
+                        x: x + x_pos * scaling,
+                        y: y_temp,
+                        width: scaling,
+                        height: scaling,
+                    },
+                    c,
+                );
+            }
         }
         x_pos += 1;
-        if x_pos >= width{
+        if x_pos >= width {
             x_pos = 0;
             y_pos += 1;
-            if y_pos >= height{
-                break
+            if y_pos >= height {
+                break;
             }
         }
     }

@@ -1,6 +1,10 @@
+use heapless::Vec;
+
 use crate::eadk::backlight::{brightness, set_brightness};
-use crate::eadk::display::{self, draw_string, SCREEN_HEIGHT, SCREEN_WIDTH};
-use crate::eadk::{random, timing, Color, Point, Rect, keyboard};
+use crate::eadk::display::{
+    self, draw_string, push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH,
+};
+use crate::eadk::{keyboard, random, timing, Color, Point, Rect};
 
 /// Width in pixels of a large character
 pub const LARGE_CHAR_WIDTH: u16 = 9;
@@ -40,9 +44,8 @@ pub fn fill_screen(color: Color) {
 
 /// Returns the left x coordinate that centers the given string
 pub fn get_centered_text_x_coordo(string: &str, large: bool) -> u16 {
-    match (display::SCREEN_WIDTH).checked_sub(get_string_pixel_size(string, large))
-    {
-        x @ Some(1_u16..=u16::MAX) => return x.unwrap()/2,
+    match (display::SCREEN_WIDTH).checked_sub(get_string_pixel_size(string, large)) {
+        x @ Some(1_u16..=u16::MAX) => return x.unwrap() / 2,
         None | Some(0) => return 0u16,
     }
 }
@@ -111,11 +114,177 @@ pub fn randint(a: u32, b: u32) -> u32 {
 }
 
 /// Bloque le programme tend qu'une touche est appuyée
-pub fn wait_for_no_keydown(){
+pub fn wait_for_no_keydown() {
     loop {
         let keyboard_state = keyboard::scan();
-        if !keyboard_state.any_down(){
-            break
+        if !keyboard_state.any_down() {
+            break;
+        }
+    }
+}
+
+pub fn decimal_to_ascii_number(number: u8) -> Option<u8> {
+    if !(48 <= number && number <= 57) {
+        return None;
+    } else {
+        return Some(number - 48);
+    }
+}
+
+const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
+
+/// Draws a .ppm image from its bytes (read as u8 with include_bytes)
+pub fn draw_image<const N: usize>(image_bytes: &[u8; N], x: u16, y: u16, upscaling: u16) {
+    let mut width: u16 = 0;
+    let mut height: u16 = 0;
+    let mut image_start: usize = 0;
+    {
+        // Reading
+        let mut word = Vec::<u8, 15>::new();
+        let mut header_reader: u8 = 0;
+        for i in 0..image_bytes.len() {
+            let b = image_bytes[i];
+            if b == 10 {
+                if header_reader == 0 {
+                    // word has info about file in it -> not very useful as I only care about RGB
+                } else if header_reader == 1 {
+                    let mut number = 0;
+                    for n in &word {
+                        let converted = decimal_to_ascii_number(*n);
+                        if converted.is_none() {
+                            width = number;
+                            number = 0;
+                        } else {
+                            number = number * 10 + converted.unwrap() as u16;
+                        }
+                    }
+                    height = number;
+                } else if header_reader == 2 {
+                    // word has max value in it (255 most likely)
+                    word.clear();
+                    image_start = i + 1;
+                    break;
+                }
+                //do something
+                header_reader += 1;
+                word.clear();
+            } else {
+                word.push(b).unwrap();
+            }
+        }
+    }
+    wait_for_vblank();
+    let mut x_pos = 0;
+    let mut y_pos = 0;
+    for i in 0..(width * height) as usize {
+        let y_temp: u16 = y + y_pos * upscaling;
+        if y_temp < SCREEN_HEIGHT {
+            let c = Color::from_rgb888(
+                image_bytes[i * 3 + image_start],
+                image_bytes[i * 3 + 1 + image_start],
+                image_bytes[i * 3 + 2 + image_start],
+            );
+            if c.rgb565 != TRANSPARENCY_COLOR.rgb565 {
+                push_rect_uniform(
+                    Rect {
+                        x: x + x_pos * upscaling,
+                        y: y_temp,
+                        width: upscaling,
+                        height: upscaling,
+                    },
+                    c,
+                );
+            }
+        }
+        x_pos += 1;
+        if x_pos >= width {
+            x_pos = 0;
+            y_pos += 1;
+            if y_pos >= height {
+                break;
+            }
+        }
+    }
+}
+
+pub fn draw_image_from_tilemap<const N: usize>(
+    tilemap: &[u8; N],
+    x: u16,
+    y: u16,
+    width: u16,
+    height: u16,
+    scaling: u16,
+    x_map: u16,
+    y_map: u16,
+) {
+    let mut tilemap_width = 0;
+    let mut image_start: usize = 0;
+    {
+        // Reading
+        let mut word = Vec::<u8, 15>::new();
+        let mut header_reader: u8 = 0;
+        for i in 0..tilemap.len() {
+            let b = tilemap[i];
+            if b == 10 {
+                if header_reader == 1 {
+                    let mut number = 0;
+                    for n in &word {
+                        let converted = decimal_to_ascii_number(*n);
+                        if converted.is_none() {
+                            tilemap_width = number;
+                            number = 0;
+                        } else {
+                            number = number * 10 + converted.unwrap() as u16;
+                        }
+                    }
+                } else if header_reader == 2 {
+                    // word has max value in it (255 most likely)
+                    word.clear();
+                    image_start = i + 1;
+                    break;
+                }
+                //do something
+                header_reader += 1;
+                word.clear();
+            } else {
+                word.push(b).unwrap();
+            }
+        }
+    }
+    let mut x_pos = 0;
+    let mut y_pos = 0;
+    for _ in 0..(width * height) as usize {
+        let y_temp: u16 = y + y_pos * scaling;
+        if y_temp < SCREEN_HEIGHT {
+            let c = Color::from_rgb888(
+                tilemap
+                    [image_start + 3 * (x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize],
+                tilemap[image_start
+                    + 3 * (x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize
+                    + 1],
+                tilemap[image_start
+                    + 3 * (x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize
+                    + 2],
+            );
+            if c.rgb565 != TRANSPARENCY_COLOR.rgb565 {
+                push_rect_uniform(
+                    Rect {
+                        x: x + x_pos * scaling,
+                        y: y_temp,
+                        width: scaling,
+                        height: scaling,
+                    },
+                    c,
+                );
+            }
+        }
+        x_pos += 1;
+        if x_pos >= width {
+            x_pos = 0;
+            y_pos += 1;
+            if y_pos >= height {
+                break;
+            }
         }
     }
 }

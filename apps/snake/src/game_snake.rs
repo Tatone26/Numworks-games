@@ -6,8 +6,8 @@ use crate::{
     },
     menu::{menu, selection_menu, MenuConfig, MyOption},
     utils::{
-        draw_centered_string, fading, fill_screen, randint, wait_for_no_keydown, ColorConfig,
-        CENTER, LARGE_CHAR_HEIGHT,
+        draw_centered_string, draw_image_from_tilemap, fading, fill_screen, randint,
+        wait_for_no_keydown, ColorConfig, CENTER, LARGE_CHAR_HEIGHT,
     },
 };
 use eadk::Color;
@@ -24,7 +24,7 @@ enum Direction {
 }
 
 /// The number of Boolean Options used. Public so menu() can use it.
-pub const BOOL_OPTIONS_NUMBER: usize = 3;
+pub const BOOL_OPTIONS_NUMBER: usize = 4;
 
 const DARK_GRAY: Color = Color::from_rgb888(60, 60, 80);
 const GRAY: Color = Color::from_rgb888(175, 175, 175);
@@ -53,9 +53,10 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
     alt: DARK_GREEN,
 };
 
-const MENU_FIGURE_Y : u16 = 70;
+const MENU_FIGURE_Y: u16 = 70;
 /// Menu Visual Addon
 fn menu_vis_addon() {
+    draw_image_from_tilemap(&TILEMAP, CENTER.x - CASE_SIZE, MENU_FIGURE_Y, 10, 10, 2, 30, 0);
     push_rect_uniform(
         Rect {
             x: CENTER.x - CASE_SIZE * 7,
@@ -65,24 +66,7 @@ fn menu_vis_addon() {
         },
         DARK_GREEN,
     );
-    push_rect_uniform(
-        Rect {
-            x: CENTER.x - CASE_SIZE,
-            y: MENU_FIGURE_Y,
-            width: CASE_SIZE * 2,
-            height: CASE_SIZE * 2,
-        },
-        LIGHT_GREEN,
-    );
-    push_rect_uniform(
-        Rect {
-            x: CENTER.x + CASE_SIZE * 3,
-            y: MENU_FIGURE_Y,
-            width: CASE_SIZE * 2,
-            height: CASE_SIZE * 2,
-        },
-        Color::RED,
-    );
+    draw_image_from_tilemap(&TILEMAP, CENTER.x + CASE_SIZE*3, MENU_FIGURE_Y, 10, 10, 2, 0, 0);
 }
 
 /// Menu, Options and Game start
@@ -100,6 +84,11 @@ pub fn start() {
         },
         &mut MyOption {
             name: "OBSTACLES !\0",
+            value: 0,
+            possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
+        },
+        &mut MyOption {
+            name: "Version originale\0",
             value: 0,
             possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
         },
@@ -127,6 +116,7 @@ pub fn start() {
                 let action = game(
                     if opt[0].get_value().0 { 100 } else { 250 },
                     opt[2].get_value().0,
+                    opt[3].get_value().0,
                 );
                 if action == 0 {
                     return;
@@ -140,8 +130,10 @@ pub fn start() {
     }
 }
 
+static TILEMAP: [u8; 1813] = *include_bytes!("./tiles.ppm");
+
 /// The entire game is here.
-pub fn game(speed: u16, has_walls: bool) -> u8 {
+pub fn game(speed: u16, has_walls: bool, original: bool) -> u8 {
     //This mutable variables are the heart of everything. Really.
     let mut snake: Deque<Point, MAX_ARRAY_SIZE> = Deque::new();
     unsafe {
@@ -160,8 +152,8 @@ pub fn game(speed: u16, has_walls: bool) -> u8 {
     let mut points: u16 = 0;
 
     draw_terrain();
-    draw_snake(&snake);
-    draw_box(fruit_pos.x, fruit_pos.y, Color::RED);
+    draw_snake(&snake, direction, original);
+    draw_fruit(fruit_pos.x, fruit_pos.y, original);
     display::wait_for_vblank();
     wait_for_no_keydown();
     timing::msleep(300);
@@ -180,8 +172,8 @@ pub fn game(speed: u16, has_walls: bool) -> u8 {
             let action = snake_pause(points, false);
             if action == 1 {
                 draw_terrain();
-                draw_snake(&snake);
-                draw_box(fruit_pos.x, fruit_pos.y, Color::RED);
+                draw_snake(&snake, direction, original);
+                draw_fruit(fruit_pos.x, fruit_pos.y, original);
                 for i in &walls {
                     draw_box(i.x, i.y, Color::BLACK);
                 }
@@ -238,13 +230,14 @@ pub fn game(speed: u16, has_walls: bool) -> u8 {
                 {
                     fruit_pos = get_random_point();
                 }
-                draw_box(fruit_pos.x, fruit_pos.y, Color::RED);
+                draw_fruit(fruit_pos.x, fruit_pos.y, original);
             } else {
                 // if we didn't eat the fruit, then we get rid of the last case
                 let last_point = snake.pop_back().unwrap();
                 draw_terrain_box(last_point.x, last_point.y);
             }
-            draw_box(new_point.x, new_point.y, LIGHT_GREEN);
+            draw_snake_front(new_point.x, new_point.y, direction, original);
+            //draw_box(new_point.x, new_point.y, LIGHT_GREEN);
             display::wait_for_vblank();
             last_move = timing::millis();
         }
@@ -281,7 +274,7 @@ fn snake_pause(points: u16, death: bool) -> u8 {
             offset: (0, if death { 50 } else { 0 }),
             back_key_return: if death { 2 } else { 1 },
         },
-        false
+        false,
     );
     if action != 1 {
         fading(500);
@@ -396,13 +389,55 @@ fn get_point_from_dir(
     Some(new_point)
 }
 
+fn draw_fruit(x: u16, y: u16, original: bool) {
+    if original {
+        draw_box(x, y, Color::RED);
+    } else {
+        unsafe {
+            draw_image_from_tilemap(
+                &TILEMAP,
+                x * CASE_SIZE + GRID_OFFSET.0,
+                y * CASE_SIZE + GRID_OFFSET.1,
+                CASE_SIZE,
+                CASE_SIZE,
+                1,
+                0,
+                0,
+            );
+        }
+    }
+}
+fn draw_snake_front(x:u16, y: u16, direction : Direction, original: bool){
+    if !original {
+        draw_image_from_tilemap(
+            &TILEMAP,
+            unsafe { x * CASE_SIZE + GRID_OFFSET.0 },
+            unsafe { y * CASE_SIZE + GRID_OFFSET.1 },
+            CASE_SIZE,
+            CASE_SIZE,
+            1,
+            CASE_SIZE*{match direction {
+                Direction::UP => 1,
+                Direction::DOWN => 2,
+                Direction::LEFT => 4,
+                Direction::RIGHT => 3,
+            }},
+            0,
+        );
+    } else {
+        draw_box(x, y, LIGHT_GREEN);
+    }
+}
+
 /// Draws the snake !
-fn draw_snake(snake: &Deque<Point, MAX_ARRAY_SIZE>) {
-    for i in snake {
-        if (i.x == snake.front().unwrap().x) & (i.y == snake.front().unwrap().y) {
-            draw_box(i.x, i.y, LIGHT_GREEN);
-        } else {
-            draw_box(i.x, i.y, DARK_GREEN);
+fn draw_snake(snake: &Deque<Point, MAX_ARRAY_SIZE>, direction : Direction, original: bool) {
+    if original {
+        for i in snake {
+            if (i.x == snake.front().unwrap().x) & (i.y == snake.front().unwrap().y) {
+                draw_snake_front(i.x, i.y, direction, original)
+            } else {
+                draw_box(i.x, i.y, DARK_GREEN);
+            }
         }
     }
 }
