@@ -118,44 +118,56 @@ pub const T_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::T,
     rotation: 0,
     color: 6,
-    pos: SignedPoint { x: 5, y: 0 },
+    pos: SignedPoint { x: 5, y: -1 },
 };
 pub const J_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::J,
     rotation: 0,
     color: 1,
-    pos: SignedPoint { x: 5, y: 0 },
+    pos: SignedPoint { x: 5, y: -1 },
 };
 pub const Z_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::Z,
     rotation: 0,
     color: 4,
-    pos: SignedPoint { x: 5, y: 0 },
+    pos: SignedPoint { x: 5, y: -1 },
 };
 pub const O_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::O,
     rotation: 0,
     color: 0,
-    pos: SignedPoint { x: 5, y: 0 },
+    pos: SignedPoint { x: 5, y: -1 },
 };
 pub const S_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::S,
     rotation: 0,
     color: 3,
-    pos: SignedPoint { x: 5, y: 0 },
+    pos: SignedPoint { x: 5, y: -1 },
 };
 pub const L_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::L,
     rotation: 0,
     color: 2,
-    pos: SignedPoint { x: 5, y: 0 },
+    pos: SignedPoint { x: 5, y: -1 },
 };
 pub const I_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::I,
     rotation: 0,
     color: 5,
-    pos: SignedPoint { x: 5, y: 0 },
+    pos: SignedPoint { x: 5, y: -1 },
 };
+
+pub fn get_initial_tetri(tetritype: TetriType) -> Tetrimino {
+    match tetritype {
+        TetriType::T => T_SHAPE,
+        TetriType::J => J_SHAPE,
+        TetriType::Z => Z_SHAPE,
+        TetriType::O => O_SHAPE,
+        TetriType::S => S_SHAPE,
+        TetriType::L => L_SHAPE,
+        TetriType::I => I_SHAPE,
+    }
+}
 
 pub fn get_random_bag() -> Vec<Tetrimino, 7> {
     let mut res = Vec::<Tetrimino, 7>::new();
@@ -217,8 +229,8 @@ static WALL_KICK_TABLE: [(i16, i16); 32] = [
 static I_WALL_KICKS_TABLE: [(i16, i16); 32] = [
     (-2, 0),
     (1, 0),
-    (-2, 1),
     (1, -2),
+    (-2, 1),
     (2, 0),
     (-1, 0),
     (2, -1),
@@ -227,24 +239,24 @@ static I_WALL_KICKS_TABLE: [(i16, i16); 32] = [
     (2, 0),
     (-1, -2),
     (2, 1),
-    (1, 0),
     (-2, 0),
-    (1, 2),
+    (1, 0),
     (-2, -1),
+    (1, 1),
     (2, 0),
     (-1, 0),
     (2, -1),
-    (-1, 2),
-    (-2, 0),
+    (-1, 1),
     (1, 0),
-    (-2, 1),
+    (-2, 0),
     (1, -2),
-    (1, 0),
+    (-2, 1),
     (-2, 0),
-    (1, 2),
+    (1, 0),
     (-2, -1),
-    (-1, 0),
+    (1, 2),
     (2, 0),
+    (-1, 0),
     (-1, -2),
     (2, 1),
 ];
@@ -253,6 +265,8 @@ pub fn get_wall_kicks_data(tetri: &Tetrimino, right: bool) -> &[(i16, i16)] {
     let table: &[(i16, i16); 32];
     if tetri.tetri == TetriType::I {
         table = &I_WALL_KICKS_TABLE;
+    } else if tetri.tetri == TetriType::O {
+        return &[];
     } else {
         table = &WALL_KICK_TABLE;
     }
@@ -260,7 +274,7 @@ pub fn get_wall_kicks_data(tetri: &Tetrimino, right: bool) -> &[(i16, i16)] {
         if tetri.rotation == 0 {
             return &table[0..4];
         } else if tetri.rotation == 1 {
-            return &table[8..4];
+            return &table[4..8];
         } else if tetri.rotation == 2 {
             return &table[16..20];
         } else {

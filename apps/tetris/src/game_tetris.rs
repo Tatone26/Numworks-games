@@ -6,7 +6,7 @@ use crate::{
         key, keyboard, timing, Color,
     },
     menu::{menu, pause_menu, MyOption},
-    tetriminos::{get_random_bag, TetriType, Tetrimino, get_wall_kicks_data},
+    tetriminos::{get_random_bag, TetriType, Tetrimino, get_wall_kicks_data, get_initial_tetri},
     ui_tetris::{
         draw_block, draw_held_tetrimino, draw_level, draw_lines_number,
         draw_next_tetrimino, draw_score, draw_stable_ui, draw_tetrimino,
@@ -140,7 +140,7 @@ pub fn game() -> u8 {
 
     let mut grid: Grid = Grid::new();
     let mut score: u32 = 0;
-    let mut level: u16 = 0;
+    let mut level: u16 = 1;
     let mut level_lines: u16 = 0;
 
     let mut random_bag: Vec<Tetrimino, 7> = get_random_bag();
@@ -178,7 +178,7 @@ pub fn game() -> u8 {
             & keyboard_state.key_down(key::OK)
         {
             // ROTATE
-            let new_tetri = can_rotate(false, &actual_tetri, &grid);
+            let new_tetri = can_rotate(true, &actual_tetri, &grid);
             if new_tetri.is_some() {
                 draw_tetrimino(&actual_tetri, true);
                 actual_tetri = new_tetri.unwrap();
@@ -192,34 +192,13 @@ pub fn game() -> u8 {
             let temp = actual_tetri.clone();
 
             if held_tetri.is_some() {
-                let mut test_tetri = held_tetri.clone().unwrap();
-                test_tetri.pos = temp.pos;
-                let mut can_move_test = can_move(&test_tetri, (0, 0), &grid);
-                if !can_move_test {
-                    let kicks;
-                    if test_tetri.tetri != TetriType::I {
-                        kicks = [(-1, 0), (1, 0), (0, -1), (0, 1), (0, 0), (0, 0)];
-                    } else {
-                        kicks = [(-1, 0), (1, 0), (-2, 0), (2, 0), (0, -1), (0, -2)];
-                    }
-                    for k in kicks {
-                        if can_move(&test_tetri, k, &grid) {
-                            test_tetri.pos.x += k.0;
-                            test_tetri.pos.y += k.1;
-                            can_move_test = true;
-                            break;
-                        }
-                    }
-                }
-                if can_move_test {
-                    held_blocked = true;
-                    held_button_down = true;
-                    draw_tetrimino(&actual_tetri, true);
-                    actual_tetri = test_tetri;
-                    draw_tetrimino(&actual_tetri, false);
-                    held_tetri = Some(temp.clone());
-                    draw_held_tetrimino(&held_tetri.as_ref().unwrap());
-                }
+                held_blocked = true;
+                held_button_down = true;
+                draw_tetrimino(&actual_tetri, true);
+                actual_tetri = get_initial_tetri(held_tetri.unwrap().tetri);
+                draw_tetrimino(&actual_tetri, false);
+                held_tetri = Some(temp.clone());
+                draw_held_tetrimino(&held_tetri.as_ref().unwrap());
             } else {
                 held_blocked = true;
                 held_button_down = true;
@@ -366,11 +345,11 @@ fn get_clear_lines(tetri: &Tetrimino, grid: &Grid) -> Vec<i16, 4> {
         if check_line(pos.y, &grid) & !clear_lines_y.contains(&(pos.y)) {
             // get sorted index
             let mut new_index: usize = 0;
-            for (i, e) in clear_lines_y.iter().enumerate() {
+            for e in clear_lines_y.iter() {
                 if (pos.y) < *e {
-                    new_index = i;
                     break;
                 }
+                new_index += 1;
             }
             clear_lines_y.insert(new_index, pos.y).unwrap();
         }
@@ -404,8 +383,8 @@ fn add_points(cleared_lines: &Vec<i16, 4>, level: u16, points: u32) -> u32 {
         }
     }
 
-    draw_score((sum * (level as u32 + 1)) + points);
-    return (sum * (level as u32 + 1)) + points;
+    draw_score((sum * (level as u32)) + points);
+    return (sum * (level as u32)) + points;
 }
 
 /// Returns true if the tetrimino can go to that direction.
