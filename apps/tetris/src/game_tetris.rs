@@ -2,14 +2,14 @@ use heapless::Vec;
 
 use crate::{
     eadk::{
-        display::{self, wait_for_vblank},
+        display::{self, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
         key, keyboard, timing, Color,
     },
-    menu::{menu, pause_menu, MyOption},
-    tetriminos::{get_random_bag, TetriType, Tetrimino, get_wall_kicks_data, get_initial_tetri},
+    menu::{menu, pause_menu, selection_menu, MenuConfig, MyOption},
+    tetriminos::{get_initial_tetri, get_random_bag, get_wall_kicks_data, Tetrimino},
     ui_tetris::{
-        draw_block, draw_held_tetrimino, draw_level, draw_lines_number,
-        draw_next_tetrimino, draw_score, draw_stable_ui, draw_tetrimino,
+        draw_block, draw_held_tetrimino, draw_level, draw_lines_number, draw_next_tetrimino,
+        draw_score, draw_stable_ui, draw_tetrimino, draw_blank_line,
     },
     utils::{draw_centered_string, ColorConfig},
 };
@@ -98,7 +98,7 @@ impl Grid {
     fn remove_color_at(&mut self, x: i16, y: i16) {
         if (x >= 0) & (y >= 0) & (x < PLAYFIELD_WIDTH as i16) & (y < PLAYFIELD_HEIGHT as i16) {
             self.grid[x as usize][y as usize] = None;
-            draw_block(x as u16, y as u16, 7);
+            // draw_block(x as u16, y as u16, 7);
         }
     }
 
@@ -112,7 +112,11 @@ impl Grid {
     }
 }
 
-
+/// from tetris.wiki/Marathon, given in G (1/s)
+static FALL_SPEED_DATA: [f32; 19] = [
+    0.01667, 0.021017, 0.026977, 0.035256, 0.04693, 0.06361, 0.0879, 0.1236, 0.1775, 0.2598, 0.388,
+    0.59, 0.92, 1.46, 2.36, 3.91, 6.61, 11.43, 20.0,
+];
 
 pub const HIGH_SCORE: &'static str = "000000\0"; // Need to be 6 char long !
 pub const CASE_SIZE: u16 = 10;
@@ -126,10 +130,7 @@ const SOFT_DROP_SPEED: u64 = 33;
 
 /// The entire game is here.
 pub fn game() -> u8 {
-    draw_stable_ui(1, 0, 0);
-
     // Is it possible to not have all those variables ? Maybe some struct ?
-    let mut fall_speed: u64 = 500; // TODO: decrease with level increase
     let mut last_fall_time: u64 = timing::millis();
     let mut last_move_time: u64 = timing::millis();
     let mut move_button_down: bool = false;
@@ -152,10 +153,14 @@ pub fn game() -> u8 {
     let mut held_blocked: bool = false;
     let mut held_button_down: bool = false;
 
+    let mut fall_speed: u64 = (1000.0 / (FALL_SPEED_DATA[level as usize - 1] * 60.0)) as u64;
+
+    draw_stable_ui(level, level_lines, score);
+
     draw_tetrimino(&actual_tetri, false);
     draw_next_tetrimino(&next_tetri);
 
-    loop {
+    'gameloop: loop {
         let keyboard_state = keyboard::scan();
         if (!move_button_down | ((last_move_time + AUTO_MOVE_SPEED < timing::millis()) & auto_repeat_on)) // if we touch the button for the first time in this frame, or if we maintained it pressed and some time has passed
             & (keyboard_state.key_down(key::LEFT) | keyboard_state.key_down(key::RIGHT))
@@ -235,20 +240,44 @@ pub fn game() -> u8 {
                 actual_tetri.pos.y += 1;
                 draw_tetrimino(&actual_tetri, false);
             } else {
+                let mut death: bool = true;
                 for p in actual_tetri.get_blocks_grid_pos() {
                     grid.set_color_at(p.x, p.y, actual_tetri.color);
+                    if death && p.y >= 0 {
+                        death = false;
+                    }
+                }
+                if death {
+                    draw_centered_string(" GAME OVER \0", 10, true, &COLOR_CONFIG, true);
+                    let action = selection_menu(
+                        &COLOR_CONFIG,
+                        &MenuConfig {
+                            first_choice: "Replay\0",
+                            second_choice: "Menu\0",
+                            null_choice: "Exit\0",
+                            rect_margins: (20, 10),
+                            dimensions: (CASE_SIZE * (PLAYFIELD_WIDTH + 2), CASE_SIZE*10),
+                            offset: (0, 60),
+                            back_key_return: 2,
+                        },
+                        false,
+                    );
+                    break 'gameloop action;
                 }
 
                 let clear_lines_y = get_clear_lines(&actual_tetri, &grid);
                 if !clear_lines_y.is_empty() {
                     score = add_points(&clear_lines_y, level, score);
-
+                    let temp_level = level;
                     (level_lines, level) =
                         add_lines(clear_lines_y.len() as u16, level, level_lines);
-
+                    if level != temp_level {
+                        fall_speed = (1000.0 / (FALL_SPEED_DATA[level as usize - 1] * 60.0)) as u64;
+                    }
                     // Removes every cleared line
                     for i in &clear_lines_y {
                         grid.remove_line(*i);
+                        draw_blank_line(*i as u16);
                     }
 
                     // BRINGS LINES DOWN (display done at the same time for optimisation) -> lol not optimised at all because drawing too much things
@@ -261,6 +290,7 @@ pub fn game() -> u8 {
                                 }
                             }
                             grid.remove_line(j as i16);
+                            draw_blank_line(j as u16);
                         }
                     }
                 }
@@ -294,6 +324,9 @@ pub fn game() -> u8 {
         if soft_drop_button_down & !keyboard_state.key_down(key::DOWN) {
             soft_drop_button_down = false;
         }
+        if held_button_down & !keyboard_state.key_down(key::BACK) {
+            held_button_down = false;
+        }
         if keyboard_state.key_down(key::BACKSPACE) {
             // PAUSE MENU
             let action = pause_menu(&COLOR_CONFIG, 0);
@@ -321,10 +354,6 @@ pub fn game() -> u8 {
         }
         display::wait_for_vblank();
         // EST-CE UNE BONNE IDEE ?
-
-        if held_button_down & !keyboard_state.key_down(key::BACK) {
-            held_button_down = false;
-        }
     }
 }
 
@@ -418,8 +447,6 @@ fn add_lines(number: u16, level: u16, current_lines: u16) -> (u16, u16) {
     }
 }
 
-
-
 fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> {
     let mut rotated_tetri = tetri.clone();
     if right {
@@ -430,7 +457,7 @@ fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> 
     if can_move(&rotated_tetri, (0, 0), grid) {
         return Some(rotated_tetri);
     } else {
-        let kicks= get_wall_kicks_data(tetri, right);
+        let kicks = get_wall_kicks_data(tetri, right);
         for k in kicks {
             if can_move(&rotated_tetri, k.clone(), grid) {
                 rotated_tetri.pos.x += k.0;

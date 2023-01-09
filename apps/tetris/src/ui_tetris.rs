@@ -3,7 +3,7 @@ use heapless::String;
 use crate::{
     eadk::{
         display::{push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
-        Point, Rect, Color,
+        Color, Point, Rect,
     },
     game_tetris::{
         BACKGROUND_DARK_GRAY, BACKGROUND_GRAY, CASE_SIZE, COLOR_CONFIG, HIGH_SCORE,
@@ -73,7 +73,7 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
         },
         BACKGROUND_DARK_GRAY,
     );
-    tiling::<{(CASE_SIZE * CASE_SIZE) as usize }>(
+    tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
         TILEMAP,
         Point::new(start_x, start_y),
         PLAYFIELD_WIDTH,
@@ -177,7 +177,7 @@ pub fn draw_lines_number(line: u16) {
 
 /// Draws a given tetrimino.
 pub fn draw_tetrimino(tetri: &Tetrimino, clear: bool) {
-    let image : [Color; (CASE_SIZE*CASE_SIZE) as usize] = get_image_from_tilemap(
+    let image: [Color; (CASE_SIZE * CASE_SIZE) as usize] = get_image_from_tilemap(
         TILEMAP,
         if clear {
             Point::new(7 * CASE_SIZE, 0)
@@ -239,22 +239,31 @@ pub fn draw_held_tetrimino(tetri: &Tetrimino) {
     }
 }
 
-
-// pub fn draw_blank_line(y: u16) {
-//     let start_x = CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE;
-//     for x in 0..(PLAYFIELD_WIDTH) {
-//         draw_image_from_tilemap(
-//             TILEMAP,
-//             x * CASE_SIZE + start_x,
-//             y * CASE_SIZE + CASE_SIZE * 2,
-//             CASE_SIZE,
-//             CASE_SIZE,
-//             1,
-//             7 * CASE_SIZE,
-//             0,
-//         );
-//     }
-// }
+pub fn draw_blank_line(y: u16) {
+    let start_x = CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE;
+    tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
+        TILEMAP,
+        Point::new(start_x, y * CASE_SIZE + 2 * CASE_SIZE),
+        PLAYFIELD_WIDTH,
+        1,
+        Point::new(7 * CASE_SIZE, 0),
+        (CASE_SIZE, CASE_SIZE),
+        false,
+        1,
+    );
+    // for x in 0..(PLAYFIELD_WIDTH) {
+    //     draw_image_from_tilemap(
+    //         TILEMAP,
+    //         x * CASE_SIZE + start_x,
+    //         y * CASE_SIZE + CASE_SIZE * 2,
+    //         CASE_SIZE,
+    //         CASE_SIZE,
+    //         1,
+    //         7 * CASE_SIZE,
+    //         0,
+    //     );
+    // }
+}
 
 fn draw_block_image(abs_x: u16, abs_y: u16, x_map: u16) {
     draw_image_from_tilemap(
