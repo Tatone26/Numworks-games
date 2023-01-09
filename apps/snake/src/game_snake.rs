@@ -56,7 +56,16 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 const MENU_FIGURE_Y: u16 = 70;
 /// Menu Visual Addon
 fn menu_vis_addon() {
-    draw_image_from_tilemap(&TILEMAP, CENTER.x - CASE_SIZE, MENU_FIGURE_Y, 10, 10, 2, 30, 0);
+    draw_image_from_tilemap(
+        &TILEMAP,
+        CENTER.x - CASE_SIZE,
+        MENU_FIGURE_Y,
+        10,
+        10,
+        2,
+        30,
+        0,
+    );
     push_rect_uniform(
         Rect {
             x: CENTER.x - CASE_SIZE * 7,
@@ -66,7 +75,16 @@ fn menu_vis_addon() {
         },
         DARK_GREEN,
     );
-    draw_image_from_tilemap(&TILEMAP, CENTER.x + CASE_SIZE*3, MENU_FIGURE_Y, 10, 10, 2, 0, 0);
+    draw_image_from_tilemap(
+        &TILEMAP,
+        CENTER.x + CASE_SIZE * 3,
+        MENU_FIGURE_Y,
+        10,
+        10,
+        2,
+        0,
+        0,
+    );
 }
 
 /// Menu, Options and Game start
@@ -88,8 +106,8 @@ pub fn start() {
             possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
         },
         &mut MyOption {
-            name: "Version originale\0",
-            value: 0,
+            name: "Anciens Visuels\0",
+            value: 1,
             possible_values: [(true, "Oui !\0"), (false, "Non !\0")],
         },
     ];
@@ -175,7 +193,7 @@ pub fn game(speed: u16, has_walls: bool, original: bool) -> u8 {
                 draw_snake(&snake, direction, original);
                 draw_fruit(fruit_pos.x, fruit_pos.y, original);
                 for i in &walls {
-                    draw_box(i.x, i.y, Color::BLACK);
+                    draw_wall(i.x, i.y, original);
                 }
                 display::wait_for_vblank();
             } else {
@@ -221,7 +239,7 @@ pub fn game(speed: u16, has_walls: bool, original: bool) -> u8 {
                     unsafe {
                         walls.push_unchecked(new_wall);
                     }
-                    draw_box(new_wall.x, new_wall.y, Color::BLACK);
+                    draw_wall(new_wall.x, new_wall.y, original);
                 }
                 fruit_pos = get_random_point();
                 while is_in_snake(&fruit_pos, &snake)
@@ -407,7 +425,7 @@ fn draw_fruit(x: u16, y: u16, original: bool) {
         }
     }
 }
-fn draw_snake_front(x:u16, y: u16, direction : Direction, original: bool){
+fn draw_snake_front(x: u16, y: u16, direction: Direction, original: bool) {
     if !original {
         draw_image_from_tilemap(
             &TILEMAP,
@@ -416,12 +434,14 @@ fn draw_snake_front(x:u16, y: u16, direction : Direction, original: bool){
             CASE_SIZE,
             CASE_SIZE,
             1,
-            CASE_SIZE*{match direction {
-                Direction::UP => 1,
-                Direction::DOWN => 2,
-                Direction::LEFT => 4,
-                Direction::RIGHT => 3,
-            }},
+            CASE_SIZE * {
+                match direction {
+                    Direction::UP => 1,
+                    Direction::DOWN => 2,
+                    Direction::LEFT => 4,
+                    Direction::RIGHT => 3,
+                }
+            },
             0,
         );
     } else {
@@ -429,8 +449,25 @@ fn draw_snake_front(x:u16, y: u16, direction : Direction, original: bool){
     }
 }
 
+fn draw_wall(x: u16, y: u16, original: bool) {
+    if original {
+        draw_box(x, y, Color::BLACK)
+    } else {
+        draw_image_from_tilemap(
+            &TILEMAP,
+            unsafe { x * CASE_SIZE + GRID_OFFSET.0 },
+            unsafe { y * CASE_SIZE + GRID_OFFSET.1 },
+            CASE_SIZE,
+            CASE_SIZE,
+            1,
+            CASE_SIZE * 5,
+            0,
+        );
+    }
+}
+
 /// Draws the snake !
-fn draw_snake(snake: &Deque<Point, MAX_ARRAY_SIZE>, direction : Direction, original: bool) {
+fn draw_snake(snake: &Deque<Point, MAX_ARRAY_SIZE>, direction: Direction, original: bool) {
     if original {
         for i in snake {
             if (i.x == snake.front().unwrap().x) & (i.y == snake.front().unwrap().y) {

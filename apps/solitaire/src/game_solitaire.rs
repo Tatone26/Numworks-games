@@ -1,16 +1,14 @@
-use core::ops::Add;
-
 use heapless::Vec;
 
 use crate::{
     eadk::{
         display::{self, push_rect_uniform},
-        key, keyboard, timing, Color, Point, Rect,
+        key, keyboard, timing, Color, Rect,
     },
     menu::{menu, pause_menu, MyOption},
     ui_solitaire::{
-        clear_selection, draw_card, draw_last_deck_cards, draw_normal_card, draw_selection,
-        draw_selection_card, draw_table, get_abs_pos_card, get_abs_pos_stack, NICE_GREEN,
+        clear_selection, draw_last_deck_cards, draw_selection,
+        draw_selection_card, draw_table, get_abs_pos_stack, NICE_GREEN,
     },
     utils::{fill_screen, randint, ColorConfig},
 };

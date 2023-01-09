@@ -2,13 +2,13 @@ use heapless::Vec;
 
 use crate::{
     eadk::{
-        display::{self},
+        display::{self, wait_for_vblank},
         key, keyboard, timing, Color,
     },
     menu::{menu, pause_menu, MyOption},
-    tetriminos::{get_random_bag, Tetrimino},
+    tetriminos::{get_random_bag, TetriType, Tetrimino, get_wall_kicks_data},
     ui_tetris::{
-        debug_check, draw_block, draw_held_tetrimino, draw_level, draw_line, draw_lines_number,
+        draw_block, draw_held_tetrimino, draw_level, draw_lines_number,
         draw_next_tetrimino, draw_score, draw_stable_ui, draw_tetrimino,
     },
     utils::{draw_centered_string, ColorConfig},
@@ -64,7 +64,7 @@ pub fn start() {
 
 /// Represents the game grid, every case being a [Color] or [None]
 struct Grid {
-    grid: [[Option<Color>; (PLAYFIELD_HEIGHT as usize)]; (PLAYFIELD_WIDTH as usize)],
+    grid: [[Option<u8>; (PLAYFIELD_HEIGHT as usize)]; (PLAYFIELD_WIDTH as usize)],
 }
 
 impl Grid {
@@ -76,7 +76,7 @@ impl Grid {
     }
 
     /// Returns the color at the given position, None if the pos is outside the grid
-    fn get_color_at(&self, x: i16, y: i16) -> Option<Color> {
+    fn get_color_at(&self, x: i16, y: i16) -> Option<u8> {
         if (x < 0) | (y < 0) {
             return None;
         } else if (x as u16 >= PLAYFIELD_WIDTH) | (y as u16 >= PLAYFIELD_HEIGHT) {
@@ -87,10 +87,10 @@ impl Grid {
     }
 
     /// Set the color at the given position, if the position is in the grid
-    fn set_color_at(&mut self, x: i16, y: i16, c: Color) {
+    fn set_color_at(&mut self, x: i16, y: i16, c: u8) {
         if (x >= 0) & (y >= 0) & (x < PLAYFIELD_WIDTH as i16) & (y < PLAYFIELD_HEIGHT as i16) {
             self.grid[x as usize][y as usize] = Some(c);
-            draw_block(x as u16, y as u16, c);
+            draw_block(x as u16, y as u16, c as u16);
         }
     }
 
@@ -98,7 +98,7 @@ impl Grid {
     fn remove_color_at(&mut self, x: i16, y: i16) {
         if (x >= 0) & (y >= 0) & (x < PLAYFIELD_WIDTH as i16) & (y < PLAYFIELD_HEIGHT as i16) {
             self.grid[x as usize][y as usize] = None;
-            draw_block(x as u16, y as u16, COLOR_CONFIG.bckgrd)
+            draw_block(x as u16, y as u16, 7);
         }
     }
 
@@ -107,10 +107,12 @@ impl Grid {
             for x in 0..PLAYFIELD_WIDTH {
                 self.remove_color_at(x as i16, y);
             }
-            draw_line(y as u16, COLOR_CONFIG.bckgrd);
+            // draw_blank_line(y as u16);
         }
     }
 }
+
+
 
 pub const HIGH_SCORE: &'static str = "000000\0"; // Need to be 6 char long !
 pub const CASE_SIZE: u16 = 10;
@@ -124,7 +126,7 @@ const SOFT_DROP_SPEED: u64 = 33;
 
 /// The entire game is here.
 pub fn game() -> u8 {
-    draw_stable_ui();
+    draw_stable_ui(1, 0, 0);
 
     // Is it possible to not have all those variables ? Maybe some struct ?
     let mut fall_speed: u64 = 500; // TODO: decrease with level increase
@@ -176,26 +178,51 @@ pub fn game() -> u8 {
             & keyboard_state.key_down(key::OK)
         {
             // ROTATE
-            if can_rotate_left(&actual_tetri, &grid) {
+            let new_tetri = can_rotate(false, &actual_tetri, &grid);
+            if new_tetri.is_some() {
                 draw_tetrimino(&actual_tetri, true);
-                actual_tetri.rotate_left();
+                actual_tetri = new_tetri.unwrap();
                 draw_tetrimino(&actual_tetri, false);
                 last_rotate_time = timing::millis();
                 rotate_button_down = true;
-            }else{
-                // TODO : kicks (verification if possible rotation first, then tests with differents kicks)
             }
         } else if !held_button_down & !held_blocked & keyboard_state.key_down(key::BACK) {
             // HOLD
-            held_blocked = true;
-            held_button_down = true;
+
             let temp = actual_tetri.clone();
-            if held_tetri.is_some() { // Needs to check if position possible
-                draw_tetrimino(&actual_tetri, true);
-                actual_tetri = held_tetri.unwrap();
-                actual_tetri.pos = temp.pos; // Needs to kick !!
-                draw_tetrimino(&actual_tetri, false);
+
+            if held_tetri.is_some() {
+                let mut test_tetri = held_tetri.clone().unwrap();
+                test_tetri.pos = temp.pos;
+                let mut can_move_test = can_move(&test_tetri, (0, 0), &grid);
+                if !can_move_test {
+                    let kicks;
+                    if test_tetri.tetri != TetriType::I {
+                        kicks = [(-1, 0), (1, 0), (0, -1), (0, 1), (0, 0), (0, 0)];
+                    } else {
+                        kicks = [(-1, 0), (1, 0), (-2, 0), (2, 0), (0, -1), (0, -2)];
+                    }
+                    for k in kicks {
+                        if can_move(&test_tetri, k, &grid) {
+                            test_tetri.pos.x += k.0;
+                            test_tetri.pos.y += k.1;
+                            can_move_test = true;
+                            break;
+                        }
+                    }
+                }
+                if can_move_test {
+                    held_blocked = true;
+                    held_button_down = true;
+                    draw_tetrimino(&actual_tetri, true);
+                    actual_tetri = test_tetri;
+                    draw_tetrimino(&actual_tetri, false);
+                    held_tetri = Some(temp.clone());
+                    draw_held_tetrimino(&held_tetri.as_ref().unwrap());
+                }
             } else {
+                held_blocked = true;
+                held_button_down = true;
                 draw_tetrimino(&actual_tetri, true);
                 if random_bag.len() == 0 {
                     random_bag = get_random_bag();
@@ -204,9 +231,9 @@ pub fn game() -> u8 {
                 next_tetri = random_bag.swap_remove(0);
                 draw_tetrimino(&actual_tetri, false);
                 draw_next_tetrimino(&next_tetri);
+                held_tetri = Some(temp.clone());
+                draw_held_tetrimino(&held_tetri.as_ref().unwrap());
             }
-            held_tetri = Some(temp.clone());
-            draw_held_tetrimino(&held_tetri.as_ref().unwrap());
         }
         if last_fall_time
             + if (!soft_drop_button_down & keyboard_state.key_down(key::DOWN))
@@ -294,12 +321,27 @@ pub fn game() -> u8 {
             if action != 1 {
                 return action;
             } else {
-                draw_stable_ui();
-                // redraws everything that needs it
-                return action;
+                wait_for_vblank();
+                draw_stable_ui(level, level_lines, score);
+                wait_for_vblank();
+                for x in 0..PLAYFIELD_WIDTH {
+                    for y in 0..PLAYFIELD_HEIGHT {
+                        let c = grid.get_color_at(x as i16, y as i16);
+                        if c.is_some() {
+                            draw_block(x, y, c.unwrap() as u16)
+                        }
+                    }
+                }
+                wait_for_vblank();
+                draw_tetrimino(&actual_tetri, false);
+                if held_tetri.is_some() {
+                    draw_held_tetrimino(&held_tetri.as_ref().unwrap());
+                }
+                draw_next_tetrimino(&next_tetri);
             }
         }
         display::wait_for_vblank();
+        // EST-CE UNE BONNE IDEE ?
 
         if held_button_down & !keyboard_state.key_down(key::BACK) {
             held_button_down = false;
@@ -397,8 +439,26 @@ fn add_lines(number: u16, level: u16, current_lines: u16) -> (u16, u16) {
     }
 }
 
-fn can_rotate_left(tetri: &Tetrimino, grid: &Grid) -> bool {
+
+
+fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> {
     let mut rotated_tetri = tetri.clone();
-    rotated_tetri.rotate_left();
-    return can_move(&rotated_tetri, (0, 0), &grid);
+    if right {
+        rotated_tetri.rotate_right();
+    } else {
+        rotated_tetri.rotate_left();
+    }
+    if can_move(&rotated_tetri, (0, 0), grid) {
+        return Some(rotated_tetri);
+    } else {
+        let kicks= get_wall_kicks_data(tetri, right);
+        for k in kicks {
+            if can_move(&rotated_tetri, k.clone(), grid) {
+                rotated_tetri.pos.x += k.0;
+                rotated_tetri.pos.y += k.1;
+                return Some(rotated_tetri);
+            }
+        }
+        return None;
+    }
 }

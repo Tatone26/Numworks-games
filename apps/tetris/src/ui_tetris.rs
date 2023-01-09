@@ -2,16 +2,21 @@ use heapless::String;
 
 use crate::{
     eadk::{
-        display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
-        timing, Color, Point, Rect,
+        display::{push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
+        Point, Rect, Color,
     },
     game_tetris::{
         BACKGROUND_DARK_GRAY, BACKGROUND_GRAY, CASE_SIZE, COLOR_CONFIG, HIGH_SCORE,
         PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH,
     },
     tetriminos::Tetrimino,
-    utils::{draw_string_cfg, CENTER, LARGE_CHAR_HEIGHT},
+    utils::{
+        draw_image, draw_image_from_tilemap, draw_string_cfg, get_image_from_tilemap, tiling,
+        CENTER, LARGE_CHAR_HEIGHT,
+    },
 };
+
+static TILEMAP: &[u8; 3014] = include_bytes!("tiles.ppm");
 
 /// Draws a box of the given size, at the given pos on the grid, with a given title (first-line text), following the ui style
 fn draw_ui_base(title: &'static str, pos: Point, w: u16, h: u16) {
@@ -46,7 +51,10 @@ fn draw_ui_base(title: &'static str, pos: Point, w: u16, h: u16) {
 /// This draws every UI elements that will never change (rects, titles...)
 /// Needs to be upgraded so it doesn't take almost TWO HUNDREDS lines.
 /// Upgrade : function that draws one UI rect given position, size and title.
-pub fn draw_stable_ui() {
+pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
+    let start_x = CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE;
+    let start_y = CASE_SIZE * 2;
+    wait_for_vblank();
     push_rect_uniform(
         Rect {
             x: 0,
@@ -56,7 +64,33 @@ pub fn draw_stable_ui() {
         },
         BACKGROUND_GRAY,
     );
+    push_rect_uniform(
+        Rect {
+            x: CENTER.x - (PLAYFIELD_WIDTH / 2 + 1) * CASE_SIZE,
+            y: CASE_SIZE * 1,
+            width: CASE_SIZE * (PLAYFIELD_WIDTH + 2),
+            height: CASE_SIZE * (PLAYFIELD_HEIGHT + 2),
+        },
+        BACKGROUND_DARK_GRAY,
+    );
+    tiling::<{(CASE_SIZE * CASE_SIZE) as usize }>(
+        TILEMAP,
+        Point::new(start_x, start_y),
+        PLAYFIELD_WIDTH,
+        PLAYFIELD_HEIGHT,
+        Point::new(7 * CASE_SIZE, 0),
+        (10, 10),
+        false,
+        1,
+    );
+
+    wait_for_vblank();
     draw_ui_base("  BEST\0", Point::new(24, 2), 6, 8);
+    draw_ui_base(" LEVEL\0", Point::new(24, 14), 6, 8);
+    draw_ui_base("NEXT\0", Point::new(2, 2), 6, 8);
+    draw_ui_base("HOLD\0", Point::new(2, 14), 6, 8);
+
+    wait_for_vblank();
     draw_string_cfg(
         HIGH_SCORE,
         Point::new(CASE_SIZE * 24, CASE_SIZE * 2 + LARGE_CHAR_HEIGHT),
@@ -71,27 +105,8 @@ pub fn draw_stable_ui() {
         &COLOR_CONFIG,
         false,
     );
-    draw_score(0);
-    push_rect_uniform(
-        Rect {
-            x: CENTER.x - (PLAYFIELD_WIDTH / 2 + 1) * CASE_SIZE,
-            y: CASE_SIZE * 1,
-            width: CASE_SIZE * (PLAYFIELD_WIDTH + 2),
-            height: CASE_SIZE * (PLAYFIELD_HEIGHT + 2),
-        },
-        BACKGROUND_DARK_GRAY,
-    );
-    push_rect_uniform(
-        Rect {
-            x: CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE,
-            y: CASE_SIZE * 2,
-            width: CASE_SIZE * PLAYFIELD_WIDTH,
-            height: CASE_SIZE * PLAYFIELD_HEIGHT,
-        },
-        COLOR_CONFIG.bckgrd,
-    );
-    draw_ui_base(" LEVEL\0", Point::new(24, 14), 6, 8);
-    draw_level(0);
+    draw_score(score);
+    draw_level(level);
     draw_string_cfg(
         "  LINE\0",
         Point::new(
@@ -102,9 +117,7 @@ pub fn draw_stable_ui() {
         &COLOR_CONFIG,
         false,
     );
-    draw_lines_number(0);
-    draw_ui_base("NEXT\0", Point::new(2, 2), 6, 8);
-    draw_ui_base("HOLD\0", Point::new(2, 14), 6, 8);
+    draw_lines_number(level_lines);
 }
 
 pub fn draw_score(score: u32) {
@@ -164,17 +177,26 @@ pub fn draw_lines_number(line: u16) {
 
 /// Draws a given tetrimino.
 pub fn draw_tetrimino(tetri: &Tetrimino, clear: bool) {
+    let image : [Color; (CASE_SIZE*CASE_SIZE) as usize] = get_image_from_tilemap(
+        TILEMAP,
+        if clear {
+            Point::new(7 * CASE_SIZE, 0)
+        } else {
+            Point::new((tetri.color as u16) * CASE_SIZE, 0)
+        },
+        (CASE_SIZE, CASE_SIZE),
+    );
     for pos in tetri.get_blocks_grid_pos() {
         if (pos.x >= 0) & (pos.y >= 0) {
-            draw_block(
-                pos.x as u16,
-                pos.y as u16,
-                if clear {
-                    COLOR_CONFIG.bckgrd
-                } else {
-                    tetri.color
-                },
-            )
+            draw_image(
+                &image,
+                CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE + (pos.x as u16) * CASE_SIZE,
+                CASE_SIZE * 2 + (pos.y as u16) * CASE_SIZE,
+                CASE_SIZE,
+                CASE_SIZE,
+                1,
+                false,
+            );
         }
     }
 }
@@ -190,14 +212,10 @@ pub fn draw_next_tetrimino(tetri: &Tetrimino) {
         COLOR_CONFIG.bckgrd,
     );
     for (x, y) in tetri.get_blocks() {
-        push_rect_uniform(
-            Rect {
-                x: (5 + x) as u16 * CASE_SIZE,
-                y: (6 + y) as u16 * CASE_SIZE,
-                width: CASE_SIZE,
-                height: CASE_SIZE,
-            },
-            tetri.color,
+        draw_block_image(
+            (5 + x) as u16 * CASE_SIZE,
+            (6 + y) as u16 * CASE_SIZE,
+            tetri.color as u16,
         );
     }
 }
@@ -213,60 +231,70 @@ pub fn draw_held_tetrimino(tetri: &Tetrimino) {
         COLOR_CONFIG.bckgrd,
     );
     for (x, y) in tetri.get_blocks() {
-        push_rect_uniform(
-            Rect {
-                x: (5 + x) as u16 * CASE_SIZE,
-                y: (18 + y) as u16 * CASE_SIZE,
-                width: CASE_SIZE,
-                height: CASE_SIZE,
-            },
-            tetri.color,
+        draw_block_image(
+            (5 + x) as u16 * CASE_SIZE,
+            (18 + y) as u16 * CASE_SIZE,
+            tetri.color as u16,
         );
     }
 }
 
-pub fn draw_line(y: u16, color: Color) {
-    push_rect_uniform(
-        Rect {
-            x: CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE,
-            y: CASE_SIZE * 2 + y * CASE_SIZE,
-            width: PLAYFIELD_WIDTH * CASE_SIZE,
-            height: CASE_SIZE,
-        },
+
+// pub fn draw_blank_line(y: u16) {
+//     let start_x = CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE;
+//     for x in 0..(PLAYFIELD_WIDTH) {
+//         draw_image_from_tilemap(
+//             TILEMAP,
+//             x * CASE_SIZE + start_x,
+//             y * CASE_SIZE + CASE_SIZE * 2,
+//             CASE_SIZE,
+//             CASE_SIZE,
+//             1,
+//             7 * CASE_SIZE,
+//             0,
+//         );
+//     }
+// }
+
+fn draw_block_image(abs_x: u16, abs_y: u16, x_map: u16) {
+    draw_image_from_tilemap(
+        TILEMAP,
+        abs_x,
+        abs_y,
+        CASE_SIZE,
+        CASE_SIZE,
+        1,
+        x_map * CASE_SIZE,
+        0,
+    );
+}
+
+pub fn draw_block(x: u16, y: u16, color: u16) {
+    draw_block_image(
+        CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE + x * CASE_SIZE,
+        CASE_SIZE * 2 + y * CASE_SIZE,
         color,
     );
 }
 
-pub fn draw_block(x: u16, y: u16, color: Color) {
-    push_rect_uniform(
-        Rect {
-            x: CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE + x * CASE_SIZE,
-            y: CASE_SIZE * 2 + y * CASE_SIZE,
-            width: CASE_SIZE,
-            height: CASE_SIZE,
-        },
-        color,
-    )
-}
-
-pub fn debug_check() {
-    push_rect_uniform(
-        Rect {
-            x: 0,
-            y: 0,
-            width: 10,
-            height: 10,
-        },
-        Color::GREEN,
-    );
-    timing::msleep(200);
-    push_rect_uniform(
-        Rect {
-            x: 0,
-            y: 0,
-            width: 10,
-            height: 10,
-        },
-        Color::BLACK,
-    );
-}
+// pub fn debug_check() {
+//     push_rect_uniform(
+//         Rect {
+//             x: 0,
+//             y: 0,
+//             width: 10,
+//             height: 10,
+//         },
+//         Color::GREEN,
+//     );
+//     timing::msleep(200);
+//     push_rect_uniform(
+//         Rect {
+//             x: 0,
+//             y: 0,
+//             width: 10,
+//             height: 10,
+//         },
+//         Color::BLACK,
+//     );
+// }
