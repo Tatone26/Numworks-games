@@ -5,7 +5,7 @@ use crate::{
         display::{self, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
         key, keyboard, timing, Color,
     },
-    menu::{menu, pause_menu, selection_menu, MenuConfig, MyOption},
+    menu::{menu, pause_menu, selection_menu, MenuConfig, MyOption, OptionType},
     tetriminos::{get_initial_tetri, get_random_bag, get_wall_kicks_data, Tetrimino},
     ui_tetris::{
         draw_block, draw_held_tetrimino, draw_level, draw_lines_number, draw_next_tetrimino,
@@ -20,31 +20,26 @@ pub const BOOL_OPTIONS_NUMBER: usize = 1;
 // This dictates the principal colors that will be used
 pub const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::from_rgb888(251, 251, 219),
-    bckgrd: Color::from_rgb888(10, 10, 10),
+    bckgrd: Color::from_rgb888(20, 20, 20),
     alt: Color::RED,
 };
 
 pub const BACKGROUND_GRAY: Color = Color::from_rgb888(100, 100, 100);
 pub const BACKGROUND_DARK_GRAY: Color = Color::from_rgb888(70, 70, 70);
 
-static mut EXEMPLE: bool = false;
-
 fn vis_addon() {
     draw_centered_string("VIS ADDON\0", 70, true, &COLOR_CONFIG, true);
 }
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER] = [&mut MyOption {
+    let mut opt: [&mut MyOption<OptionType, 2>; BOOL_OPTIONS_NUMBER] = [&mut MyOption {
         name: "Option !\0",
         value: 0,
-        possible_values: [(true, "True\0"), (false, "False\0")],
+        possible_values: [(OptionType::Bool(true), "True\0"), (OptionType::Bool(false), "False\0")],
     }];
     loop {
         let start = menu("TETRIS\0", &mut opt, &COLOR_CONFIG, vis_addon); // The menu does everything itself !
         if start == 1 {
-            unsafe {
-                EXEMPLE = opt[0].get_value().0; // You could use mutable statics, but it is not very good
-            }
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
                 let action = game(); // calling the game based on the parameters is better
@@ -118,7 +113,7 @@ static FALL_SPEED_DATA: [f32; 19] = [
     0.59, 0.92, 1.46, 2.36, 3.91, 6.61, 11.43, 20.0,
 ];
 
-pub const HIGH_SCORE: &'static str = "000000\0"; // Need to be 6 char long !
+pub const HIGH_SCORE: &'static str = "026280\0"; // Need to be 6 char long !
 pub const CASE_SIZE: u16 = 10;
 pub const PLAYFIELD_HEIGHT: u16 = 20;
 pub const PLAYFIELD_WIDTH: u16 = 10;

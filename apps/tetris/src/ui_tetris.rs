@@ -11,12 +11,14 @@ use crate::{
     },
     tetriminos::Tetrimino,
     utils::{
-        draw_image, draw_image_from_tilemap, draw_string_cfg, get_image_from_tilemap, tiling,
-        CENTER, LARGE_CHAR_HEIGHT,
+        draw_image, draw_tile, draw_string_cfg, get_tile, tiling,
+        CENTER, LARGE_CHAR_HEIGHT, Tilemap,
     },
 };
 
-static TILEMAP: &[u8; 3014] = include_bytes!("tiles.ppm");
+// static TILEMAP: &[u8; 3014] = include_bytes!("tiles.ppm");
+
+static TILEMAP: Tilemap = Tilemap { image: include_bytes!("tiles.ppm"), tile_size: CASE_SIZE};
 
 /// Draws a box of the given size, at the given pos on the grid, with a given title (first-line text), following the ui style
 fn draw_ui_base(title: &'static str, pos: Point, w: u16, h: u16) {
@@ -74,17 +76,17 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
         BACKGROUND_DARK_GRAY,
     );
     tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
-        TILEMAP,
+        &TILEMAP,
         Point::new(start_x, start_y),
-        PLAYFIELD_WIDTH,
-        PLAYFIELD_HEIGHT,
-        Point::new(7 * CASE_SIZE, 0),
-        (10, 10),
+        (PLAYFIELD_WIDTH,
+        PLAYFIELD_HEIGHT),
+        Point::new(7, 0),
         false,
         1,
     );
 
     wait_for_vblank();
+
     draw_ui_base("  BEST\0", Point::new(24, 2), 6, 8);
     draw_ui_base(" LEVEL\0", Point::new(24, 14), 6, 8);
     draw_ui_base("NEXT\0", Point::new(2, 2), 6, 8);
@@ -177,23 +179,23 @@ pub fn draw_lines_number(line: u16) {
 
 /// Draws a given tetrimino.
 pub fn draw_tetrimino(tetri: &Tetrimino, clear: bool) {
-    let image: [Color; (CASE_SIZE * CASE_SIZE) as usize] = get_image_from_tilemap(
-        TILEMAP,
+    let image: [Color; (CASE_SIZE * CASE_SIZE) as usize] = get_tile(
+        &TILEMAP,
         if clear {
-            Point::new(7 * CASE_SIZE, 0)
+            Point::new(7, 0)
         } else {
-            Point::new((tetri.color as u16) * CASE_SIZE, 0)
+            Point::new(tetri.color as u16, 0)
         },
-        (CASE_SIZE, CASE_SIZE),
     );
     for pos in tetri.get_blocks_grid_pos() {
         if (pos.x >= 0) & (pos.y >= 0) {
             draw_image(
                 &image,
-                CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE + (pos.x as u16) * CASE_SIZE,
-                CASE_SIZE * 2 + (pos.y as u16) * CASE_SIZE,
-                CASE_SIZE,
-                CASE_SIZE,
+                Point::new(
+                    CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE + (pos.x as u16) * CASE_SIZE,
+                    CASE_SIZE * 2 + (pos.y as u16) * CASE_SIZE,
+                ),
+                (CASE_SIZE, CASE_SIZE),
                 1,
                 false,
             );
@@ -226,7 +228,7 @@ pub fn draw_held_tetrimino(tetri: &Tetrimino) {
             x: CASE_SIZE * 2,
             y: CASE_SIZE * 16,
             width: 6 * CASE_SIZE,
-            height: 4 * CASE_SIZE,
+            height: 6 * CASE_SIZE,
         },
         COLOR_CONFIG.bckgrd,
     );
@@ -242,39 +244,23 @@ pub fn draw_held_tetrimino(tetri: &Tetrimino) {
 pub fn draw_blank_line(y: u16) {
     let start_x = CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE;
     tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
-        TILEMAP,
+        &TILEMAP,
         Point::new(start_x, y * CASE_SIZE + 2 * CASE_SIZE),
-        PLAYFIELD_WIDTH,
-        1,
-        Point::new(7 * CASE_SIZE, 0),
-        (CASE_SIZE, CASE_SIZE),
+        (PLAYFIELD_WIDTH,
+        1),
+        Point::new(7, 0),
         false,
         1,
     );
-    // for x in 0..(PLAYFIELD_WIDTH) {
-    //     draw_image_from_tilemap(
-    //         TILEMAP,
-    //         x * CASE_SIZE + start_x,
-    //         y * CASE_SIZE + CASE_SIZE * 2,
-    //         CASE_SIZE,
-    //         CASE_SIZE,
-    //         1,
-    //         7 * CASE_SIZE,
-    //         0,
-    //     );
-    // }
 }
 
 fn draw_block_image(abs_x: u16, abs_y: u16, x_map: u16) {
-    draw_image_from_tilemap(
-        TILEMAP,
-        abs_x,
-        abs_y,
-        CASE_SIZE,
-        CASE_SIZE,
+    draw_tile::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
+        &TILEMAP,
+        Point::new(abs_x, abs_y),
+        Point::new(x_map, 0),
         1,
-        x_map * CASE_SIZE,
-        0,
+        false,
     );
 }
 

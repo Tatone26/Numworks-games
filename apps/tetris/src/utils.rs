@@ -25,7 +25,7 @@ pub struct ColorConfig {
     pub text: Color,
     /// Color of the background
     pub bckgrd: Color,
-    /// Other color, used for selection here.
+    /// Other color, often used as a selection color.
     pub alt: Color,
 }
 
@@ -113,7 +113,7 @@ pub fn randint(a: u32, b: u32) -> u32 {
     return random() % (b - a) + a;
 }
 
-/// Bloque le programme tend qu'une touche est appuyée
+/// Blocks the program until nothing is pressed.
 pub fn wait_for_no_keydown() {
     loop {
         let keyboard_state = keyboard::scan();
@@ -123,6 +123,8 @@ pub fn wait_for_no_keydown() {
     }
 }
 
+/// Takes a decimal (from [include_bytes!]) and returns its value as a ascii number.
+/// Used to read images parameters.
 pub fn decimal_to_ascii_number(number: u8) -> Option<u8> {
     if !(48 <= number && number <= 57) {
         return None;
@@ -131,8 +133,11 @@ pub fn decimal_to_ascii_number(number: u8) -> Option<u8> {
     }
 }
 
+/// A random and most likely never used [Color] to use as transparency.
 const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
 
+/// Looks for the parameters at the start of a PPM file, and returns them as width, height and position of the first pixel in the array.
+/// Probably never used outside of the drawing functions defined below.
 fn get_image_parameters(image_bytes: &[u8]) -> (u16, u16, usize) {
     let mut width: u16 = 0;
     let mut height: u16 = 0;
@@ -145,7 +150,7 @@ fn get_image_parameters(image_bytes: &[u8]) -> (u16, u16, usize) {
             let b = image_bytes[i];
             if b == 10 {
                 if header_reader == 0 {
-                    // word has info about file in it -> not very useful as I only care about RGB
+                    // "P6" most likely
                 } else if header_reader == 1 {
                     let mut number = 0;
                     for n in &word {
@@ -164,7 +169,6 @@ fn get_image_parameters(image_bytes: &[u8]) -> (u16, u16, usize) {
                     image_start = i + 1;
                     break;
                 }
-                //do something
                 header_reader += 1;
                 word.clear();
             } else {
@@ -176,40 +180,31 @@ fn get_image_parameters(image_bytes: &[u8]) -> (u16, u16, usize) {
 }
 
 /// Draws a .ppm image from its bytes (read as u8 with include_bytes)
-pub fn draw_image(
-    image: &[Color],
-    x: u16,
-    y: u16,
-    width: u16,
-    height: u16,
-    upscaling: u16,
-    transparency: bool,
-) {
-    // let (width, height, image_start) = get_image_parameters(image_bytes);
-    if upscaling > 1 || transparency {
+pub fn draw_image(image: &[Color], pos: Point, size: (u16, u16), scaling: u16, transparency: bool) {
+    if scaling > 1 || transparency {
         let mut x_pos = 0;
         let mut y_pos = 0;
         for i in 0..image.len() {
-            let y_temp: u16 = y + y_pos * upscaling;
+            let y_temp: u16 = pos.y + y_pos * scaling;
             if y_temp < SCREEN_HEIGHT {
                 let c = image[i];
                 if !transparency || c.rgb565 != TRANSPARENCY_COLOR.rgb565 {
                     push_rect_uniform(
                         Rect {
-                            x: x + x_pos * upscaling,
+                            x: pos.x + x_pos * scaling,
                             y: y_temp,
-                            width: upscaling,
-                            height: upscaling,
+                            width: scaling,
+                            height: scaling,
                         },
                         c,
                     );
                 }
             }
             x_pos += 1;
-            if x_pos >= width {
+            if x_pos >= size.0 {
                 x_pos = 0;
                 y_pos += 1;
-                if y_pos >= height {
+                if y_pos >= size.1 {
                     break;
                 }
             }
@@ -217,89 +212,53 @@ pub fn draw_image(
     } else {
         push_rect(
             Rect {
-                x,
-                y,
-                width,
-                height,
+                x: pos.x,
+                y: pos.y,
+                width: size.0,
+                height: size.1,
             },
             image,
         );
     }
 }
 
+pub struct Tilemap{
+    pub tile_size: u16,
+    pub image: &'static [u8],
+}
+
 /// Draws an image of width*height pixels (can be scaled) from a given tilemap and its position on this tilemap.
-pub fn draw_image_from_tilemap(
-    tilemap: &[u8],
-    x: u16,
-    y: u16,
-    width: u16,
-    height: u16,
+pub fn draw_tile<const PIXELS: usize>(
+    tilemap: &Tilemap,
+    pos: Point,
+    tile: Point,
     scaling: u16,
-    x_map: u16,
-    y_map: u16,
+    transparency: bool,
 ) {
-    let (tilemap_width, _, image_start) = get_image_parameters(tilemap);
-    let mut x_pos = 0;
-    let mut y_pos = 0;
-    for _ in 0..(width * height) as usize {
-        let y_temp: u16 = y + y_pos * scaling;
-        if y_temp < SCREEN_HEIGHT {
-            let c = Color::from_rgb888(
-                tilemap
-                    [image_start + 3 * (x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize],
-                tilemap[image_start
-                    + 3 * (x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize
-                    + 1],
-                tilemap[image_start
-                    + 3 * (x_map + x_pos + (y_pos + y_map) * tilemap_width) as usize
-                    + 2],
-            );
-            if c.rgb565 != TRANSPARENCY_COLOR.rgb565 {
-                push_rect_uniform(
-                    Rect {
-                        x: x + x_pos * scaling,
-                        y: y_temp,
-                        width: scaling,
-                        height: scaling,
-                    },
-                    c,
-                );
-            }
-        }
-        x_pos += 1;
-        if x_pos >= width {
-            x_pos = 0;
-            y_pos += 1;
-            if y_pos >= height {
-                break;
-            }
-        }
-    }
+    let image: [Color; PIXELS] = get_tile::<PIXELS>(tilemap, tile);
+    draw_image(&image, pos, (tilemap.tile_size, tilemap.tile_size), scaling, transparency);
 }
 
 /// For really fast tiling : use scaling = 1 and transparency = false.
-/// In other case, every pixel will be drawn after the other, with a dedicated Rect (= far slower than a single Rect) 
+/// In other case, every pixel will be drawn after the other, with a dedicated Rect (= far slower than a single Rect)
 pub fn tiling<const PIXELS: usize>(
-    tilemap: &[u8],
+    tilemap: &Tilemap,
     pos: Point,
-    width: u16,
-    height: u16,
-    pos_in_tilemap: Point,
-    size_in_tilemap: (u16, u16),
+    dimensions: (u16, u16),
+    tile: Point,
     transparency: bool,
-    scaling: u16
+    scaling: u16,
 ) {
-    let image: [Color; PIXELS] = get_image_from_tilemap(tilemap, pos_in_tilemap, size_in_tilemap);
-    for x in 0..width {
-        for y in 0..height {
+    let image: [Color; PIXELS] =
+        get_tile::<PIXELS>(tilemap, tile);
+    for x in 0..dimensions.0 {
+        for y in 0..dimensions.1 {
             draw_image(
                 &image,
-                x * size_in_tilemap.0 + pos.x,
-                y * size_in_tilemap.1 + pos.y,
-                size_in_tilemap.0,
-                size_in_tilemap.1,
+                Point::new(x * tilemap.tile_size + pos.x, y * tilemap.tile_size + pos.y),
+                (tilemap.tile_size, tilemap.tile_size),
                 scaling,
-                transparency
+                transparency,
             );
         }
     }
@@ -308,25 +267,24 @@ pub fn tiling<const PIXELS: usize>(
 /// Be careful ! Can be really useful for optimisation, but RAM is very limited, so don't use it to get too big images.
 /// [draw_image] is better in the case of big images.
 /// To use transparency : use draw_image with the image returned by this function.
-pub fn get_image_from_tilemap<const PIXELS: usize>(
-    tilemap: &[u8],
-    pos_in_tilemap: Point,
-    size: (u16, u16),
+pub fn get_tile<const PIXELS: usize>(
+    tilemap: &Tilemap,
+    pos_in_tilemap: Point, // as tiles
 ) -> [Color; PIXELS] {
-    let (tilemap_width, _, image_start) = get_image_parameters(tilemap);
+    let (tilemap_width, _, image_start) = get_image_parameters(tilemap.image);
     let mut image: [Color; PIXELS] = [TRANSPARENCY_COLOR; PIXELS];
     let mut x_pos = 0;
     let mut y_pos = 0;
-    for a in 0..(size.0 * size.1) as usize {
+    for a in 0..(tilemap.tile_size*tilemap.tile_size) as usize {
         let i = image_start
-            + 3 * (pos_in_tilemap.x + x_pos + (y_pos + pos_in_tilemap.y) * tilemap_width) as usize;
-        let c = Color::from_rgb888(tilemap[i], tilemap[i + 1], tilemap[i + 2]);
+            + 3 * (pos_in_tilemap.x*tilemap.tile_size + x_pos + (y_pos + pos_in_tilemap.y*tilemap.tile_size) * tilemap_width) as usize;
+        let c = Color::from_rgb888(tilemap.image[i], tilemap.image[i + 1], tilemap.image[i + 2]);
         image[a] = c;
         x_pos += 1;
-        if x_pos >= size.0 {
+        if x_pos >= tilemap.tile_size {
             x_pos = 0;
             y_pos += 1;
-            if y_pos >= size.1 {
+            if y_pos >= tilemap.tile_size {
                 break;
             }
         }

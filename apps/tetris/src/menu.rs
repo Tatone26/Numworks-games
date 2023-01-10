@@ -14,6 +14,11 @@ enum CursorPos {
     EXIT,
 }
 
+
+pub enum OptionType {
+    Bool(bool),
+    Int(u16)
+}
 /// An Option of T type, with COUNT possible values
 #[derive(Debug)]
 pub struct MyOption<T, const COUNT: usize> {
@@ -54,9 +59,9 @@ pub struct MenuConfig {
 const FADING_TIME: u32 = 500;
 
 /// Creates a fully fonctional start menu, with [Options][MyOption] as second choice
-pub fn menu<const N: usize>(
+pub fn menu(
     title: &str,
-    opt: &mut [&mut MyOption<bool, 2>; N],
+    opt: &mut [&mut MyOption<OptionType, 2>],
     cfg: &ColorConfig,
     vis_addon: fn(),
 ) -> u8 {
@@ -255,7 +260,7 @@ const XPOS_NAMES: u16 = 30;
 const XPOS_VALUES: u16 = 170;
 
 /// Create a fully fonctional option menu, which changes directly the [options][MyOption] values. (no option return)
-fn options<const N: usize>(list: &mut [&mut MyOption<bool, 2>; N], cfg: &ColorConfig) -> u8 {
+fn options(list: &mut [&mut MyOption<OptionType, 2>], cfg: &ColorConfig) -> u8 {
     fill_screen(cfg.bckgrd);
     draw_centered_string("OPTIONS\0", 20u16, true, cfg, false);
     // Only taking care of boolean options for now.
@@ -306,7 +311,7 @@ fn options<const N: usize>(list: &mut [&mut MyOption<bool, 2>; N], cfg: &ColorCo
         } else if (keyboard_scan.key_down(key::UP) | keyboard_scan.key_down(key::DOWN))
             & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
         {
-            let current_selection: &MyOption<bool, 2> = &list[cursor_pos as usize];
+            let current_selection: &MyOption<OptionType, 2> = &list[cursor_pos as usize];
             draw_options_selection(
                 current_selection.get_value().1,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
@@ -328,7 +333,7 @@ fn options<const N: usize>(list: &mut [&mut MyOption<bool, 2>; N], cfg: &ColorCo
                 }
                 last_action_key = key::DOWN;
             }
-            let new_selection: &MyOption<bool, 2> = &list[cursor_pos as usize];
+            let new_selection: &MyOption<OptionType, 2> = &list[cursor_pos as usize];
             draw_options_selection(
                 new_selection.get_value().1,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
@@ -340,7 +345,7 @@ fn options<const N: usize>(list: &mut [&mut MyOption<bool, 2>; N], cfg: &ColorCo
         } else if keyboard_scan.key_down(key::OK)
             & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
         {
-            let selection: &mut MyOption<bool, 2> = list[cursor_pos as usize];
+            let selection: &mut MyOption<OptionType, 2> = list[cursor_pos as usize];
             push_rect_uniform(
                 Rect {
                     x: XPOS_VALUES,

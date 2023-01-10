@@ -7,6 +7,8 @@ pub mod menu;
 
 pub mod utils;
 
+pub mod snake_ui;
+
 mod game_snake;
 
 #[used]
