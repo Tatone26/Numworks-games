@@ -1,11 +1,15 @@
-use crate::{
-    eadk::{display::push_rect_uniform, key, keyboard, Color, Rect},
-    menu::{menu, MyOption},
-    utils::{draw_image, fill_screen, wait_for_no_keydown, ColorConfig},
-};
+use heapless::Vec;
 
-/// The number of Boolean Options used. Public so menu() can use it.
-pub const BOOL_OPTIONS_NUMBER: usize = 1;
+use crate::{
+    eadk::{
+        display::{self, push_rect_uniform},
+        key, keyboard, Color, Point, Rect,
+    },
+    menu::{menu, MyOption, OptionType},
+    utils::{
+        draw_string_cfg, draw_tile, fill_screen, tiling, wait_for_no_keydown, ColorConfig, Tileset,
+    },
+};
 
 // This dictates the principal colors that will be used
 const COLOR_CONFIG: ColorConfig = ColorConfig {
@@ -29,27 +33,39 @@ fn vis_addon() {
 }
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER] = [&mut MyOption {
+    let mut opt: [&mut MyOption; 1] = [&mut MyOption {
         name: "Option !\0",
         value: 0,
-        possible_values: [(true, "True\0"), (false, "False\0")],
+        possible_values: {
+            let mut v = Vec::new();
+            unsafe { v.push_unchecked((OptionType::Bool(true), "True\0")) };
+            unsafe { v.push_unchecked((OptionType::Bool(false), "False\0")) };
+            v
+        },
     }];
     loop {
-        let start = menu("SNAKE 2.0\0", &mut opt, &COLOR_CONFIG, vis_addon); // The menu does everything itself !
-        if start == 1 {
+        let start = menu(
+            "SNAKE 2.0\0",
+            &mut opt,
+            &COLOR_CONFIG,
+            vis_addon,
+            include_str!("./model_controls.txt"),
+        );
+        // The menu does everything itself !
+        if start == 0 {
             unsafe {
-                EXEMPLE = opt[0].get_value().0; // You could use mutable statics, but it is not very good
+                EXEMPLE = opt[0].get_param_value(); // You could use mutable statics, but it is not very good
             }
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                let action = game(opt[0].get_value().0); // calling the game based on the parameters is better
-                if action == 0 {
-                    // 0 means quitting
+                let action = game(opt[0].get_param_value()); // calling the game based on the parameters is better
+                if action == 2 {
+                    // 2 means quitting
                     return;
-                } else if action == 2 {
-                    // 2 means back to menu
+                } else if action == 1 {
+                    // 1 means back to menu
                     break;
-                } // if action == 1 : rejouer
+                } // if action == 0 : rejouer
             }
         } else {
             return;
@@ -57,23 +73,44 @@ pub fn start() {
     }
 }
 
-static FIRST_IMAGE: [u8; 9253] = *include_bytes!("./icon_snake.ppm");
+/// Images work really well with square tiles. You can still draw other images, but it is less good.
+static TILESET: Tileset = Tileset {
+    tile_size: 55,
+    image: include_bytes!("./icon_snake.ppm"),
+};
+const PIXELS: usize = { 55 * 55 } as usize;
 
 /// The entire game is here.
 pub fn game(_exemple: bool) -> u8 {
     {
         fill_screen(Color::WHITE);
+        draw_string_cfg(
+            "Push <OK> for some magic ! <Back> to quit back to menu.\0",
+            Point::new(0, 0),
+            false,
+            &COLOR_CONFIG,
+            true,
+        );
         loop {
             let keyboard_state = keyboard::scan();
             if keyboard_state.key_down(key::OK) {
                 wait_for_no_keydown();
-                fill_screen(Color::WHITE);
-                draw_image::<9253, {55*56}>(&FIRST_IMAGE, 0, 0, 1);
+                // fill_screen(Color::WHITE);
+                display::wait_for_vblank();
+                tiling::<PIXELS>(
+                    &TILESET,
+                    Point::new(0, 0),
+                    (5, 4),
+                    Point::new(0, 0),
+                    false,
+                    1,
+                );
+                draw_tile::<PIXELS>(&TILESET, Point::new(0, 0), Point::new(0, 0), 2, false);
             } else if keyboard_state.key_down(key::BACK) {
                 break;
             }
         }
     }
     fill_screen(Color::GREEN);
-    return 2;
+    return 1;
 }

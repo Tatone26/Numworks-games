@@ -1,6 +1,6 @@
 use heapless::Vec;
 
-use crate::eadk::display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH};
+use crate::eadk::display::{push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::eadk::{display, key, keyboard, timing, Point, Rect};
 use crate::utils::{
     draw_centered_string, draw_string_cfg, fading, fill_screen, get_centered_text_x_coordo,
@@ -104,8 +104,15 @@ pub struct MenuConfig {
 }
 
 /// Creates a fully fonctional start menu, with [Options][MyOption] as second choice
-pub fn menu(title: &str, opt: &mut [&mut MyOption], cfg: &ColorConfig, vis_addon: fn(), controls_text: &str) -> u8 {
+pub fn menu(
+    title: &str,
+    opt: &mut [&mut MyOption],
+    cfg: &ColorConfig,
+    vis_addon: fn(),
+    controls_text: &str,
+) -> u8 {
     loop {
+        wait_for_vblank();
         fill_screen(cfg.bckgrd);
         vis_addon();
         draw_centered_string(title, 20, true, cfg, false);
@@ -434,7 +441,8 @@ fn draw_options_selection(text: &str, ypos: u16, selected: bool, cfg: &ColorConf
     );
 }
 
-fn controls(text: &str, cfg: &ColorConfig) -> u8{
+fn controls(text: &str, cfg: &ColorConfig) -> u8 {
+    wait_for_vblank();
     fill_screen(cfg.bckgrd);
     let back_text = "Menu : <Back>  \0";
     draw_string_cfg(
@@ -447,12 +455,21 @@ fn controls(text: &str, cfg: &ColorConfig) -> u8{
         cfg,
         false,
     );
-    draw_string_cfg(text, Point::new(0, 0), false, cfg, false);
+    wait_for_vblank();
+    for (i, line) in text.lines().enumerate() {
+        draw_string_cfg(
+            line,
+            Point::new(0, i as u16 * (SMALL_CHAR_HEIGHT + 4)),
+            false,
+            cfg,
+            false,
+        );
+    }
     loop {
         let keyboard_state = keyboard::scan();
         if keyboard_state.key_down(key::BACK) {
-            break
+            break;
         }
     }
-    return 0
+    return 0;
 }

@@ -1,7 +1,6 @@
                 
                 
-                    HOW TO PLAY
-
+                HOW TO PLAY
 
 
     - Arrow keys to change direction
@@ -11,3 +10,4 @@
 
     Don't run into any wall.
     Don't run into yourself neither.
+                                                                                 

@@ -1,40 +1,90 @@
-use crate::eadk::display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH};
+use heapless::Vec;
+
+use crate::eadk::display::{push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::eadk::{display, key, keyboard, timing, Point, Rect};
-use crate::game::BOOL_OPTIONS_NUMBER;
 use crate::utils::{
     draw_centered_string, draw_string_cfg, fading, fill_screen, get_centered_text_x_coordo,
     get_string_pixel_size, wait_for_no_keydown, ColorConfig, CENTER, LARGE_CHAR_HEIGHT,
     SMALL_CHAR_HEIGHT,
 };
 
-/// Used to symbolise the cursor position
-#[derive(Debug)]
-enum CursorPos {
-    START,
-    OPTIONS,
-    EXIT,
-}
+/// Duration of fadings, in milliseconds
+const FADING_TIME: u32 = 500;
 
+/// In milliseconds, the time between each action if we keep a key pushed.
+const REPETITION_SPEED: u16 = 200;
+
+/// For the [options] menu, the space between each line.
+const SPACE_BETWEEN_LINES: u16 = LARGE_CHAR_HEIGHT;
+/// Where in the x coordinate will the names of the [option][MyOption] be placed
+const XPOS_NAMES: u16 = 30;
+/// Where in the x coordinate will the values ([option][MyOption].value.1) be placed
+const XPOS_VALUES: u16 = 170;
+
+/// The maximum number of different values an option can take.
+pub const MAX_OPTIONS_VALUES: usize = 10;
+
+/// Used to represent the type of the option, instead of plain datatypes as Bool or Int
+/// Without it, impossible to use multiple data types in options
+#[derive(Debug)]
+pub enum OptionType {
+    Bool(bool),
+    Int(u16),
+}
 /// An Option of T type, with COUNT possible values
 #[derive(Debug)]
-pub struct MyOption<T, const COUNT: usize> {
+pub struct MyOption {
     pub name: &'static str,
     pub value: usize,
-    pub possible_values: [(T, &'static str); COUNT],
+    pub possible_values: Vec<(OptionType, &'static str), MAX_OPTIONS_VALUES>,
 }
 
-impl<T, const COUNT: usize> MyOption<T, COUNT> {
+impl MyOption {
     /// Set the value to the next one, 0 if needed
-    pub fn increment_value(&mut self) {
-        if self.value == COUNT - 1 {
+    fn increment_value(&mut self) {
+        if self.value == self.possible_values.len() - 1 {
             self.value = 0
         } else {
             self.value += 1
         }
     }
+
+    fn decrement_value(&mut self) {
+        if self.value == 0 {
+            self.value = self.possible_values.len() - 1
+        } else {
+            self.value -= 1
+        }
+    }
+
     /// Returns the value the option is currently set to
-    pub fn get_value(&self) -> &(T, &'static str) {
+    fn get_value(&self) -> &(OptionType, &'static str) {
         return &self.possible_values[self.value];
+    }
+
+    pub fn get_param_value<T: FromValue>(&self) -> T {
+        return T::from_value(&self.possible_values[self.value].0);
+    }
+}
+
+pub trait FromValue {
+    fn from_value(value: &OptionType) -> Self;
+}
+
+impl FromValue for bool {
+    fn from_value(value: &OptionType) -> Self {
+        match value {
+            OptionType::Bool(b) => *b,
+            _ => panic!(),
+        }
+    }
+}
+impl FromValue for u16 {
+    fn from_value(value: &OptionType) -> Self {
+        match value {
+            OptionType::Int(b) => *b,
+            _ => panic!(),
+        }
     }
 }
 
@@ -42,44 +92,45 @@ impl<T, const COUNT: usize> MyOption<T, COUNT> {
 /// This is THE thing to use to construct a beautiful menu !
 /// It may not be really intuitive, but it is efficient.
 pub struct MenuConfig {
-    pub first_choice: &'static str,
-    pub second_choice: &'static str,
-    pub null_choice: &'static str,
-    pub rect_margins: (u16, u16), // How much between text and sides
-    pub dimensions: (u16, u16),   // Width and Height
-    pub offset: (u16, u16),       // Offset of the entire menu
-    pub back_key_return: u8,      // The return value bound to the BACK key
+    pub choices: &'static [&'static str],
+    /// How much between text and sides
+    pub rect_margins: (u16, u16),
+    /// Width and Height of the entire menu (not too small or text will glitch !)
+    pub dimensions: (u16, u16),
+    /// Offset of the entire menu
+    pub offset: (u16, u16),
+    /// The return value bound to the BACK key
+    pub back_key_return: u8,
 }
-
-/// Duration of fadings, in milliseconds
-const FADING_TIME: u32 = 500;
 
 /// Creates a fully fonctional start menu, with [Options][MyOption] as second choice
 pub fn menu(
     title: &str,
-    opt: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER],
+    opt: &mut [&mut MyOption],
     cfg: &ColorConfig,
     vis_addon: fn(),
+    controls_text: &str,
 ) -> u8 {
     loop {
+        wait_for_vblank();
         fill_screen(cfg.bckgrd);
         vis_addon();
         draw_centered_string(title, 20, true, cfg, false);
         let action = selection_menu(
             cfg,
             &MenuConfig {
-                first_choice: "Play\0",
-                second_choice: "Options\0",
-                null_choice: "Exit\0",
+                choices: &["Play\0", "Options\0", "How to play\0", "Exit\0"],
                 rect_margins: (10, 10),
                 dimensions: (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
                 offset: (0, SCREEN_HEIGHT / 5),
-                back_key_return: 0,
+                back_key_return: 3,
             },
             false,
         );
-        if action == 2 {
+        if action == 1 {
             options(opt, cfg);
+        } else if action == 2 {
+            controls(controls_text, cfg);
         } else {
             fading(FADING_TIME);
             return action;
@@ -92,29 +143,25 @@ pub fn pause_menu(cfg: &ColorConfig, y_offset: u16) -> u8 {
     return selection_menu(
         cfg,
         &MenuConfig {
-            first_choice: "Resume\0",
-            second_choice: "Menu\0",
-            null_choice: "Exit\0",
+            choices: &["Resume\0", "Menu\0", "Exit\0"],
             rect_margins: (20, 10),
             dimensions: (
                 SCREEN_WIDTH * 2 / 5,
                 LARGE_CHAR_HEIGHT * 3 + SPACE_BETWEEN_LINES * 4,
             ),
             offset: (0, y_offset),
-            back_key_return: 1,
+            back_key_return: 0,
         },
         false,
     );
 }
 
-/// In milliseconds, the time between each action if we keep a key pushed.
-const REPETITION_SPEED: u16 = 200;
-
 /// The working part of any menu.
 /// It currently works for only three choices (Start, Option and Exit for exemple)
 /// Returns 1 for first_choice, 2 for second_choice and 0 for null_choice
 pub fn selection_menu(color: &ColorConfig, config: &MenuConfig, horizontal: bool) -> u8 {
-    let mut cursor_pos: CursorPos = CursorPos::START;
+    let mut cursor_pos: u8 = 0;
+    display::wait_for_vblank();
     display::push_rect_uniform(
         Rect {
             x: (SCREEN_WIDTH - config.dimensions.0) / 2 + config.offset.0,
@@ -124,10 +171,9 @@ pub fn selection_menu(color: &ColorConfig, config: &MenuConfig, horizontal: bool
         },
         color.bckgrd,
     );
-    draw_selection_string(&cursor_pos, color, config, true, horizontal);
-    draw_selection_string(&CursorPos::OPTIONS, color, config, false, horizontal);
-    draw_selection_string(&CursorPos::EXIT, color, config, false, horizontal);
-    display::wait_for_vblank();
+    for (i, _) in config.choices.iter().enumerate() {
+        draw_selection_string(i as u8, color, config, i == 0, horizontal);
+    }
     wait_for_no_keydown();
     let mut last_action: u64 = timing::millis();
     let mut last_action_key: u32 = key::ALPHA;
@@ -139,14 +185,14 @@ pub fn selection_menu(color: &ColorConfig, config: &MenuConfig, horizontal: bool
             | keyboard_state.key_down(key::RIGHT))
             & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
         {
-            draw_selection_string(&cursor_pos, color, config, false, horizontal);
+            display::wait_for_vblank();
+            draw_selection_string(cursor_pos, color, config, false, horizontal);
             if (keyboard_state.key_down(key::DOWN) & !horizontal)
                 | (keyboard_state.key_down(key::RIGHT) & horizontal)
             {
-                match &cursor_pos {
-                    CursorPos::START => cursor_pos = CursorPos::OPTIONS,
-                    CursorPos::EXIT => cursor_pos = CursorPos::START,
-                    CursorPos::OPTIONS => cursor_pos = CursorPos::EXIT,
+                cursor_pos += 1;
+                if cursor_pos >= config.choices.len() as u8 {
+                    cursor_pos = 0;
                 }
                 if keyboard_state.key_down(key::DOWN) {
                     last_action_key = key::DOWN;
@@ -156,10 +202,10 @@ pub fn selection_menu(color: &ColorConfig, config: &MenuConfig, horizontal: bool
             } else if (keyboard_state.key_down(key::UP) & !horizontal)
                 | (keyboard_state.key_down(key::LEFT) & horizontal)
             {
-                match &cursor_pos {
-                    CursorPos::START => cursor_pos = CursorPos::EXIT,
-                    CursorPos::OPTIONS => cursor_pos = CursorPos::START,
-                    CursorPos::EXIT => cursor_pos = CursorPos::OPTIONS,
+                if cursor_pos == 0 {
+                    cursor_pos = config.choices.len() as u8 - 1;
+                } else {
+                    cursor_pos -= 1;
                 }
                 if keyboard_state.key_down(key::UP) {
                     last_action_key = key::UP;
@@ -167,18 +213,13 @@ pub fn selection_menu(color: &ColorConfig, config: &MenuConfig, horizontal: bool
                     last_action_key = key::LEFT;
                 }
             }
-            draw_selection_string(&cursor_pos, color, config, true, horizontal);
-            display::wait_for_vblank();
+            draw_selection_string(cursor_pos, color, config, true, horizontal);
             last_action = timing::millis();
         } else if keyboard_state.key_down(key::OK) {
             loop {
                 let keyboard_state_test = keyboard::scan();
                 if !keyboard_state_test.key_down(key::OK) {
-                    match &cursor_pos {
-                        CursorPos::START => return 1,
-                        CursorPos::OPTIONS => return 2,
-                        CursorPos::EXIT => return 0,
-                    }
+                    return cursor_pos;
                 }
             }
         } else if keyboard_state.key_down(key::BACK) {
@@ -190,76 +231,55 @@ pub fn selection_menu(color: &ColorConfig, config: &MenuConfig, horizontal: bool
     }
 }
 
-/// Draws the line corresponding to the [CursorPos]
+/// Draws the line corresponding to the position given
 /// The options are automatically regularly placed inside the defined menu
 fn draw_selection_string(
-    cursor_pos: &CursorPos,
+    cursor_pos: u8,
     color: &ColorConfig,
     config: &MenuConfig,
     selected: bool,
     horizontal: bool,
 ) {
-    let text: &str;
-    let y_pos: u16;
-    match cursor_pos {
-        CursorPos::START => {
-            text = config.first_choice;
-            if !horizontal {
-                y_pos =
-                    CENTER.y + config.offset.1 + config.rect_margins.1 - config.dimensions.1 / 2;
-            } else {
-                y_pos = CENTER.y + config.offset.1 - LARGE_CHAR_HEIGHT / 2
-            }
-        }
-        CursorPos::OPTIONS => {
-            text = config.second_choice;
-            y_pos = CENTER.y + config.offset.1 - LARGE_CHAR_HEIGHT / 2;
-        }
-        CursorPos::EXIT => {
-            text = config.null_choice;
-            if !horizontal {
-                y_pos = CENTER.y + config.offset.1 + config.dimensions.1 / 2
-                    - config.rect_margins.1
-                    - LARGE_CHAR_HEIGHT;
-            } else {
-                y_pos = CENTER.y + config.offset.1 - LARGE_CHAR_HEIGHT / 2
-            }
-        }
+    let text: &str = config.choices[cursor_pos as usize];
+    let mut y_pos: u16;
+    if !horizontal {
+        y_pos = CENTER.y + config.offset.1 - config.dimensions.1 / 2 + config.rect_margins.1;
+        y_pos += cursor_pos as u16
+            * (config.dimensions.1 - config.rect_margins.1 * 2 - LARGE_CHAR_HEIGHT)
+            / (config.choices.len() as u16 - 1);
+    } else {
+        y_pos = CENTER.y + config.offset.1 - LARGE_CHAR_HEIGHT / 2
     }
     let x_coordos: u16;
     if !horizontal {
         x_coordos = get_centered_text_x_coordo(text, true) + config.offset.0;
     } else {
-        x_coordos = match cursor_pos {
-            CursorPos::START => 11,
-            CursorPos::OPTIONS => get_centered_text_x_coordo(text, true) + config.offset.0,
-            CursorPos::EXIT => SCREEN_WIDTH - get_string_pixel_size(text, true) - 2,
+        x_coordos = if cursor_pos == 0 {
+            10
+        } else if cursor_pos == config.choices.len() as u8 - 1 {
+            SCREEN_WIDTH - get_string_pixel_size(config.choices[cursor_pos as usize], true)
+        } else {
+            let start_x = get_string_pixel_size(config.choices[0], true);
+            let max_x =
+                SCREEN_WIDTH - get_string_pixel_size(config.choices.last().unwrap(), true) + 10;
+            start_x + cursor_pos as u16 * (max_x - start_x) / (config.choices.len() as u16 - 1)
+                - get_string_pixel_size(config.choices[cursor_pos as usize], true) / 2
         }
     }
     draw_string_cfg(text, Point::new(x_coordos, y_pos), true, color, selected);
     push_rect_uniform(
         Rect {
-            x: if x_coordos >= 15 {x_coordos - 15} else {0},
+            x: if x_coordos >= 15 { x_coordos - 15 } else { 0 },
             y: y_pos + LARGE_CHAR_HEIGHT / 2,
-            width: 10,
+            width: if x_coordos > 15 { 10 } else { x_coordos - 2 },
             height: 2,
         },
         if selected { color.alt } else { color.bckgrd },
     );
 }
 
-/// For the [options] menu, the space between each line.
-const SPACE_BETWEEN_LINES: u16 = LARGE_CHAR_HEIGHT;
-/// Where in the x coordinate will the names of the [option][MyOption] be placed
-const XPOS_NAMES: u16 = 30;
-/// Where in the x coordinate will the values ([option][MyOption].value.1) be placed
-const XPOS_VALUES: u16 = 170;
-
 /// Create a fully fonctional option menu, which changes directly the [options][MyOption] values. (no option return)
-fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &ColorConfig) -> u8 {
-    fill_screen(cfg.bckgrd);
-    draw_centered_string("OPTIONS\0", 20u16, true, cfg, false);
-    // Only taking care of boolean options for now.
+fn options(list: &mut [&mut MyOption], cfg: &ColorConfig) -> u8 {
     let first_y: u16;
     let items_number: u16 = list.iter().count() as u16;
     match (SCREEN_HEIGHT + LARGE_CHAR_HEIGHT)
@@ -268,6 +288,20 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
         None | Some(0) => first_y = 0,
         x_ @ Some(1u16..=u16::MAX) => first_y = x_.unwrap() / 2,
     }
+    display::wait_for_vblank();
+    fill_screen(cfg.bckgrd);
+    draw_centered_string("OPTIONS\0", 20u16, true, cfg, false);
+    let back_text = "Menu : <Back>  \0";
+    draw_string_cfg(
+        back_text,
+        Point::new(
+            SCREEN_WIDTH - get_string_pixel_size(back_text, false) - 5,
+            SCREEN_HEIGHT - SMALL_CHAR_HEIGHT - 5,
+        ),
+        false,
+        cfg,
+        false,
+    );
     for item in list.iter().enumerate() {
         let (i, x) = item;
         let y_pos: u16 = first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * (i as u16);
@@ -296,7 +330,6 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
         )
     }
     let mut cursor_pos: u16 = 0;
-    display::wait_for_vblank();
     wait_for_no_keydown();
     let mut last_action: u64 = timing::millis();
     let mut last_action_key: u32 = key::ALPHA;
@@ -307,7 +340,8 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
         } else if (keyboard_scan.key_down(key::UP) | keyboard_scan.key_down(key::DOWN))
             & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
         {
-            let current_selection: &MyOption<bool, 2> = &list[cursor_pos as usize];
+            let current_selection: &MyOption = &list[cursor_pos as usize];
+            display::wait_for_vblank();
             draw_options_selection(
                 current_selection.get_value().1,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
@@ -329,19 +363,21 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
                 }
                 last_action_key = key::DOWN;
             }
-            let new_selection: &MyOption<bool, 2> = &list[cursor_pos as usize];
+            let new_selection: &MyOption = &list[cursor_pos as usize];
             draw_options_selection(
                 new_selection.get_value().1,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
                 true,
                 cfg,
             );
-            display::wait_for_vblank();
             last_action = timing::millis();
-        } else if keyboard_scan.key_down(key::OK)
+        } else if (keyboard_scan.key_down(key::OK)
+            || keyboard_scan.key_down(key::RIGHT)
+            || keyboard_scan.key_down(key::LEFT))
             & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
         {
-            let selection: &mut MyOption<bool, 2> = list[cursor_pos as usize];
+            let selection: &mut MyOption = list[cursor_pos as usize];
+            display::wait_for_vblank();
             push_rect_uniform(
                 Rect {
                     x: XPOS_VALUES,
@@ -351,15 +387,23 @@ fn options(list: &mut [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER], cfg: &Color
                 },
                 cfg.bckgrd,
             );
-            selection.increment_value();
+            if keyboard_scan.key_down(key::OK) | keyboard_scan.key_down(key::RIGHT) {
+                selection.increment_value();
+                last_action_key = if keyboard_scan.key_down(key::OK) {
+                    key::OK
+                } else {
+                    key::RIGHT
+                };
+            } else {
+                selection.decrement_value();
+                last_action_key = key::LEFT
+            }
             draw_options_selection(
                 selection.get_value().1,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
                 true,
                 cfg,
             );
-            display::wait_for_vblank();
-            last_action_key = key::OK;
             last_action = timing::millis();
         } else if !keyboard_scan.key_down(last_action_key) {
             // if we let go of the key, then we can use a key just after (even the same one)
@@ -395,4 +439,37 @@ fn draw_options_selection(text: &str, ypos: u16, selected: bool, cfg: &ColorConf
         },
         if selected { cfg.alt } else { cfg.bckgrd },
     );
+}
+
+fn controls(text: &str, cfg: &ColorConfig) -> u8 {
+    wait_for_vblank();
+    fill_screen(cfg.bckgrd);
+    let back_text = "Menu : <Back>  \0";
+    draw_string_cfg(
+        back_text,
+        Point::new(
+            SCREEN_WIDTH - get_string_pixel_size(back_text, false) - 5,
+            SCREEN_HEIGHT - SMALL_CHAR_HEIGHT - 5,
+        ),
+        false,
+        cfg,
+        false,
+    );
+    wait_for_vblank();
+    for (i, line) in text.lines().enumerate() {
+        draw_string_cfg(
+            line,
+            Point::new(0, i as u16 * (SMALL_CHAR_HEIGHT + 4)),
+            false,
+            cfg,
+            false,
+        );
+    }
+    loop {
+        let keyboard_state = keyboard::scan();
+        if keyboard_state.key_down(key::BACK) {
+            break;
+        }
+    }
+    return 0;
 }

@@ -1,11 +1,13 @@
                 
-                HOW TO PLAY
+                  HOW TO PLAY
 
-    - <LEFT> and <RIGHT> to chose position
+    - <LEFT> and <RIGHT> to choose position
     - <OK> or <DOWN> to place the coin
 
     The first player to align 4 coins of 
         his color wins !
+    Of course, diagonals work.
 
-    PS: "Puissance 4" is known as "Connect 4" 
-        in english. 
+    PS: "Puissance 4" is known 
+        as "Connect 4" in english.
+                                                                           

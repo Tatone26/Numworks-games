@@ -1,6 +1,6 @@
 use heapless::Vec;
 
-use crate::eadk::display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH, wait_for_vblank};
+use crate::eadk::display::{push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::eadk::{display, key, keyboard, timing, Point, Rect};
 use crate::utils::{
     draw_centered_string, draw_string_cfg, fading, fill_screen, get_centered_text_x_coordo,
@@ -456,9 +456,9 @@ fn controls(text: &str, cfg: &ColorConfig) -> u8 {
         false,
     );
     wait_for_vblank();
-    for (i, l) in text.lines().enumerate() {
+    for (i, line) in text.lines().enumerate() {
         draw_string_cfg(
-            l,
+            line,
             Point::new(0, i as u16 * (SMALL_CHAR_HEIGHT + 4)),
             false,
             cfg,

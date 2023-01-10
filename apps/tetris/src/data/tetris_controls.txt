@@ -12,4 +12,4 @@
         same time, the more points !
     The level increase every 10 lines, 
         and falling speed with it.
-    You lose when there is no space left.
+    You lose when there is no space left.                                 

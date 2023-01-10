@@ -2,7 +2,7 @@ use heapless::Vec;
 
 use crate::{
     eadk::{
-        display::{self, SCREEN_HEIGHT, SCREEN_WIDTH, wait_for_vblank},
+        display::{SCREEN_HEIGHT, SCREEN_WIDTH, wait_for_vblank},
         key, keyboard, timing, Color,
     },
     menu::{menu, selection_menu, MenuConfig, MyOption, OptionType},
@@ -41,7 +41,7 @@ pub fn start() {
             },
         },
         &mut MyOption {
-            name: "Mode sombre\0",
+            name: "Dark mode\0",
             value: 1,
             possible_values: {
                 let mut v = Vec::new();

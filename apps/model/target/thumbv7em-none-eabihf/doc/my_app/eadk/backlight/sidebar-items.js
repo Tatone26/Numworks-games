@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":[["brightness",""],["eadk_backlight_brightness",""],["eadk_backlight_set_brightness",""],["set_brightness",""]]};
