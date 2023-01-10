@@ -1,0 +1,15 @@
+
+                HOW TO PLAY
+
+    - <LEFT> and <RIGHT> to move
+    - <DOWN> to make it fall faster
+    - <OK> to rotate it to the right
+    - <BACK> to hold the current tetri
+    - <CLEAR> (below <BACK>) to pause
+
+    Every full line disappears !
+    The more lines you clear at the 
+        same time, the more points !
+    The level increase every 10 lines, 
+        and falling speed with it.
+    You lose when there is no space left.

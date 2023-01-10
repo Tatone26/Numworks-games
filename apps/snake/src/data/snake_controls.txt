@@ -1,0 +1,13 @@
+                
+                
+                    HOW TO PLAY
+
+
+
+    - Arrow keys to change direction
+    - <OK> to pause
+
+    To get points, eat apples !
+
+    Don't run into any wall.
+    Don't run into yourself neither.

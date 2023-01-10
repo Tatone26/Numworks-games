@@ -22,7 +22,7 @@ const MENU_FIGURE_Y: u16 = 70;
 
 pub static TILEMAP: Tileset = Tileset {
     tile_size: CASE_SIZE,
-    image: include_bytes!("./tiles.ppm"),
+    image: include_bytes!("./data/tiles.ppm"),
 };
 
 /// Draws a box (case) of the grid

@@ -2,20 +2,17 @@ use heapless::Vec;
 
 use crate::{
     eadk::{
-        display::{self, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
+        display::{self, wait_for_vblank},
         key, keyboard, timing, Color,
     },
     menu::{menu, pause_menu, selection_menu, MenuConfig, MyOption, OptionType},
     tetriminos::{get_initial_tetri, get_random_bag, get_wall_kicks_data, Tetrimino},
     ui_tetris::{
-        draw_block, draw_held_tetrimino, draw_level, draw_lines_number, draw_next_tetrimino,
-        draw_score, draw_stable_ui, draw_tetrimino, draw_blank_line,
+        draw_blank_line, draw_block, draw_held_tetrimino, draw_level, draw_lines_number,
+        draw_next_tetrimino, draw_score, draw_stable_ui, draw_tetrimino,
     },
     utils::{draw_centered_string, ColorConfig},
 };
-
-/// The number of Boolean Options used. Public so menu() can use it.
-pub const BOOL_OPTIONS_NUMBER: usize = 1;
 
 // This dictates the principal colors that will be used
 pub const COLOR_CONFIG: ColorConfig = ColorConfig {
@@ -32,24 +29,30 @@ fn vis_addon() {
 }
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption<OptionType, 2>; BOOL_OPTIONS_NUMBER] = [&mut MyOption {
+    let mut opt: [&mut MyOption; 1] = [&mut MyOption {
         name: "Option !\0",
         value: 0,
-        possible_values: [(OptionType::Bool(true), "True\0"), (OptionType::Bool(false), "False\0")],
+        possible_values: {
+            let mut v = Vec::new();
+            unsafe { v.push_unchecked((OptionType::Bool(true), "True\0")) };
+            unsafe { v.push_unchecked((OptionType::Bool(false), "False\0")) };
+            v
+        },
     }];
     loop {
-        let start = menu("TETRIS\0", &mut opt, &COLOR_CONFIG, vis_addon); // The menu does everything itself !
-        if start == 1 {
+        let start = menu("TETRIS\0", &mut opt, &COLOR_CONFIG, vis_addon, include_str!("./data/tetris_controls.txt")); 
+        // The menu does everything itself !
+        if start == 0 {
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
                 let action = game(); // calling the game based on the parameters is better
-                if action == 0 {
-                    // 0 means quitting
+                if action == 2 {
+                    // 2 means quitting
                     return;
-                } else if action == 2 {
-                    // 2 means back to menu
+                } else if action == 1 {
+                    // 1 means back to menu
                     break;
-                } // if action == 1 : rejouer
+                } // if action == 0 : rejouer
             }
         } else {
             return;
@@ -247,11 +250,9 @@ pub fn game() -> u8 {
                     let action = selection_menu(
                         &COLOR_CONFIG,
                         &MenuConfig {
-                            first_choice: "Replay\0",
-                            second_choice: "Menu\0",
-                            null_choice: "Exit\0",
+                            choices : &["Replay\0", "Menu\0", "Exit\0"],
                             rect_margins: (20, 10),
-                            dimensions: (CASE_SIZE * (PLAYFIELD_WIDTH + 2), CASE_SIZE*10),
+                            dimensions: (CASE_SIZE * (PLAYFIELD_WIDTH + 2), CASE_SIZE * 10),
                             offset: (0, 60),
                             back_key_return: 2,
                         },
@@ -325,7 +326,7 @@ pub fn game() -> u8 {
         if keyboard_state.key_down(key::BACKSPACE) {
             // PAUSE MENU
             let action = pause_menu(&COLOR_CONFIG, 0);
-            if action != 1 {
+            if action != 0 {
                 return action;
             } else {
                 wait_for_vblank();

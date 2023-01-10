@@ -133,6 +133,8 @@ pub fn decimal_to_ascii_number(number: u8) -> Option<u8> {
     }
 }
 
+
+
 /// A random and most likely never used [Color] to use as transparency.
 const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
 
@@ -222,41 +224,42 @@ pub fn draw_image(image: &[Color], pos: Point, size: (u16, u16), scaling: u16, t
     }
 }
 
-pub struct Tilemap{
+pub struct Tileset{
     pub tile_size: u16,
     pub image: &'static [u8],
 }
 
-/// Draws an image of width*height pixels (can be scaled) from a given tilemap and its position on this tilemap.
+/// Draws an image of width*height pixels (can be scaled) from a given tileset and its position on this tileset.
 pub fn draw_tile<const PIXELS: usize>(
-    tilemap: &Tilemap,
+    tileset: &Tileset,
     pos: Point,
     tile: Point,
     scaling: u16,
     transparency: bool,
 ) {
-    let image: [Color; PIXELS] = get_tile::<PIXELS>(tilemap, tile);
-    draw_image(&image, pos, (tilemap.tile_size, tilemap.tile_size), scaling, transparency);
+    let image: [Color; PIXELS] = get_tile::<PIXELS>(tileset, tile);
+    draw_image(&image, pos, (tileset.tile_size, tileset.tile_size), scaling, transparency);
 }
 
 /// For really fast tiling : use scaling = 1 and transparency = false.
 /// In other case, every pixel will be drawn after the other, with a dedicated Rect (= far slower than a single Rect)
 pub fn tiling<const PIXELS: usize>(
-    tilemap: &Tilemap,
+    tileset: &Tileset,
     pos: Point,
     dimensions: (u16, u16),
+    // The position (in tiles) of the tile in the tilemap.
     tile: Point,
     transparency: bool,
     scaling: u16,
 ) {
     let image: [Color; PIXELS] =
-        get_tile::<PIXELS>(tilemap, tile);
+        get_tile::<PIXELS>(tileset, tile);
     for x in 0..dimensions.0 {
         for y in 0..dimensions.1 {
             draw_image(
                 &image,
-                Point::new(x * tilemap.tile_size + pos.x, y * tilemap.tile_size + pos.y),
-                (tilemap.tile_size, tilemap.tile_size),
+                Point::new(x * tileset.tile_size + pos.x, y * tileset.tile_size + pos.y),
+                (tileset.tile_size, tileset.tile_size),
                 scaling,
                 transparency,
             );
@@ -268,23 +271,23 @@ pub fn tiling<const PIXELS: usize>(
 /// [draw_image] is better in the case of big images.
 /// To use transparency : use draw_image with the image returned by this function.
 pub fn get_tile<const PIXELS: usize>(
-    tilemap: &Tilemap,
-    pos_in_tilemap: Point, // as tiles
+    tileset: &Tileset,
+    pos_in_tileset: Point, // as tiles
 ) -> [Color; PIXELS] {
-    let (tilemap_width, _, image_start) = get_image_parameters(tilemap.image);
+    let (tileset_width, _, image_start) = get_image_parameters(tileset.image);
     let mut image: [Color; PIXELS] = [TRANSPARENCY_COLOR; PIXELS];
     let mut x_pos = 0;
     let mut y_pos = 0;
-    for a in 0..(tilemap.tile_size*tilemap.tile_size) as usize {
+    for a in 0..(tileset.tile_size*tileset.tile_size) as usize {
         let i = image_start
-            + 3 * (pos_in_tilemap.x*tilemap.tile_size + x_pos + (y_pos + pos_in_tilemap.y*tilemap.tile_size) * tilemap_width) as usize;
-        let c = Color::from_rgb888(tilemap.image[i], tilemap.image[i + 1], tilemap.image[i + 2]);
+            + 3 * (pos_in_tileset.x*tileset.tile_size + x_pos + (y_pos + pos_in_tileset.y*tileset.tile_size) * tileset_width) as usize;
+        let c = Color::from_rgb888(tileset.image[i], tileset.image[i + 1], tileset.image[i + 2]);
         image[a] = c;
         x_pos += 1;
-        if x_pos >= tilemap.tile_size {
+        if x_pos >= tileset.tile_size {
             x_pos = 0;
             y_pos += 1;
-            if y_pos >= tilemap.tile_size {
+            if y_pos >= tileset.tile_size {
                 break;
             }
         }

@@ -133,6 +133,8 @@ pub fn decimal_to_ascii_number(number: u8) -> Option<u8> {
     }
 }
 
+
+
 /// A random and most likely never used [Color] to use as transparency.
 const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
 
@@ -245,6 +247,7 @@ pub fn tiling<const PIXELS: usize>(
     tileset: &Tileset,
     pos: Point,
     dimensions: (u16, u16),
+    // The position (in tiles) of the tile in the tilemap.
     tile: Point,
     transparency: bool,
     scaling: u16,

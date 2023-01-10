@@ -2,16 +2,13 @@ use heapless::Vec;
 
 use crate::{
     eadk::{
-        display::{self, SCREEN_HEIGHT, SCREEN_WIDTH},
+        display::{self, SCREEN_HEIGHT, SCREEN_WIDTH, wait_for_vblank},
         key, keyboard, timing, Color,
     },
-    menu::{menu, selection_menu, MenuConfig, MyOption},
+    menu::{menu, selection_menu, MenuConfig, MyOption, OptionType},
     ui_p4::{clear_selection_coin, draw_coin, draw_grid, draw_selection_coin, victory},
     utils::{draw_centered_string, wait_for_no_keydown, ColorConfig, LARGE_CHAR_HEIGHT},
 };
-
-/// The number of Boolean Options used. Public so menu() can use it.
-pub const BOOL_OPTIONS_NUMBER: usize = 2;
 
 // This dictates the principal colors that will be used
 const COLOR_CONFIG: ColorConfig = ColorConfig {
@@ -20,38 +17,55 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
     alt: Color::from_rgb888(90, 90, 255),
 };
 
-static mut THREE_PLAYERS: bool = false;
+static mut PLAYERS: u8 = 2;
+pub const MAX_PLAYERS: u8 = 3;
 
 fn vis_addon() {
     unsafe {
         draw_selection_coin(2, 0, &COLOR_CONFIG, 25);
         draw_selection_coin(3, 1, &COLOR_CONFIG, 25);
-        draw_selection_coin(4, if THREE_PLAYERS { 2 } else { 0 }, &COLOR_CONFIG, 25);
+        draw_selection_coin(4, if PLAYERS == 3 { 2 } else { 0 }, &COLOR_CONFIG, 25);
     }
 }
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption<bool, 2>; BOOL_OPTIONS_NUMBER] = [
+    let mut opt: [&mut MyOption; 2] = [
         &mut MyOption {
-            name: "3 Joueurs\0",
-            value: 1,
-            possible_values: [(true, "Oui\0"), (false, "Non\0")],
+            name: "Players\0",
+            value: 0,
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Int(2), "2\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(3), "3\0")) };
+                v
+            },
         },
         &mut MyOption {
             name: "Mode sombre\0",
             value: 1,
-            possible_values: [(true, "Oui\0"), (false, "Non\0")],
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
+                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
+                v
+            },
         },
     ];
     loop {
-        let start = menu("PUISSANCE 4\0", &mut opt, &COLOR_CONFIG, vis_addon); // The menu does everything itself !
-        if start == 1 {
+        let start = menu(
+            "PUISSANCE 4\0",
+            &mut opt,
+            &COLOR_CONFIG,
+            vis_addon,
+            include_str!("./data/p4_controls.txt"),
+        ); // The menu does everything itself !
+        if start == 0 {
             unsafe {
-                THREE_PLAYERS = opt[0].get_value().0; // You could use mutable statics, but it is not very good
+                PLAYERS = opt[0].get_param_value::<u16>() as u8; // You could use mutable statics, but it is not very good
             }
             loop {
                 let color_config: ColorConfig;
-                if opt[1].get_value().0 {
+                if opt[1].get_param_value() {
                     color_config = ColorConfig {
                         text: COLOR_CONFIG.bckgrd,
                         bckgrd: COLOR_CONFIG.text,
@@ -61,14 +75,14 @@ pub fn start() {
                     color_config = COLOR_CONFIG
                 }
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                let action = game(opt[0].get_value().0, &color_config); // calling the game based on the parameters is better
-                if action == 0 {
-                    // 0 means quitting
+                let action = game(opt[0].get_param_value::<u16>() as u8, &color_config); // calling the game based on the parameters is better
+                if action == 2 {
+                    // 2 means quitting
                     return;
-                } else if action == 2 {
-                    // 2 means back to menu
+                } else if action == 1 {
+                    // 1 means back to menu
                     break;
-                } // if action == 1 : rejouer
+                } // if action == 0 : rejouer
             }
         } else {
             return;
@@ -82,7 +96,7 @@ pub const MAX_HEIGHT_SIZE: usize = 6;
 pub const PLAYERS_COLORS: [Color; 3] = [Color::BLUE, Color::RED, Color::from_rgb888(250, 200, 0)];
 
 /// The entire game is here.
-pub fn game(three_players: bool, c: &ColorConfig) -> u8 {
+pub fn game(players: u8, c: &ColorConfig) -> u8 {
     let mut table: Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE> = Vec::new();
     for _ in 0..MAX_WIDTH_SIZE {
         let mut new_vec = Vec::<u8, MAX_HEIGHT_SIZE>::new();
@@ -92,17 +106,17 @@ pub fn game(three_players: bool, c: &ColorConfig) -> u8 {
         table.push(new_vec).unwrap();
     }
     let mut players_pos: [u16; 3] = [3, 3, 3];
-    draw_grid(three_players, c);
+    draw_grid(players, c);
     'gameloop: loop {
-        for p in 0..if !three_players { 2 } else { 3 } {
-            players_pos[p] = selection(players_pos[p], p as u16, three_players, c);
+        for p in 0..players as usize {
+            players_pos[p] = selection(players_pos[p], p as u16, players, c);
             while !table
                 .get(players_pos[p] as usize)
                 .unwrap()
                 .last()
                 .eq(&Some(&0))
             {
-                players_pos[p] = selection(players_pos[p], p as u16, three_players, c);
+                players_pos[p] = selection(players_pos[p], p as u16, players, c);
             }
             place_coin(players_pos[p], p as u8 + 1, &mut table, c);
             let check = check(&table);
@@ -110,33 +124,24 @@ pub fn game(three_players: bool, c: &ColorConfig) -> u8 {
                 victory(check, c);
                 break 'gameloop;
             }
-            if table_is_full(&table, three_players) {
+            if table_is_full(&table, players) {
                 draw_centered_string("Egalite !\0", 10, true, c, false);
                 break 'gameloop;
             }
         }
     }
     let menu_config = MenuConfig {
-        first_choice: "Rejouer\0",
-        second_choice: "Menu\0",
-        null_choice: "Quitter\0",
+        choices: &["Replay\0", "Menu\0", "Exit\0"],
         rect_margins: (0, 0),
         dimensions: (SCREEN_WIDTH, LARGE_CHAR_HEIGHT),
         offset: (0, SCREEN_HEIGHT / 2 - LARGE_CHAR_HEIGHT),
-        back_key_return: 2,
+        back_key_return: 1,
     };
     return selection_menu(c, &menu_config, true);
 }
 
-fn table_is_full(
-    table: &Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>,
-    three_players: bool,
-) -> bool {
-    let range_x = if three_players {
-        0..table.len()
-    } else {
-        0..table.len() - 1
-    };
+fn table_is_full(table: &Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>, players: u8) -> bool {
+    let range_x = { 0..table.len() - (MAX_PLAYERS - players) as usize };
     for i in range_x {
         for j in table.get(i).unwrap() {
             if *j == 0 {
@@ -168,7 +173,7 @@ fn place_coin(
 
 const REPETITION_SPEED: u64 = 250;
 
-fn selection(initial_pos: u16, color: u16, three_players: bool, c: &ColorConfig) -> u16 {
+fn selection(initial_pos: u16, color: u16, players: u8, c: &ColorConfig) -> u16 {
     let mut pos = initial_pos;
     wait_for_no_keydown();
     let mut last_action: u64 = timing::millis();
@@ -187,18 +192,18 @@ fn selection(initial_pos: u16, color: u16, three_players: bool, c: &ColorConfig)
                 }
             } else if keyboard_state.key_down(key::RIGHT) {
                 last_action_key = key::RIGHT;
-                if pos < (if !three_players { 6 } else { 7 }) {
+                if pos < {MAX_WIDTH_SIZE as u16 - 1 - (MAX_PLAYERS - players) as u16} {
                     pos += 1;
                 }
             }
             if old_pos != pos {
                 clear_selection_coin(old_pos, c);
                 draw_selection_coin(pos, color, c, 0);
-                display::wait_for_vblank();
             }
             last_action = timing::millis();
         } else if keyboard_state.key_down(key::OK) | keyboard_state.key_down(key::DOWN) {
             wait_for_no_keydown();
+            wait_for_vblank();
             clear_selection_coin(pos, c);
             break;
         } else if !keyboard_state.key_down(last_action_key) {

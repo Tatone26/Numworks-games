@@ -1,14 +1,14 @@
 use crate::{
     eadk::{
         self,
-        display::{self, push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
-        key, keyboard, timing, Point, Rect,
+        display::{self, SCREEN_HEIGHT, SCREEN_WIDTH},
+        key, keyboard, timing, Point,
     },
     menu::{menu, selection_menu, MenuConfig, MyOption, OptionType},
     utils::{
-        draw_centered_string, draw_tile, fading, fill_screen, randint, wait_for_no_keydown,
-        ColorConfig, Tileset, CENTER, LARGE_CHAR_HEIGHT,
-    }, snake_ui::{CASE_SIZE, BCKD_GRAY, DARK_GREEN, PIXELS, draw_terrain, draw_snake, draw_fruit, draw_wall, draw_box, draw_terrain_box, draw_snake_front},
+        draw_centered_string, fading, randint, wait_for_no_keydown,
+        ColorConfig, CENTER, LARGE_CHAR_HEIGHT,
+    }, snake_ui::{CASE_SIZE, BCKD_GRAY, DARK_GREEN, draw_terrain, draw_snake, draw_fruit, draw_wall, draw_box, draw_terrain_box, draw_snake_front},
 };
 use eadk::Color;
 use heapless::String;
@@ -99,7 +99,7 @@ pub fn start() {
         },
     ];
     loop {
-        let start = menu("SNAKE\0", &mut opt, &COLOR_CONFIG, crate::snake_ui::menu_vis_addon);
+        let start = menu("SNAKE\0", &mut opt, &COLOR_CONFIG, crate::snake_ui::menu_vis_addon, include_str!("./data/snake_controls.txt"));
         if start == 0 {
             match opt[1].get_param_value() {
                 1 => unsafe {

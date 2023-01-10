@@ -12,13 +12,13 @@ use crate::{
     tetriminos::Tetrimino,
     utils::{
         draw_image, draw_tile, draw_string_cfg, get_tile, tiling,
-        CENTER, LARGE_CHAR_HEIGHT, Tilemap,
+        CENTER, LARGE_CHAR_HEIGHT, Tileset,
     },
 };
 
-// static TILEMAP: &[u8; 3014] = include_bytes!("tiles.ppm");
+// static Tileset: &[u8; 3014] = include_bytes!("tiles.ppm");
 
-static TILEMAP: Tilemap = Tilemap { image: include_bytes!("tiles.ppm"), tile_size: CASE_SIZE};
+static TILESET: Tileset = Tileset { image: include_bytes!("./data/tiles.ppm"), tile_size: CASE_SIZE};
 
 /// Draws a box of the given size, at the given pos on the grid, with a given title (first-line text), following the ui style
 fn draw_ui_base(title: &'static str, pos: Point, w: u16, h: u16) {
@@ -76,7 +76,7 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
         BACKGROUND_DARK_GRAY,
     );
     tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
-        &TILEMAP,
+        &TILESET,
         Point::new(start_x, start_y),
         (PLAYFIELD_WIDTH,
         PLAYFIELD_HEIGHT),
@@ -180,7 +180,7 @@ pub fn draw_lines_number(line: u16) {
 /// Draws a given tetrimino.
 pub fn draw_tetrimino(tetri: &Tetrimino, clear: bool) {
     let image: [Color; (CASE_SIZE * CASE_SIZE) as usize] = get_tile(
-        &TILEMAP,
+        &TILESET,
         if clear {
             Point::new(7, 0)
         } else {
@@ -244,7 +244,7 @@ pub fn draw_held_tetrimino(tetri: &Tetrimino) {
 pub fn draw_blank_line(y: u16) {
     let start_x = CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE;
     tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
-        &TILEMAP,
+        &TILESET,
         Point::new(start_x, y * CASE_SIZE + 2 * CASE_SIZE),
         (PLAYFIELD_WIDTH,
         1),
@@ -256,7 +256,7 @@ pub fn draw_blank_line(y: u16) {
 
 fn draw_block_image(abs_x: u16, abs_y: u16, x_map: u16) {
     draw_tile::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
-        &TILEMAP,
+        &TILESET,
         Point::new(abs_x, abs_y),
         Point::new(x_map, 0),
         1,
