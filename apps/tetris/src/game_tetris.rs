@@ -27,7 +27,7 @@ pub const BACKGROUND_DARK_GRAY: Color = Color::from_rgb888(70, 70, 70);
 fn vis_addon() {
     draw_centered_string("VIS ADDON\0", 70, true, &COLOR_CONFIG, true);
 }
-/// Menu, Options and Game start
+/// Menu, Options and Game start/*  */
 pub fn start() {
     let mut opt: [&mut MyOption; 1] = [&mut MyOption {
         name: "Option !\0",
@@ -116,7 +116,7 @@ static FALL_SPEED_DATA: [f32; 19] = [
     0.59, 0.92, 1.46, 2.36, 3.91, 6.61, 11.43, 20.0,
 ];
 
-pub const HIGH_SCORE: &'static str = "026280\0"; // Need to be 6 char long !
+pub const HIGH_SCORE: &'static str = "031050\0"; // Need to be 6 char long !
 pub const CASE_SIZE: u16 = 10;
 pub const PLAYFIELD_HEIGHT: u16 = 20;
 pub const PLAYFIELD_WIDTH: u16 = 10;
@@ -125,6 +125,15 @@ const ROTATE_SPEED: u64 = 150;
 const DELAYED_AUTO_SHIFT: u64 = 167;
 const AUTO_MOVE_SPEED: u64 = 33;
 const SOFT_DROP_SPEED: u64 = 33;
+
+const LEFT_KEY: u32 = key::LEFT;
+const RIGHT_KEY: u32 = key::RIGHT;
+const SOFT_DROP_KEY: u32 = key::DOWN;
+const HARD_DROP_KEY: u32 = key::UP;
+const PAUSE_KEY: u32 = key::SHIFT;
+const RIGHT_ROTATION_KEY:u32 = key::BACK;
+const LEFT_ROTATION_KEY: u32 = key::OK;
+const HOLD_KEY: u32 = key::BACKSPACE;
 
 /// The entire game is here.
 pub fn game() -> u8 {
@@ -156,40 +165,53 @@ pub fn game() -> u8 {
     draw_stable_ui(level, level_lines, score);
 
     draw_tetrimino(&actual_tetri, false);
+    draw_ghost_tetri(&actual_tetri, &grid, false);
     draw_next_tetrimino(&next_tetri);
 
     'gameloop: loop {
         let keyboard_state = keyboard::scan();
         if (!move_button_down | ((last_move_time + AUTO_MOVE_SPEED < timing::millis()) & auto_repeat_on)) // if we touch the button for the first time in this frame, or if we maintained it pressed and some time has passed
-            & (keyboard_state.key_down(key::LEFT) | keyboard_state.key_down(key::RIGHT))
+            & (keyboard_state.key_down(RIGHT_KEY) | keyboard_state.key_down(LEFT_KEY))
         {
             // MOVE
             let direction: i16;
-            if keyboard_state.key_down(key::LEFT) {
+            if keyboard_state.key_down(LEFT_KEY) {
                 direction = -1
             } else {
                 direction = 1
             }
             if can_move(&actual_tetri, (direction, 0), &grid) {
+
                 draw_tetrimino(&actual_tetri, true);
+                draw_ghost_tetri(&actual_tetri, &grid, true);
+
                 actual_tetri.pos.x += direction;
+
+                draw_ghost_tetri(&actual_tetri, &grid, false);
                 draw_tetrimino(&actual_tetri, false);
+
                 last_move_time = timing::millis();
                 move_button_down = true;
             }
         } else if (!rotate_button_down | (last_rotate_time + ROTATE_SPEED < timing::millis()))
-            & keyboard_state.key_down(key::OK)
+            & (keyboard_state.key_down(RIGHT_ROTATION_KEY) | keyboard_state.key_down(LEFT_ROTATION_KEY))
         {
             // ROTATE
-            let new_tetri = can_rotate(true, &actual_tetri, &grid);
+            let new_tetri = can_rotate(keyboard_state.key_down(RIGHT_ROTATION_KEY), &actual_tetri, &grid);
             if new_tetri.is_some() {
+
                 draw_tetrimino(&actual_tetri, true);
+                draw_ghost_tetri(&actual_tetri, &grid, true);
+
                 actual_tetri = new_tetri.unwrap();
+
+                draw_ghost_tetri(&actual_tetri, &grid, false);
                 draw_tetrimino(&actual_tetri, false);
+
                 last_rotate_time = timing::millis();
                 rotate_button_down = true;
             }
-        } else if !held_button_down & !held_blocked & keyboard_state.key_down(key::BACK) {
+        } else if !held_button_down & !held_blocked & keyboard_state.key_down(HOLD_KEY) {
             // HOLD
 
             let temp = actual_tetri.clone();
@@ -197,28 +219,40 @@ pub fn game() -> u8 {
             if held_tetri.is_some() {
                 held_blocked = true;
                 held_button_down = true;
+
                 draw_tetrimino(&actual_tetri, true);
+                draw_ghost_tetri(&actual_tetri, &grid, true);
+
                 actual_tetri = get_initial_tetri(held_tetri.unwrap().tetri);
+
+                draw_ghost_tetri(&actual_tetri, &grid, false);
                 draw_tetrimino(&actual_tetri, false);
+
                 held_tetri = Some(temp.clone());
                 draw_held_tetrimino(&held_tetri.as_ref().unwrap());
             } else {
                 held_blocked = true;
                 held_button_down = true;
+
                 draw_tetrimino(&actual_tetri, true);
+                draw_ghost_tetri(&actual_tetri, &grid, true);
+
                 if random_bag.len() == 0 {
                     random_bag = get_random_bag();
                 }
                 actual_tetri = next_tetri.clone();
                 next_tetri = random_bag.swap_remove(0);
+
+                draw_ghost_tetri(&actual_tetri, &grid, false);
                 draw_tetrimino(&actual_tetri, false);
+                
                 draw_next_tetrimino(&next_tetri);
                 held_tetri = Some(temp.clone());
                 draw_held_tetrimino(&held_tetri.as_ref().unwrap());
             }
         }
         if last_fall_time
-            + if (!soft_drop_button_down & keyboard_state.key_down(key::DOWN))
+            + if (!soft_drop_button_down & keyboard_state.key_down(SOFT_DROP_KEY))
                 | (soft_drop_button_down)
             {
                 SOFT_DROP_SPEED
@@ -297,6 +331,8 @@ pub fn game() -> u8 {
                 }
                 actual_tetri = next_tetri.clone();
                 next_tetri = random_bag.swap_remove(0);
+                
+                draw_ghost_tetri(&actual_tetri, &grid, false);
                 draw_tetrimino(&actual_tetri, false);
                 draw_next_tetrimino(&next_tetri);
 
@@ -306,7 +342,7 @@ pub fn game() -> u8 {
         }
 
         if move_button_down
-            & !(keyboard_state.key_down(key::LEFT) | keyboard_state.key_down(key::RIGHT))
+            & !(keyboard_state.key_down(LEFT_KEY) | keyboard_state.key_down(RIGHT_KEY))
         {
             move_button_down = false;
             auto_repeat_on = false;
@@ -314,16 +350,16 @@ pub fn game() -> u8 {
         if move_button_down & (last_move_time + DELAYED_AUTO_SHIFT < timing::millis()) {
             auto_repeat_on = true;
         }
-        if rotate_button_down & !keyboard_state.key_down(key::OK) {
+        if rotate_button_down & !(keyboard_state.key_down(RIGHT_ROTATION_KEY) | keyboard_state.key_down(LEFT_ROTATION_KEY)) {
             rotate_button_down = false;
         }
-        if soft_drop_button_down & !keyboard_state.key_down(key::DOWN) {
+        if soft_drop_button_down & !keyboard_state.key_down(SOFT_DROP_KEY) {
             soft_drop_button_down = false;
         }
-        if held_button_down & !keyboard_state.key_down(key::BACK) {
+        if held_button_down & !keyboard_state.key_down(HOLD_KEY) {
             held_button_down = false;
         }
-        if keyboard_state.key_down(key::BACKSPACE) {
+        if keyboard_state.key_down(PAUSE_KEY) {
             // PAUSE MENU
             let action = pause_menu(&COLOR_CONFIG, 0);
             if action != 0 {
@@ -342,6 +378,7 @@ pub fn game() -> u8 {
                 }
                 wait_for_vblank();
                 draw_tetrimino(&actual_tetri, false);
+                draw_ghost_tetri(&actual_tetri, &grid, false);
                 if held_tetri.is_some() {
                     draw_held_tetrimino(&held_tetri.as_ref().unwrap());
                 }
@@ -350,6 +387,17 @@ pub fn game() -> u8 {
         }
         display::wait_for_vblank();
         // EST-CE UNE BONNE IDEE ?
+    }
+}
+
+fn draw_ghost_tetri(tetri: &Tetrimino, grid: &Grid, clear: bool){
+    let mut ghost_tetri = tetri.clone();
+    ghost_tetri.color = 8;
+    if can_move(tetri, (0, 1), grid){
+        while can_move(&ghost_tetri, (0, 1), grid){
+            ghost_tetri.pos.y += 1;
+        }
+        draw_tetrimino(&ghost_tetri, clear);
     }
 }
 

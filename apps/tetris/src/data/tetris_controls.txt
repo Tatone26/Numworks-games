@@ -2,10 +2,11 @@
                 HOW TO PLAY
 
     - <LEFT> and <RIGHT> to move
-    - <DOWN> to make it fall faster
-    - <OK> to rotate it to the right
-    - <BACK> to hold the current tetri
-    - <CLEAR> (below <BACK>) to pause
+    - <DOWN> for soft drop
+    - <UP> for hard drop
+    - <OK> & <BACK> to rotate left and right
+    - <BACKSPACE> (or clear) to hold the tetri
+    - <SHIFT> to pause
 
     Every full line disappears !
     The more lines you clear at the 

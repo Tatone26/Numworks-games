@@ -190,6 +190,7 @@ pub fn get_random_bag() -> Vec<Tetrimino, 7> {
     return res;
 }
 
+// VERIFIER PARAIT CHELOU 
 /// Tetris.wiki uses an inversed y axis compared to me, so all y values are inversed.
 static WALL_KICK_TABLE: [(i16, i16); 32] = [
     (-1, 0),
