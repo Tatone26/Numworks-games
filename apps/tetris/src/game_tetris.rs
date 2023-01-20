@@ -40,7 +40,13 @@ pub fn start() {
         },
     }];
     loop {
-        let start = menu("TETRIS\0", &mut opt, &COLOR_CONFIG, vis_addon, include_str!("./data/tetris_controls.txt")); 
+        let start = menu(
+            "TETRIS\0",
+            &mut opt,
+            &COLOR_CONFIG,
+            vis_addon,
+            include_str!("./data/tetris_controls.txt"),
+        );
         // The menu does everything itself !
         if start == 0 {
             loop {
@@ -131,10 +137,17 @@ const RIGHT_KEY: u32 = key::RIGHT;
 const SOFT_DROP_KEY: u32 = key::DOWN;
 const HARD_DROP_KEY: u32 = key::UP;
 const PAUSE_KEY: u32 = key::SHIFT;
-const RIGHT_ROTATION_KEY:u32 = key::BACK;
+const RIGHT_ROTATION_KEY: u32 = key::BACK;
 const LEFT_ROTATION_KEY: u32 = key::OK;
 const HOLD_KEY: u32 = key::BACKSPACE;
 
+const DEATH_MENU: MenuConfig = MenuConfig {
+    choices: &["Replay\0", "Menu\0", "Exit\0"],
+    rect_margins: (20, 10),
+    dimensions: (CASE_SIZE * (PLAYFIELD_WIDTH + 2), CASE_SIZE * 10),
+    offset: (0, 60),
+    back_key_return: 2,
+};
 /// The entire game is here.
 pub fn game() -> u8 {
     // Is it possible to not have all those variables ? Maybe some struct ?
@@ -153,19 +166,22 @@ pub fn game() -> u8 {
 
     let mut random_bag: Vec<Tetrimino, 7> = get_random_bag();
 
-    let mut actual_tetri: Tetrimino = random_bag.swap_remove(0);
+    let mut current_tetri: Tetrimino = random_bag.swap_remove(0);
     let mut next_tetri: Tetrimino = random_bag.swap_remove(0);
 
     let mut held_tetri: Option<Tetrimino> = None;
     let mut held_blocked: bool = false;
     let mut held_button_down: bool = false;
 
+    let mut hard_drop_blocked: bool = false;
+    let mut soft_drop_blocked: bool = false;
+
     let mut fall_speed: u64 = (1000.0 / (FALL_SPEED_DATA[level as usize - 1] * 60.0)) as u64;
 
     draw_stable_ui(level, level_lines, score);
 
-    draw_tetrimino(&actual_tetri, false);
-    draw_ghost_tetri(&actual_tetri, &grid, false);
+    draw_tetrimino(&current_tetri, false);
+    draw_ghost_tetri(&current_tetri, &grid, false);
     draw_next_tetrimino(&next_tetri);
 
     'gameloop: loop {
@@ -180,33 +196,36 @@ pub fn game() -> u8 {
             } else {
                 direction = 1
             }
-            if can_move(&actual_tetri, (direction, 0), &grid) {
+            if can_move(&current_tetri, (direction, 0), &grid) {
+                draw_tetrimino(&current_tetri, true);
+                draw_ghost_tetri(&current_tetri, &grid, true);
 
-                draw_tetrimino(&actual_tetri, true);
-                draw_ghost_tetri(&actual_tetri, &grid, true);
+                current_tetri.pos.x += direction;
 
-                actual_tetri.pos.x += direction;
-
-                draw_ghost_tetri(&actual_tetri, &grid, false);
-                draw_tetrimino(&actual_tetri, false);
+                draw_ghost_tetri(&current_tetri, &grid, false);
+                draw_tetrimino(&current_tetri, false);
 
                 last_move_time = timing::millis();
                 move_button_down = true;
             }
         } else if (!rotate_button_down | (last_rotate_time + ROTATE_SPEED < timing::millis()))
-            & (keyboard_state.key_down(RIGHT_ROTATION_KEY) | keyboard_state.key_down(LEFT_ROTATION_KEY))
+            & (keyboard_state.key_down(RIGHT_ROTATION_KEY)
+                | keyboard_state.key_down(LEFT_ROTATION_KEY))
         {
             // ROTATE
-            let new_tetri = can_rotate(keyboard_state.key_down(RIGHT_ROTATION_KEY), &actual_tetri, &grid);
+            let new_tetri = can_rotate(
+                keyboard_state.key_down(RIGHT_ROTATION_KEY),
+                &current_tetri,
+                &grid,
+            );
             if new_tetri.is_some() {
+                draw_tetrimino(&current_tetri, true);
+                draw_ghost_tetri(&current_tetri, &grid, true);
 
-                draw_tetrimino(&actual_tetri, true);
-                draw_ghost_tetri(&actual_tetri, &grid, true);
+                current_tetri = new_tetri.unwrap();
 
-                actual_tetri = new_tetri.unwrap();
-
-                draw_ghost_tetri(&actual_tetri, &grid, false);
-                draw_tetrimino(&actual_tetri, false);
+                draw_ghost_tetri(&current_tetri, &grid, false);
+                draw_tetrimino(&current_tetri, false);
 
                 last_rotate_time = timing::millis();
                 rotate_button_down = true;
@@ -214,19 +233,19 @@ pub fn game() -> u8 {
         } else if !held_button_down & !held_blocked & keyboard_state.key_down(HOLD_KEY) {
             // HOLD
 
-            let temp = actual_tetri.clone();
+            let temp = current_tetri.clone();
 
             if held_tetri.is_some() {
                 held_blocked = true;
                 held_button_down = true;
 
-                draw_tetrimino(&actual_tetri, true);
-                draw_ghost_tetri(&actual_tetri, &grid, true);
+                draw_tetrimino(&current_tetri, true);
+                draw_ghost_tetri(&current_tetri, &grid, true);
 
-                actual_tetri = get_initial_tetri(held_tetri.unwrap().tetri);
+                current_tetri = get_initial_tetri(held_tetri.unwrap().tetri);
 
-                draw_ghost_tetri(&actual_tetri, &grid, false);
-                draw_tetrimino(&actual_tetri, false);
+                draw_ghost_tetri(&current_tetri, &grid, false);
+                draw_tetrimino(&current_tetri, false);
 
                 held_tetri = Some(temp.clone());
                 draw_held_tetrimino(&held_tetri.as_ref().unwrap());
@@ -234,68 +253,69 @@ pub fn game() -> u8 {
                 held_blocked = true;
                 held_button_down = true;
 
-                draw_tetrimino(&actual_tetri, true);
-                draw_ghost_tetri(&actual_tetri, &grid, true);
+                draw_tetrimino(&current_tetri, true);
+                draw_ghost_tetri(&current_tetri, &grid, true);
 
                 if random_bag.len() == 0 {
                     random_bag = get_random_bag();
                 }
-                actual_tetri = next_tetri.clone();
+                current_tetri = next_tetri.clone();
                 next_tetri = random_bag.swap_remove(0);
 
-                draw_ghost_tetri(&actual_tetri, &grid, false);
-                draw_tetrimino(&actual_tetri, false);
-                
+                draw_ghost_tetri(&current_tetri, &grid, false);
+                draw_tetrimino(&current_tetri, false);
+
                 draw_next_tetrimino(&next_tetri);
                 held_tetri = Some(temp.clone());
                 draw_held_tetrimino(&held_tetri.as_ref().unwrap());
             }
         }
-        if last_fall_time
+        if (last_fall_time
             + if (!soft_drop_button_down & keyboard_state.key_down(SOFT_DROP_KEY))
-                | (soft_drop_button_down)
+                | (soft_drop_button_down & !soft_drop_blocked)
             {
                 SOFT_DROP_SPEED
             } else {
                 fall_speed
             }
-            < timing::millis()
+            < timing::millis())
+            || (!hard_drop_blocked & keyboard_state.key_down(HARD_DROP_KEY))
         {
-            // Place that somewhere else ? maybe doing the check differently too ?
-            if !soft_drop_button_down {
-                soft_drop_button_down = true;
+            if !hard_drop_blocked & keyboard_state.key_down(HARD_DROP_KEY) {
+                hard_drop_blocked = true;
+                draw_tetrimino(&current_tetri, true);
+                if can_move(&current_tetri, (0, 1), &grid) {
+                    while can_move(&current_tetri, (0, 1), &grid) {
+                        current_tetri.pos.y += 1;
+                    }
+                }
+            } else {
+                // Place that somewhere else ? maybe doing the check differently too ?
+                if !soft_drop_button_down && keyboard_state.key_down(SOFT_DROP_KEY) {
+                    soft_drop_button_down = true;
+                }
             }
             // FALL
-            let need_to_fall = can_move(&actual_tetri, (0, 1), &grid);
+            let need_to_fall = can_move(&current_tetri, (0, 1), &grid);
             if need_to_fall {
-                draw_tetrimino(&actual_tetri, true);
-                actual_tetri.pos.y += 1;
-                draw_tetrimino(&actual_tetri, false);
+                draw_tetrimino(&current_tetri, true);
+                current_tetri.pos.y += 1;
+                draw_tetrimino(&current_tetri, false);
             } else {
                 let mut death: bool = true;
-                for p in actual_tetri.get_blocks_grid_pos() {
-                    grid.set_color_at(p.x, p.y, actual_tetri.color);
+                for p in current_tetri.get_blocks_grid_pos() {
+                    grid.set_color_at(p.x, p.y, current_tetri.color);
                     if death && p.y >= 0 {
                         death = false;
                     }
                 }
                 if death {
                     draw_centered_string(" GAME OVER \0", 10, true, &COLOR_CONFIG, true);
-                    let action = selection_menu(
-                        &COLOR_CONFIG,
-                        &MenuConfig {
-                            choices : &["Replay\0", "Menu\0", "Exit\0"],
-                            rect_margins: (20, 10),
-                            dimensions: (CASE_SIZE * (PLAYFIELD_WIDTH + 2), CASE_SIZE * 10),
-                            offset: (0, 60),
-                            back_key_return: 2,
-                        },
-                        false,
-                    );
+                    let action = selection_menu(&COLOR_CONFIG, &DEATH_MENU, false);
                     break 'gameloop action;
                 }
 
-                let clear_lines_y = get_clear_lines(&actual_tetri, &grid);
+                let clear_lines_y = get_clear_lines(&current_tetri, &grid);
                 if !clear_lines_y.is_empty() {
                     score = add_points(&clear_lines_y, level, score);
                     let temp_level = level;
@@ -304,39 +324,26 @@ pub fn game() -> u8 {
                     if level != temp_level {
                         fall_speed = (1000.0 / (FALL_SPEED_DATA[level as usize - 1] * 60.0)) as u64;
                     }
-                    // Removes every cleared line
-                    for i in &clear_lines_y {
-                        grid.remove_line(*i);
-                        draw_blank_line(*i as u16);
-                    }
 
                     // BRINGS LINES DOWN (display done at the same time for optimisation) -> lol not optimised at all because drawing too much things
-                    for (i, e) in clear_lines_y.iter().enumerate() {
-                        for j in (0..*e + i as i16).rev() {
-                            for x in 0..PLAYFIELD_WIDTH {
-                                let last_color = grid.get_color_at(x as i16, j as i16);
-                                if last_color.is_some() {
-                                    grid.set_color_at(x as i16, j as i16 + 1, last_color.unwrap());
-                                }
-                            }
-                            grid.remove_line(j as i16);
-                            draw_blank_line(j as u16);
-                        }
-                    }
+                    bring_lines_down(&clear_lines_y, &mut grid);
                 }
 
                 // new tetri because last one touched down
                 if random_bag.len() == 0 {
                     random_bag = get_random_bag();
                 }
-                actual_tetri = next_tetri.clone();
+                current_tetri = next_tetri.clone();
                 next_tetri = random_bag.swap_remove(0);
-                
-                draw_ghost_tetri(&actual_tetri, &grid, false);
-                draw_tetrimino(&actual_tetri, false);
+
+                draw_ghost_tetri(&current_tetri, &grid, false);
+                draw_tetrimino(&current_tetri, false);
                 draw_next_tetrimino(&next_tetri);
 
                 held_blocked = false;
+                if soft_drop_button_down {
+                    soft_drop_blocked = true;
+                }
             }
             last_fall_time = timing::millis();
         }
@@ -350,14 +357,21 @@ pub fn game() -> u8 {
         if move_button_down & (last_move_time + DELAYED_AUTO_SHIFT < timing::millis()) {
             auto_repeat_on = true;
         }
-        if rotate_button_down & !(keyboard_state.key_down(RIGHT_ROTATION_KEY) | keyboard_state.key_down(LEFT_ROTATION_KEY)) {
+        if rotate_button_down
+            & !(keyboard_state.key_down(RIGHT_ROTATION_KEY)
+                | keyboard_state.key_down(LEFT_ROTATION_KEY))
+        {
             rotate_button_down = false;
         }
         if soft_drop_button_down & !keyboard_state.key_down(SOFT_DROP_KEY) {
             soft_drop_button_down = false;
+            soft_drop_blocked = false; 
         }
         if held_button_down & !keyboard_state.key_down(HOLD_KEY) {
             held_button_down = false;
+        }
+        if hard_drop_blocked & !keyboard_state.key_down(HARD_DROP_KEY) {
+            hard_drop_blocked = false;
         }
         if keyboard_state.key_down(PAUSE_KEY) {
             // PAUSE MENU
@@ -377,8 +391,8 @@ pub fn game() -> u8 {
                     }
                 }
                 wait_for_vblank();
-                draw_tetrimino(&actual_tetri, false);
-                draw_ghost_tetri(&actual_tetri, &grid, false);
+                draw_tetrimino(&current_tetri, false);
+                draw_ghost_tetri(&current_tetri, &grid, false);
                 if held_tetri.is_some() {
                     draw_held_tetrimino(&held_tetri.as_ref().unwrap());
                 }
@@ -390,11 +404,32 @@ pub fn game() -> u8 {
     }
 }
 
-fn draw_ghost_tetri(tetri: &Tetrimino, grid: &Grid, clear: bool){
+fn bring_lines_down(clear_lines_y: &Vec<i16, 4>, grid: &mut Grid) {
+    // Removes every cleared line
+    for i in clear_lines_y {
+        grid.remove_line(*i);
+        draw_blank_line(*i as u16);
+    }
+    // Brings lines down
+    for (i, e) in clear_lines_y.iter().enumerate() {
+        for j in (0..*e + i as i16).rev() {
+            for x in 0..PLAYFIELD_WIDTH {
+                let last_color = grid.get_color_at(x as i16, j as i16);
+                if last_color.is_some() {
+                    grid.set_color_at(x as i16, j as i16 + 1, last_color.unwrap());
+                }
+            }
+            grid.remove_line(j as i16);
+            draw_blank_line(j as u16);
+        }
+    }
+}
+
+fn draw_ghost_tetri(tetri: &Tetrimino, grid: &Grid, clear: bool) {
     let mut ghost_tetri = tetri.clone();
     ghost_tetri.color = 8;
-    if can_move(tetri, (0, 1), grid){
-        while can_move(&ghost_tetri, (0, 1), grid){
+    if can_move(tetri, (0, 1), grid) {
+        while can_move(&ghost_tetri, (0, 1), grid) {
             ghost_tetri.pos.y += 1;
         }
         draw_tetrimino(&ghost_tetri, clear);

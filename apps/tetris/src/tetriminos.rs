@@ -136,7 +136,7 @@ pub const O_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::O,
     rotation: 0,
     color: 0,
-    pos: SignedPoint { x: 5, y: -1 },
+    pos: SignedPoint { x: 5, y: -2 },
 };
 pub const S_SHAPE: Tetrimino = Tetrimino {
     tetri: TetriType::S,
@@ -275,7 +275,7 @@ pub fn get_wall_kicks_data(tetri: &Tetrimino, right: bool) -> &[(i16, i16)] {
         if tetri.rotation == 0 {
             return &table[0..4];
         } else if tetri.rotation == 1 {
-            return &table[4..8];
+            return &table[8..12];
         } else if tetri.rotation == 2 {
             return &table[16..20];
         } else {
