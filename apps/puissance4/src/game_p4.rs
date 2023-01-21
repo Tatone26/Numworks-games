@@ -181,8 +181,8 @@ fn selection(initial_pos: u16, color: u16, players: u8, c: &ColorConfig) -> u16 
     draw_selection_coin(initial_pos, color, c, 0);
     loop {
         let keyboard_state = keyboard::scan();
-        if (keyboard_state.key_down(key::LEFT) | keyboard_state.key_down(key::RIGHT))
-            & (timing::millis() >= last_action + REPETITION_SPEED)
+        if (keyboard_state.key_down(key::LEFT) || keyboard_state.key_down(key::RIGHT))
+            && (timing::millis() >= last_action + REPETITION_SPEED)
         {
             let old_pos = pos;
             if keyboard_state.key_down(key::LEFT) {
@@ -201,7 +201,7 @@ fn selection(initial_pos: u16, color: u16, players: u8, c: &ColorConfig) -> u16 
                 draw_selection_coin(pos, color, c, 0);
             }
             last_action = timing::millis();
-        } else if keyboard_state.key_down(key::OK) | keyboard_state.key_down(key::DOWN) {
+        } else if keyboard_state.key_down(key::OK) || keyboard_state.key_down(key::DOWN) {
             wait_for_no_keydown();
             wait_for_vblank();
             clear_selection_coin(pos, c);

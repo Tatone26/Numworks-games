@@ -180,15 +180,15 @@ pub fn selection_menu(color: &ColorConfig, config: &MenuConfig, horizontal: bool
     loop {
         let keyboard_state = keyboard::scan();
         if (keyboard_state.key_down(key::DOWN)
-            | keyboard_state.key_down(key::UP)
-            | keyboard_state.key_down(key::LEFT)
-            | keyboard_state.key_down(key::RIGHT))
-            & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
+            || keyboard_state.key_down(key::UP)
+            || keyboard_state.key_down(key::LEFT)
+            || keyboard_state.key_down(key::RIGHT))
+            && (timing::millis() >= (last_action + REPETITION_SPEED as u64))
         {
             display::wait_for_vblank();
             draw_selection_string(cursor_pos, color, config, false, horizontal);
-            if (keyboard_state.key_down(key::DOWN) & !horizontal)
-                | (keyboard_state.key_down(key::RIGHT) & horizontal)
+            if (!horizontal && keyboard_state.key_down(key::DOWN))
+                || (horizontal && keyboard_state.key_down(key::RIGHT))
             {
                 cursor_pos += 1;
                 if cursor_pos >= config.choices.len() as u8 {
@@ -199,8 +199,8 @@ pub fn selection_menu(color: &ColorConfig, config: &MenuConfig, horizontal: bool
                 } else {
                     last_action_key = key::RIGHT;
                 }
-            } else if (keyboard_state.key_down(key::UP) & !horizontal)
-                | (keyboard_state.key_down(key::LEFT) & horizontal)
+            } else if (!horizontal && keyboard_state.key_down(key::UP))
+                || (horizontal && keyboard_state.key_down(key::LEFT))
             {
                 if cursor_pos == 0 {
                     cursor_pos = config.choices.len() as u8 - 1;
@@ -337,8 +337,8 @@ fn options(list: &mut [&mut MyOption], cfg: &ColorConfig) -> u8 {
         let keyboard_scan = keyboard::scan();
         if keyboard_scan.key_down(key::BACK) {
             break;
-        } else if (keyboard_scan.key_down(key::UP) | keyboard_scan.key_down(key::DOWN))
-            & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
+        } else if (keyboard_scan.key_down(key::UP) || keyboard_scan.key_down(key::DOWN))
+            && (timing::millis() >= (last_action + REPETITION_SPEED as u64))
         {
             let current_selection: &MyOption = &list[cursor_pos as usize];
             display::wait_for_vblank();
@@ -374,7 +374,7 @@ fn options(list: &mut [&mut MyOption], cfg: &ColorConfig) -> u8 {
         } else if (keyboard_scan.key_down(key::OK)
             || keyboard_scan.key_down(key::RIGHT)
             || keyboard_scan.key_down(key::LEFT))
-            & (timing::millis() >= (last_action + REPETITION_SPEED as u64))
+            && (timing::millis() >= (last_action + REPETITION_SPEED as u64))
         {
             let selection: &mut MyOption = list[cursor_pos as usize];
             display::wait_for_vblank();
@@ -387,7 +387,7 @@ fn options(list: &mut [&mut MyOption], cfg: &ColorConfig) -> u8 {
                 },
                 cfg.bckgrd,
             );
-            if keyboard_scan.key_down(key::OK) | keyboard_scan.key_down(key::RIGHT) {
+            if keyboard_scan.key_down(key::OK) || keyboard_scan.key_down(key::RIGHT) {
                 selection.increment_value();
                 last_action_key = if keyboard_scan.key_down(key::OK) {
                     key::OK

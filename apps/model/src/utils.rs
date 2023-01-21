@@ -183,7 +183,7 @@ fn get_image_parameters(image_bytes: &[u8]) -> (u16, u16, usize) {
 
 /// Draws a .ppm image from its bytes (read as u8 with include_bytes)
 pub fn draw_image(image: &[Color], pos: Point, size: (u16, u16), scaling: u16, transparency: bool) {
-    if scaling > 1 || transparency {
+    if transparency || scaling > 1  {
         let mut x_pos = 0;
         let mut y_pos = 0;
         for i in 0..image.len() {
@@ -246,7 +246,6 @@ pub fn draw_tile<const PIXELS: usize>(
 pub fn tiling<const PIXELS: usize>(
     tileset: &Tileset,
     pos: Point,
-    // dimensions in tiles.
     dimensions: (u16, u16),
     // The position (in tiles) of the tile in the tilemap.
     tile: Point,

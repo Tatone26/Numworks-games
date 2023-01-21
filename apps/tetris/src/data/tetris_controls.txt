@@ -5,7 +5,7 @@
     - <DOWN> for soft drop
     - <UP> for hard drop
     - <OK> & <BACK> to rotate left and right
-    - <BACKSPACE> (or clear) to hold the tetri
+    - <BACKSPACE> (<clear>) to hold the tetri
     - <SHIFT> to pause
 
     Every full line disappears !

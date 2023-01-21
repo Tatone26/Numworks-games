@@ -213,7 +213,7 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
                 }
                 draw_box(front_point.x, front_point.y, DARK_GREEN);
             }
-            if (new_point.x == fruit_pos.x) & (new_point.y == fruit_pos.y) {
+            if (new_point.x == fruit_pos.x) && (new_point.y == fruit_pos.y) {
                 // if we ate the fruit
                 points += 1;
                 let next_direct_pos: Point; // Evite que les murs ou les fruits apparaissent directement devant le joueur
@@ -221,12 +221,12 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
                     x @ Some(_) => next_direct_pos = x.unwrap(),
                     None => unsafe { next_direct_pos = Point::new(MAX_WIDTH, MAX_HEIGHT) },
                 }
-                if has_walls & ((points % 2) == 0) {
+                if has_walls && ((points % 2) == 0) {
                     // add walls
                     let mut new_wall = get_random_point();
                     while is_in_walls(&new_wall, &walls)
-                        | is_in_snake(&new_wall, &snake)
-                        | ((new_wall.x == next_direct_pos.x) & (new_wall.y == next_direct_pos.y))
+                        || is_in_snake(&new_wall, &snake)
+                        || ((new_wall.x == next_direct_pos.x) && (new_wall.y == next_direct_pos.y))
                     {
                         new_wall = get_random_point();
                     }
@@ -237,8 +237,8 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
                 }
                 fruit_pos = get_random_point();
                 while is_in_snake(&fruit_pos, &snake)
-                    | is_in_walls(&fruit_pos, &walls)
-                    | ((fruit_pos.x == next_direct_pos.x) & (fruit_pos.y == next_direct_pos.y))
+                    || is_in_walls(&fruit_pos, &walls)
+                    || ((fruit_pos.x == next_direct_pos.x) && (fruit_pos.y == next_direct_pos.y))
                 {
                     fruit_pos = get_random_point();
                 }
@@ -326,7 +326,7 @@ fn check_direction(direction: Direction, last_direction: Direction) -> Direction
 /// Check if a given Point is in a Deque (the snake)
 fn is_in_snake(p: &Point, snake: &Deque<Point, MAX_ARRAY_SIZE>) -> bool {
     for i in snake {
-        if (i.x == p.x) & (i.y == p.y) {
+        if (i.x == p.x) && (i.y == p.y) {
             return true;
         }
     }
@@ -336,7 +336,7 @@ fn is_in_snake(p: &Point, snake: &Deque<Point, MAX_ARRAY_SIZE>) -> bool {
 /// Check if a given Point is in a Vec (the walls)
 fn is_in_walls(p: &Point, walls: &Vec<Point, MAX_ARRAY_SIZE>) -> bool {
     for i in walls {
-        if (i.x == p.x) & (i.y == p.y) {
+        if (i.x == p.x) && (i.y == p.y) {
             return true;
         }
     }

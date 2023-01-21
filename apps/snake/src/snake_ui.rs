@@ -40,7 +40,7 @@ pub fn draw_box(x: u16, y: u16, c: Color) {
 
 /// Draws a terrain box (a box with the right color)
 pub fn draw_terrain_box(x: u16, y: u16) {
-    if ((x % 2 == 0) & (y % 2 != 0)) | ((x % 2 != 0) & (y % 2 == 0)) {
+    if ((x % 2 == 0) && (y % 2 != 0)) || ((x % 2 != 0) && (y % 2 == 0)) {
         draw_box(x, y, GRAY)
     } else {
         draw_box(x, y, LIGHT_GRAY)
@@ -101,7 +101,7 @@ pub fn draw_wall(x: u16, y: u16, original: bool) {
 /// Draws the snake !
 pub fn draw_snake(snake: &Deque<Point, MAX_ARRAY_SIZE>, direction: Direction, original: bool) {
     for i in snake {
-        if (i.x == snake.front().unwrap().x) & (i.y == snake.front().unwrap().y) {
+        if (i.x == snake.front().unwrap().x) && (i.y == snake.front().unwrap().y) {
             draw_snake_front(i.x, i.y, direction, original)
         } else {
             draw_box(i.x, i.y, DARK_GREEN);
