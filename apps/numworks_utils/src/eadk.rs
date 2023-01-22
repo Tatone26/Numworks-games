@@ -255,20 +255,21 @@ pub mod timing {
         fn eadk_timing_millis() -> u64;
     }
 }
-/*
-This doesn't work, but it is in eadk.h. Quite mysterious if I may say so.
+
 pub mod battery {
 
     pub fn battery_charging() -> bool {
-        unsafe { eadk_battery_is_charging() }
+        unsafe { return eadk_battery_is_charging() }
     }
 
+    #[must_use]
     pub fn battery_voltage() -> f32 {
-        unsafe { eadk_battery_voltage() }
+        unsafe { return eadk_battery_voltage() }
     }
 
+    #[must_use]
     pub fn battery_level() -> u8 {
-        unsafe { eadk_battery_level() }
+        unsafe { return eadk_battery_level() }
     }
 
     extern "C" {
@@ -277,7 +278,6 @@ pub mod battery {
         fn eadk_battery_level() -> u8;
     }
 }
-*/
 
 #[must_use]
 pub fn random() -> u32 {
@@ -286,6 +286,14 @@ pub fn random() -> u32 {
 
 extern "C" {
     fn eadk_random() -> u32;
+}
+
+pub fn usb_is_plugged() -> bool {
+    unsafe { eadk_usb_is_plugged() }
+}
+
+extern "C" {
+    fn eadk_usb_is_plugged() -> bool;
 }
 
 use core::fmt::Write;
