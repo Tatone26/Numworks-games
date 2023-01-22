@@ -6,12 +6,12 @@ use crate::{
         key, keyboard, timing, Color,
     },
     menu::{menu, pause_menu, selection_menu, MenuConfig, MyOption, OptionType},
-    tetriminos::{get_initial_tetri, get_random_bag, get_wall_kicks_data, Tetrimino},
+    tetriminos::{get_initial_tetri, get_random_bag, get_wall_kicks_data, Tetrimino, SignedPoint},
     ui_tetris::{
         draw_blank_line, draw_block, draw_held_tetrimino, draw_level, draw_lines_number,
         draw_next_tetrimino, draw_score, draw_stable_ui, draw_tetrimino,
     },
-    utils::{draw_centered_string, ColorConfig},
+    utils::{draw_centered_string, ColorConfig, randint},
 };
 
 // This dictates the principal colors that will be used
@@ -25,23 +25,42 @@ pub const BACKGROUND_GRAY: Color = Color::from_rgb888(100, 100, 100);
 pub const BACKGROUND_DARK_GRAY: Color = Color::from_rgb888(70, 70, 70);
 
 fn vis_addon() {
-    draw_centered_string("VIS ADDON\0", 70, true, &COLOR_CONFIG, true);
+    let mut tetri = get_random_bag().swap_remove(0);
+    let rotation = randint(0, 3);
+    tetri.rotation = rotation as u8;
+    tetri.pos = SignedPoint { x: 4, y: 4 };
+    draw_tetrimino(&tetri, false);
 }
 /// Menu, Options and Game start/*  */
 pub fn start() {
-    let mut opt: [&mut MyOption; 1] = [&mut MyOption {
-        name: "Ghost Piece\0",
-        value: 0,
-        possible_values: {
-            let mut v = Vec::new();
-            unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
-            unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
-            v
+    let mut opt: [&mut MyOption; 2] = [
+        &mut MyOption {
+            name: "Ghost Piece\0",
+            value: 0,
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
+                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
+                v
+            },
         },
-    }];
+        &mut MyOption {
+            name: "Starting Level\0",
+            value: 0,
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Int(1), "1\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(3), "3\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(5), "5\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(7), "7\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(9), "9\0")) };
+                v
+            },
+        },
+    ];
     loop {
         let start = menu(
-            "TETRIS\0",
+            "TETRIS \0",
             &mut opt,
             &COLOR_CONFIG,
             vis_addon,
@@ -51,7 +70,7 @@ pub fn start() {
         if start == 0 {
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                let action = game(opt[0].get_param_value()); // calling the game based on the parameters is better
+                let action = game(opt[0].get_param_value(), opt[1].get_param_value()); // calling the game based on the parameters is better
                 if action == 2 {
                     // 2 means quitting
                     return;
@@ -81,9 +100,9 @@ impl Grid {
 
     /// Returns the color at the given position, None if the pos is outside the grid
     fn get_color_at(&self, x: i16, y: i16) -> Option<u8> {
-        if (x < 0) | (y < 0) {
+        if (y < 0) || (x < 0) {
             return None;
-        } else if (x as u16 >= PLAYFIELD_WIDTH) | (y as u16 >= PLAYFIELD_HEIGHT) {
+        } else if (x as u16 >= PLAYFIELD_WIDTH) || (y as u16 >= PLAYFIELD_HEIGHT) {
             return None;
         } else {
             return self.grid[x as usize][y as usize];
@@ -92,7 +111,7 @@ impl Grid {
 
     /// Set the color at the given position, if the position is in the grid
     fn set_color_at(&mut self, x: i16, y: i16, c: u8) {
-        if (x >= 0) & (y >= 0) & (x < PLAYFIELD_WIDTH as i16) & (y < PLAYFIELD_HEIGHT as i16) {
+        if (y >= 0) && (x >= 0) && (x < PLAYFIELD_WIDTH as i16) && (y < PLAYFIELD_HEIGHT as i16) {
             self.grid[x as usize][y as usize] = Some(c);
             draw_block(x as u16, y as u16, c as u16);
         }
@@ -100,14 +119,14 @@ impl Grid {
 
     /// Set the case at the given position to None, if the position is in the grid
     fn remove_color_at(&mut self, x: i16, y: i16) {
-        if (x >= 0) & (y >= 0) & (x < PLAYFIELD_WIDTH as i16) & (y < PLAYFIELD_HEIGHT as i16) {
+        if (y >= 0) && (x >= 0) && (x < PLAYFIELD_WIDTH as i16) && (y < PLAYFIELD_HEIGHT as i16) {
             self.grid[x as usize][y as usize] = None;
             // draw_block(x as u16, y as u16, 7);
         }
     }
 
     fn remove_line(&mut self, y: i16) {
-        if (y >= 0) & (y < PLAYFIELD_HEIGHT as i16) {
+        if (y >= 0) && (y < PLAYFIELD_HEIGHT as i16) {
             for x in 0..PLAYFIELD_WIDTH {
                 self.remove_color_at(x as i16, y);
             }
@@ -200,7 +219,7 @@ impl Blockers {
 }
 
 /// The entire game is here.
-pub fn game(ghost_piece: bool) -> u8 {
+pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
     // Is it possible to not have all those variables ? Maybe some struct ?
     let mut timings = Timings {
         fall: timing::millis(),
@@ -220,7 +239,7 @@ pub fn game(ghost_piece: bool) -> u8 {
 
     let mut grid: Grid = Grid::new();
     let mut score: u32 = 0;
-    let mut level: u16 = 1;
+    let mut level: u16 = starting_level;
     let mut level_lines: u16 = 0;
     let mut fall_speed: u64 = (1000.0 / (FALL_SPEED_DATA[level as usize - 1] * 60.0)) as u64;
 
@@ -356,9 +375,13 @@ pub fn game(ghost_piece: bool) -> u8 {
                 if !clear_lines_y.is_empty() {
                     score = add_points(&clear_lines_y, level, score);
                     let temp_level = level;
-                    (level_lines, level) =
-                        add_lines(clear_lines_y.len() as u16, level, level_lines);
-                    if level != temp_level {
+                    (level_lines, level) = add_lines(
+                        clear_lines_y.len() as u16,
+                        level,
+                        level_lines,
+                        starting_level,
+                    );
+                    if level != temp_level && level <= 19 {
                         fall_speed = (1000.0 / (FALL_SPEED_DATA[level as usize - 1] * 60.0)) as u64;
                     }
                     bring_lines_down(&clear_lines_y, &mut grid);
@@ -528,16 +551,23 @@ fn can_move(future_tetri: &Tetrimino, direction: (i16, i16), grid: &Grid) -> boo
 }
 
 /// Returns (line_number, level)
-fn add_lines(number: u16, level: u16, current_lines: u16) -> (u16, u16) {
-    let new_number = (current_lines + number) % 10;
+fn add_lines(number: u16, level: u16, current_lines: u16, starting_level: u16) -> (u16, u16) {
+    let max_lines : u16;
+    if level == starting_level {
+        max_lines = starting_level*10
+    } else {
+        max_lines = 10
+    };
+    
+    let new_number = (current_lines + number) % max_lines;
     draw_lines_number(new_number);
 
-    if current_lines + number >= 10 {
+    if current_lines + number >= max_lines {
         draw_level(level + 1);
-        return (new_number, level + 1);
-    } else {
-        return (new_number, level);
+        return (new_number, level + 1)
     }
+    return (new_number, level);
+
 }
 
 fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> {

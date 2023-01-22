@@ -190,7 +190,6 @@ pub fn get_random_bag() -> Vec<Tetrimino, 7> {
     return res;
 }
 
-// VERIFIER PARAIT CHELOU 
 /// Tetris.wiki uses an inversed y axis compared to me, so all y values are inversed.
 static WALL_KICK_TABLE: [(i16, i16); 32] = [
     (-1, 0),
@@ -264,32 +263,24 @@ static I_WALL_KICKS_TABLE: [(i16, i16); 32] = [
 
 pub fn get_wall_kicks_data(tetri: &Tetrimino, right: bool) -> &[(i16, i16)] {
     let table: &[(i16, i16); 32];
-    if tetri.tetri == TetriType::I {
-        table = &I_WALL_KICKS_TABLE;
-    } else if tetri.tetri == TetriType::O {
-        return &[];
-    } else {
-        table = &WALL_KICK_TABLE;
+    match tetri.tetri {
+        TetriType::I => table = &I_WALL_KICKS_TABLE,
+        TetriType::O => return &[],
+        _ => table = &WALL_KICK_TABLE,
     }
     if right {
-        if tetri.rotation == 0 {
-            return &table[0..4];
-        } else if tetri.rotation == 1 {
-            return &table[8..12];
-        } else if tetri.rotation == 2 {
-            return &table[16..20];
-        } else {
-            return &table[24..28];
-        }
+        return match tetri.rotation {
+            0 => &table[0..4],
+            1 => &table[8..12],
+            2 => &table[16..20],
+            _ => &table[24..28],
+        };
     } else {
-        if tetri.rotation == 0 {
-            return &table[28..32];
-        } else if tetri.rotation == 1 {
-            return &table[20..24];
-        } else if tetri.rotation == 2 {
-            return &table[12..16];
-        } else {
-            return &table[4..8];
-        }
+        return match tetri.rotation {
+            0 => &table[28..32],
+            3 => &table[20..24],
+            2 => &table[12..16],
+            _ => &table[4..8],
+        };
     }
 }

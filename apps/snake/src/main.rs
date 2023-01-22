@@ -1,11 +1,9 @@
 #![no_std]
 #![no_main]
 
-pub mod eadk;
-
-pub mod menu;
-
-pub mod utils;
+use numworks_utils::eadk;
+use numworks_utils::menu;
+use numworks_utils::utils;
 
 pub mod snake_ui;
 

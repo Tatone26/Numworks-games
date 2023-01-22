@@ -70,6 +70,7 @@ name = "connect_four"
 version = "0.3.0"
 dependencies = [
  "heapless",
+ "numworks_utils",
 ]
 
 [[package]]
@@ -164,6 +165,13 @@ name = "nb"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "546c37ac5d9e56f55e73b677106873d9d9f5190605e41a856503623648488cae"
+
+[[package]]
+name = "numworks_utils"
+version = "0.1.0"
+dependencies = [
+ "heapless",
+]
 
 [[package]]
 name = "regex"

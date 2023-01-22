@@ -1,16 +1,14 @@
 #![no_std]
 #![no_main]
 
-pub mod eadk;
+use numworks_utils::eadk;
+use numworks_utils::menu;
+use numworks_utils::utils;
 
-pub mod menu;
+pub mod tetriminos;
+pub mod ui_tetris;
 
-pub mod utils;
-
-mod tetriminos;
-mod ui_tetris;
-
-mod game_tetris;
+pub mod game_tetris;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]
@@ -22,7 +20,7 @@ pub static EADK_APP_API_LEVEL: u32 = 0;
 
 #[used]
 #[link_section = ".rodata.eadk_app_icon"]
-pub static EADK_APP_ICON: [u8; 2286] = *include_bytes!("../target/icon.nwi");
+pub static EADK_APP_ICON: [u8; 3030] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {
