@@ -1,3 +1,10 @@
+num_to_wind.py
+test.py
+tetris.py
+tetrisv2.py
+pong.py
+games.py
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
