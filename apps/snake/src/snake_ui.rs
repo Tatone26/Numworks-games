@@ -1,8 +1,9 @@
 use heapless::Deque;
 
 use crate::{
-    eadk::{display::push_rect_uniform, Color, Rect, Point},
-    game_snake::{GRID_OFFSET, MAX_WIDTH, MAX_HEIGHT, MAX_ARRAY_SIZE, Direction}, utils::{fill_screen, draw_tile, Tileset, CENTER},
+    eadk::{display::push_rect_uniform, Color, Point, Rect},
+    game_snake::{Direction, GRID_OFFSET, MAX_ARRAY_SIZE, MAX_HEIGHT, MAX_WIDTH},
+    utils::{draw_tile, fill_screen, Tileset, CENTER},
 };
 
 pub const DARK_GRAY: Color = Color::from_rgb888(60, 60, 80);
@@ -18,7 +19,6 @@ pub const CASE_SIZE: u16 = 10;
 pub const PIXELS: usize = (CASE_SIZE * CASE_SIZE) as usize;
 
 const MENU_FIGURE_Y: u16 = 70;
-
 
 pub static TILEMAP: Tileset = Tileset {
     tile_size: CASE_SIZE,
@@ -155,7 +155,6 @@ pub fn draw_terrain(wrapping: bool) {
     }
     //display::wait_for_vblank();
 }
-
 
 /// Menu Visual Addon
 pub fn menu_vis_addon() {

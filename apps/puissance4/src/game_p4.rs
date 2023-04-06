@@ -2,7 +2,7 @@ use heapless::Vec;
 
 use crate::{
     eadk::{
-        display::{SCREEN_HEIGHT, SCREEN_WIDTH, wait_for_vblank},
+        display::{wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
         key, keyboard, timing, Color,
     },
     menu::{menu, selection_menu, MenuConfig, MyOption, OptionType},
@@ -192,7 +192,7 @@ fn selection(initial_pos: u16, color: u16, players: u8, c: &ColorConfig) -> u16 
                 }
             } else if keyboard_state.key_down(key::RIGHT) {
                 last_action_key = key::RIGHT;
-                if pos < {MAX_WIDTH_SIZE as u16 - 1 - (MAX_PLAYERS - players) as u16} {
+                if pos < { MAX_WIDTH_SIZE as u16 - 1 - (MAX_PLAYERS - players) as u16 } {
                     pos += 1;
                 }
             }

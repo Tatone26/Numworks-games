@@ -6,12 +6,12 @@ use crate::{
         key, keyboard, timing, Color,
     },
     menu::{menu, pause_menu, selection_menu, MenuConfig, MyOption, OptionType},
-    tetriminos::{get_initial_tetri, get_random_bag, get_wall_kicks_data, Tetrimino, SignedPoint},
+    tetriminos::{get_initial_tetri, get_random_bag, get_wall_kicks_data, SignedPoint, Tetrimino},
     ui_tetris::{
         draw_blank_line, draw_block, draw_held_tetrimino, draw_level, draw_lines_number,
         draw_next_tetrimino, draw_score, draw_stable_ui, draw_tetrimino,
     },
-    utils::{draw_centered_string, ColorConfig, randint},
+    utils::{draw_centered_string, randint, ColorConfig},
 };
 
 // This dictates the principal colors that will be used
@@ -87,7 +87,7 @@ pub fn start() {
 
 /// Represents the game grid, every case being a [Color] or [None]
 struct Grid {
-    grid: [[Option<u8>; (PLAYFIELD_HEIGHT as usize)]; (PLAYFIELD_WIDTH as usize)],
+    grid: [[Option<u8>; PLAYFIELD_HEIGHT as usize]; PLAYFIELD_WIDTH as usize],
 }
 
 impl Grid {
@@ -552,22 +552,21 @@ fn can_move(future_tetri: &Tetrimino, direction: (i16, i16), grid: &Grid) -> boo
 
 /// Returns (line_number, level)
 fn add_lines(number: u16, level: u16, current_lines: u16, starting_level: u16) -> (u16, u16) {
-    let max_lines : u16;
+    let max_lines: u16;
     if level == starting_level {
-        max_lines = starting_level*10
+        max_lines = starting_level * 10
     } else {
         max_lines = 10
     };
-    
+
     let new_number = (current_lines + number) % max_lines;
     draw_lines_number(new_number);
 
     if current_lines + number >= max_lines {
         draw_level(level + 1);
-        return (new_number, level + 1)
+        return (new_number, level + 1);
     }
     return (new_number, level);
-
 }
 
 fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> {

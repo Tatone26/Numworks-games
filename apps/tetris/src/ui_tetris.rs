@@ -11,14 +11,17 @@ use crate::{
     },
     tetriminos::Tetrimino,
     utils::{
-        draw_image, draw_tile, draw_string_cfg, get_tile, tiling,
-        CENTER, LARGE_CHAR_HEIGHT, Tileset,
+        draw_image, draw_string_cfg, draw_tile, get_tile, tiling, Tileset, CENTER,
+        LARGE_CHAR_HEIGHT,
     },
 };
 
 // static Tileset: &[u8; 3014] = include_bytes!("tiles.ppm");
 
-static TILESET: Tileset = Tileset { image: include_bytes!("./data/tiles.ppm"), tile_size: CASE_SIZE};
+static TILESET: Tileset = Tileset {
+    image: include_bytes!("./data/tiles.ppm"),
+    tile_size: CASE_SIZE,
+};
 
 /// Draws a box of the given size, at the given pos on the grid, with a given title (first-line text), following the ui style
 fn draw_ui_base(title: &'static str, pos: Point, w: u16, h: u16) {
@@ -78,8 +81,7 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
     tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
         &TILESET,
         Point::new(start_x, start_y),
-        (PLAYFIELD_WIDTH,
-        PLAYFIELD_HEIGHT),
+        (PLAYFIELD_WIDTH, PLAYFIELD_HEIGHT),
         Point::new(7, 0),
         false,
         1,
@@ -246,8 +248,7 @@ pub fn draw_blank_line(y: u16) {
     tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
         &TILESET,
         Point::new(start_x, y * CASE_SIZE + 2 * CASE_SIZE),
-        (PLAYFIELD_WIDTH,
-        1),
+        (PLAYFIELD_WIDTH, 1),
         Point::new(7, 0),
         false,
         1,

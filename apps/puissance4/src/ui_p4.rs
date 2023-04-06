@@ -1,11 +1,14 @@
 use crate::{
-    eadk::{display::{push_rect_uniform, wait_for_vblank}, Color, Point, Rect},
-    game_p4::{MAX_HEIGHT_SIZE, MAX_WIDTH_SIZE, PLAYERS_COLORS, MAX_PLAYERS},
+    eadk::{
+        display::{push_rect_uniform, wait_for_vblank},
+        Color, Point, Rect,
+    },
+    game_p4::{MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE, PLAYERS_COLORS},
     utils::{draw_centered_string, draw_tile, fill_screen, ColorConfig, Tileset, CENTER},
 };
 
 const COIN_SIZE: u16 = 21;
-const PIXELS: usize = {COIN_SIZE*COIN_SIZE} as usize;
+const PIXELS: usize = { COIN_SIZE * COIN_SIZE } as usize;
 const LEFT_POS: u16 = CENTER.x - (COIN_SIZE + 4) / 2 - (COIN_SIZE + 4) * 3;
 const UP_POS: u16 = 60;
 
@@ -35,14 +38,12 @@ pub fn draw_grid(players: u8, c: &ColorConfig) {
         Rect {
             x: LEFT_POS - 4,
             y: UP_POS - 4,
-            width: (COIN_SIZE + 4) * {
-                MAX_WIDTH_SIZE as u16 - (MAX_PLAYERS - players) as u16
-            } + 4,
+            width: (COIN_SIZE + 4) * { MAX_WIDTH_SIZE as u16 - (MAX_PLAYERS - players) as u16 } + 4,
             height: (COIN_SIZE + 2) * 6 + 6,
         },
         c.text,
     );
-    for x in 0..(MAX_WIDTH_SIZE as u16 - (MAX_PLAYERS - players) as u16){
+    for x in 0..(MAX_WIDTH_SIZE as u16 - (MAX_PLAYERS - players) as u16) {
         push_rect_uniform(
             Rect {
                 x: LEFT_POS + (COIN_SIZE + 4) * x - 1,

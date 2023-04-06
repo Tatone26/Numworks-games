@@ -5,10 +5,14 @@ use crate::{
         key, keyboard, timing, Point,
     },
     menu::{menu, selection_menu, MenuConfig, MyOption, OptionType},
+    snake_ui::{
+        draw_box, draw_fruit, draw_snake, draw_snake_front, draw_terrain, draw_terrain_box,
+        draw_wall, BCKD_GRAY, CASE_SIZE, DARK_GREEN,
+    },
     utils::{
-        draw_centered_string, fading, randint, wait_for_no_keydown,
-        ColorConfig, CENTER, LARGE_CHAR_HEIGHT,
-    }, snake_ui::{CASE_SIZE, BCKD_GRAY, DARK_GREEN, draw_terrain, draw_snake, draw_fruit, draw_wall, draw_box, draw_terrain_box, draw_snake_front},
+        draw_centered_string, fading, randint, wait_for_no_keydown, ColorConfig, CENTER,
+        LARGE_CHAR_HEIGHT,
+    },
 };
 use eadk::Color;
 use heapless::String;
@@ -39,8 +43,6 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
     bckgrd: BCKD_GRAY,
     alt: DARK_GREEN,
 };
-
-
 
 /// Menu, Options and Game start
 pub fn start() {
@@ -99,7 +101,13 @@ pub fn start() {
         },
     ];
     loop {
-        let start = menu("SNAKE\0", &mut opt, &COLOR_CONFIG, crate::snake_ui::menu_vis_addon, include_str!("./data/snake_controls.txt"));
+        let start = menu(
+            "SNAKE\0",
+            &mut opt,
+            &COLOR_CONFIG,
+            crate::snake_ui::menu_vis_addon,
+            include_str!("./data/snake_controls.txt"),
+        );
         if start == 0 {
             match opt[1].get_param_value() {
                 1 => unsafe {
@@ -139,8 +147,6 @@ pub fn start() {
         }
     }
 }
-
-
 
 /// The entire game is here.
 pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
@@ -411,11 +417,3 @@ fn get_point_from_dir(
     }
     Some(new_point)
 }
-
-
-
-
-
-
-
-
