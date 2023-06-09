@@ -1,4 +1,7 @@
 use heapless::Vec;
+use numworks_utils::utils::draw_tile;
+
+
 
 use crate::{
     eadk::{
@@ -7,8 +10,8 @@ use crate::{
     },
     menu::{menu, MyOption, OptionType},
     utils::{
-        draw_string_cfg, draw_tile, fill_screen, tiling, wait_for_no_keydown, ColorConfig, Tileset,
-    },
+        draw_string_cfg, fill_screen, wait_for_no_keydown, ColorConfig, Tileset,
+    }, ui_solitaire::ui_test,
 };
 
 // This dictates the principal colors that will be used
@@ -73,12 +76,7 @@ pub fn start() {
     }
 }
 
-/// Images work really well with square tiles. You can still draw other images, but it is less good.
-static TILESET: Tileset = Tileset {
-    tile_size: 55,
-    image: include_bytes!("./icon_snake.ppm"),
-};
-const PIXELS: usize = { 55 * 55 } as usize;
+
 
 /// The entire game is here.
 pub fn game(_exemple: bool) -> u8 {
@@ -94,18 +92,7 @@ pub fn game(_exemple: bool) -> u8 {
         loop {
             let keyboard_state = keyboard::scan();
             if keyboard_state.key_down(key::OK) {
-                wait_for_no_keydown();
-                // fill_screen(Color::WHITE);
-                display::wait_for_vblank();
-                tiling::<PIXELS>(
-                    &TILESET,
-                    Point::new(0, 0),
-                    (5, 4),
-                    Point::new(0, 0),
-                    false,
-                    1,
-                );
-                draw_tile::<PIXELS>(&TILESET, Point::new(0, 0), Point::new(0, 0), 2, false);
+                ui_test();
             } else if keyboard_state.key_down(key::BACK) {
                 break;
             }

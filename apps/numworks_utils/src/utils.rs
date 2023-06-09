@@ -133,10 +133,8 @@ pub fn decimal_to_ascii_number(number: u8) -> Option<u8> {
     }
 }
 
-
-
-/// A random and most likely never used [Color] to use as transparency.
-const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
+/// A random and most likely never used [Color] to use as transparency. e700ff, ou (231, 0, 255)
+pub const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
 
 /// Looks for the parameters at the start of a PPM file, and returns them as width, height and position of the first pixel in the array.
 /// Probably never used outside of the drawing functions defined below.
@@ -183,7 +181,7 @@ fn get_image_parameters(image_bytes: &[u8]) -> (u16, u16, usize) {
 
 /// Draws a .ppm image from its bytes (read as u8 with include_bytes)
 pub fn draw_image(image: &[Color], pos: Point, size: (u16, u16), scaling: u16, transparency: bool) {
-    if transparency || scaling > 1  {
+    if transparency || scaling > 1 {
         let mut x_pos = 0;
         let mut y_pos = 0;
         for i in 0..image.len() {
@@ -224,7 +222,7 @@ pub fn draw_image(image: &[Color], pos: Point, size: (u16, u16), scaling: u16, t
     }
 }
 
-pub struct Tileset{
+pub struct Tileset {
     pub tile_size: u16,
     pub image: &'static [u8],
 }
@@ -238,7 +236,13 @@ pub fn draw_tile<const PIXELS: usize>(
     transparency: bool,
 ) {
     let image: [Color; PIXELS] = get_tile::<PIXELS>(tileset, tile);
-    draw_image(&image, pos, (tileset.tile_size, tileset.tile_size), scaling, transparency);
+    draw_image(
+        &image,
+        pos,
+        (tileset.tile_size, tileset.tile_size),
+        scaling,
+        transparency,
+    );
 }
 
 /// For really fast tiling : use scaling = 1 and transparency = false.
@@ -252,8 +256,7 @@ pub fn tiling<const PIXELS: usize>(
     transparency: bool,
     scaling: u16,
 ) {
-    let image: [Color; PIXELS] =
-        get_tile::<PIXELS>(tileset, tile);
+    let image: [Color; PIXELS] = get_tile::<PIXELS>(tileset, tile);
     for x in 0..dimensions.0 {
         for y in 0..dimensions.1 {
             draw_image(
@@ -278,9 +281,12 @@ pub fn get_tile<const PIXELS: usize>(
     let mut image: [Color; PIXELS] = [TRANSPARENCY_COLOR; PIXELS];
     let mut x_pos = 0;
     let mut y_pos = 0;
-    for a in 0..(tileset.tile_size*tileset.tile_size) as usize {
+    for a in 0..(tileset.tile_size * tileset.tile_size) as usize {
         let i = image_start
-            + 3 * (pos_in_tileset.x*tileset.tile_size + x_pos + (y_pos + pos_in_tileset.y*tileset.tile_size) * tileset_width) as usize;
+            + 3 * (pos_in_tileset.x * tileset.tile_size
+                + x_pos
+                + (y_pos + pos_in_tileset.y * tileset.tile_size) * tileset_width)
+                as usize;
         let c = Color::from_rgb888(tileset.image[i], tileset.image[i + 1], tileset.image[i + 2]);
         image[a] = c;
         x_pos += 1;
