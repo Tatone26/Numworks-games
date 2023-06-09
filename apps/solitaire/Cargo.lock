@@ -144,6 +144,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2dffe52ecf27772e601905b7522cb4ef790d2cc203488bbd0e2fe85fcb74566d"
 
 [[package]]
+name = "my_app"
+version = "0.1.0"
+dependencies = [
+ "heapless",
+ "numworks_utils",
+]
+
+[[package]]
 name = "nb"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -157,6 +165,13 @@ name = "nb"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "546c37ac5d9e56f55e73b677106873d9d9f5190605e41a856503623648488cae"
+
+[[package]]
+name = "numworks_utils"
+version = "0.1.0"
+dependencies = [
+ "heapless",
+]
 
 [[package]]
 name = "regex"
@@ -240,13 +255,6 @@ name = "semver-parser"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
-
-[[package]]
-name = "solitaire"
-version = "0.1.0"
-dependencies = [
- "heapless",
-]
 
 [[package]]
 name = "spin"

@@ -1,18 +1,15 @@
 #![no_std]
 #![no_main]
 
-pub mod eadk;
+use numworks_utils::eadk;
+use numworks_utils::menu;
+use numworks_utils::utils;
 
-pub mod menu;
-
-pub mod utils;
-
-mod game_solitaire;
-pub mod ui_solitaire;
+mod game;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]
-pub static EADK_APP_NAME: [u8; 10] = *b"SOLITAIRE\0";
+pub static EADK_APP_NAME: [u8; 6] = *b"TESTS\0";
 
 #[used]
 #[link_section = ".rodata.eadk_api_level"]
@@ -24,5 +21,5 @@ pub static EADK_APP_ICON: [u8; 2286] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {
-    game_solitaire::start();
+    game::start();
 }
