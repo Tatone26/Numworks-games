@@ -1,5 +1,3 @@
-use core::num;
-
 use heapless::Vec;
 use numworks_utils::{
     eadk::{
@@ -74,12 +72,12 @@ fn draw_card(card: &Card, pos: Point) {
     }
 }
 
-fn get_pos_from_cursor_pos(cursor_pos: CursorPos, table: &Table) -> Point {
+fn get_pos_from_cursor_pos(cursor_pos: &CursorPos, table: &Table) -> Point {
     match cursor_pos {
         CursorPos::Tableau(i) => {
-            let number_of_cards = table.tableau[i as usize].len() as u16;
+            let number_of_cards = table.tableau[*i as usize].len() as u16;
             return Point::new(
-                20 + (i as u16) * (CARD_WIDTH + 6),
+                20 + (*i as u16) * (CARD_WIDTH + 6),
                 CARD_HEIGHT
                     + 25
                     + (if number_of_cards > 0 {
@@ -87,7 +85,7 @@ fn get_pos_from_cursor_pos(cursor_pos: CursorPos, table: &Table) -> Point {
                     } else {
                         0
                     }) * {
-                        if table.tableau[i as usize].len() <= 7 {
+                        if table.tableau[*i as usize].len() <= 7 {
                             LARGE_CHAR_HEIGHT
                         } else {
                             LARGE_CHAR_HEIGHT / 2
@@ -95,9 +93,9 @@ fn get_pos_from_cursor_pos(cursor_pos: CursorPos, table: &Table) -> Point {
                     },
             );
         }
-        CursorPos::Fondations(i) => return Point::new(20 + (i as u16) * (CARD_WIDTH + 6), 10),
+        CursorPos::Fondations(i) => return Point::new(20 + (*i as u16) * (CARD_WIDTH + 6), 10),
         CursorPos::Stock(i) => {
-            if i == 1 {
+            if *i == 1 {
                 return Point::new(SCREEN_WIDTH - CARD_WIDTH - 21, 10);
             } else {
                 let mut o = 0;
@@ -112,16 +110,16 @@ fn get_pos_from_cursor_pos(cursor_pos: CursorPos, table: &Table) -> Point {
     };
 }
 
-pub fn draw_selection(cursor_pos: CursorPos, clear: bool, selected: bool, table: &Table) {
+pub fn draw_selection(cursor_pos: &CursorPos, clear: bool, selected: bool, table: &Table) {
     let pos = get_pos_from_cursor_pos(cursor_pos, table);
     display::wait_for_vblank();
     let empty: bool = {
         match cursor_pos {
-            CursorPos::Tableau(b) => table.tableau[b as usize].is_empty(),
-            CursorPos::Fondations(b) => table.fondations[b as usize].is_empty(),
+            CursorPos::Tableau(b) => table.tableau[*b as usize].is_empty(),
+            CursorPos::Fondations(b) => table.fondations[*b as usize].is_empty(),
             CursorPos::Stock(b) => {
-                (b == 0 && table.stock_iter <= 0)
-                    || (b == 1 && table.stock_iter >= table.stock.len())
+                (*b == 0 && table.stock_iter <= 0)
+                    || (*b == 1 && table.stock_iter >= table.stock.len())
             }
         }
     };
@@ -163,13 +161,13 @@ fn draw_empty_table() {
     fill_screen(BACKGROUND_COLOR);
     let table = Table::empty();
     for i in 0..4 {
-        draw_selection(CursorPos::Fondations(i), true, false, &table);
+        draw_selection(&CursorPos::Fondations(i), true, false, &table);
     }
     for i in 0..2 {
-        draw_selection(CursorPos::Stock(i), true, false, &table);
+        draw_selection(&CursorPos::Stock(i), true, false, &table);
     }
     for i in 0..7 {
-        draw_selection(CursorPos::Tableau(i), true, false, &table);
+        draw_selection(&CursorPos::Tableau(i), true, false, &table);
     }
 }
 
