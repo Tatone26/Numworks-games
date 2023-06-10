@@ -1,8 +1,9 @@
+use core::num;
+
 use heapless::Vec;
 use numworks_utils::{
     eadk::{
         display::{self, draw_string, push_rect_uniform, SCREEN_WIDTH},
-        timing::msleep,
         Color, Point, Rect,
     },
     utils::{
@@ -76,15 +77,23 @@ fn draw_card(card: &Card, pos: Point) {
 fn get_pos_from_cursor_pos(cursor_pos: CursorPos, table: &Table) -> Point {
     match cursor_pos {
         CursorPos::Tableau(i) => {
-            return Point::new(20 + (i as u16) * (CARD_WIDTH + 6), CARD_HEIGHT
-            + 25
-            + (i as u16) * {
-                if table.tableau[i as usize].len() <= 7 {
-                    LARGE_CHAR_HEIGHT
-                } else {
-                    LARGE_CHAR_HEIGHT / 2
-                }
-            })
+            let number_of_cards = table.tableau[i as usize].len() as u16;
+            return Point::new(
+                20 + (i as u16) * (CARD_WIDTH + 6),
+                CARD_HEIGHT
+                    + 25
+                    + (if number_of_cards > 0 {
+                        number_of_cards - 1
+                    } else {
+                        0
+                    }) * {
+                        if table.tableau[i as usize].len() <= 7 {
+                            LARGE_CHAR_HEIGHT
+                        } else {
+                            LARGE_CHAR_HEIGHT / 2
+                        }
+                    },
+            );
         }
         CursorPos::Fondations(i) => return Point::new(20 + (i as u16) * (CARD_WIDTH + 6), 10),
         CursorPos::Stock(i) => {
@@ -103,7 +112,7 @@ fn get_pos_from_cursor_pos(cursor_pos: CursorPos, table: &Table) -> Point {
     };
 }
 
-pub fn draw_selection(cursor_pos: CursorPos, selected: bool, table: &Table) {
+pub fn draw_selection(cursor_pos: CursorPos, clear: bool, selected: bool, table: &Table) {
     let pos = get_pos_from_cursor_pos(cursor_pos, table);
     display::wait_for_vblank();
     let empty: bool = {
@@ -116,14 +125,16 @@ pub fn draw_selection(cursor_pos: CursorPos, selected: bool, table: &Table) {
             }
         }
     };
-    if !selected && empty {
+    if clear && empty {
         draw_empty_place(pos);
     } else {
         let tile: u16 = {
             if selected {
-                3
-            } else {
+                4
+            } else if clear {
                 2
+            } else {
+                3
             }
         };
         draw_tile::<PIXELS>(&TILESET, pos, Point::new(tile, 2), 1, true);
@@ -152,18 +163,28 @@ fn draw_empty_table() {
     fill_screen(BACKGROUND_COLOR);
     let table = Table::empty();
     for i in 0..4 {
-        draw_selection(CursorPos::Fondations(i), false, &table);
+        draw_selection(CursorPos::Fondations(i), true, false, &table);
     }
     for i in 0..2 {
-        draw_selection(CursorPos::Stock(i), false, &table);
+        draw_selection(CursorPos::Stock(i), true, false, &table);
     }
     for i in 0..7 {
-        draw_selection(CursorPos::Tableau(i), false, &table);
+        draw_selection(CursorPos::Tableau(i), true, false, &table);
     }
 }
 
-fn draw_tableau_stack(stack: &Vec<Card, 52>, number: u16) {
+pub fn draw_tableau_stack(stack: &Vec<Card, 52>, number: u16) {
     if !stack.is_empty() {
+        display::wait_for_vblank();
+        push_rect_uniform(
+            Rect {
+                x: 20 + number * (CARD_WIDTH + 6),
+                y: CARD_HEIGHT + 25,
+                height: 200,
+                width: CARD_WIDTH,
+            },
+            BACKGROUND_COLOR,
+        );
         for (i, c) in stack.iter().enumerate() {
             draw_card(
                 c,
@@ -186,7 +207,7 @@ fn draw_tableau_stack(stack: &Vec<Card, 52>, number: u16) {
     }
 }
 
-fn draw_fondations_stack(stack: &Vec<Card, 13>, number: u16) {
+pub fn draw_fondations_stack(stack: &Vec<Card, 13>, number: u16) {
     if !stack.is_empty() {
         draw_card(
             stack.last().unwrap(),
@@ -208,6 +229,15 @@ pub fn draw_stock(stack: &Vec<Card, 52>, stock_iter: usize) {
                 Point::new(SCREEN_WIDTH - CARD_WIDTH - 21, 10),
             );
         }
+        push_rect_uniform(
+            Rect {
+                x: SCREEN_WIDTH - 3 * CARD_WIDTH - 21,
+                y: 10,
+                height: CARD_HEIGHT,
+                width: CARD_WIDTH * 2,
+            },
+            BACKGROUND_COLOR,
+        );
         if stock_iter > 0 {
             let start: usize = {
                 if (stock_iter as i16 - 3) > 0 {
@@ -217,10 +247,10 @@ pub fn draw_stock(stack: &Vec<Card, 52>, stock_iter: usize) {
                 }
             };
             let mut o: u16 = 0;
-            display::wait_for_vblank();
             for i in start..stock_iter {
                 let mut card: Card = stack.get(i).unwrap().clone();
                 card.visible = true;
+                display::wait_for_vblank();
                 draw_card(
                     &card,
                     Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 21 + o * CARD_WIDTH / 2, 10),
@@ -246,7 +276,7 @@ fn draw_table(table: &Table) {
     draw_stock(&table.stock, table.stock_iter);
 }
 
-pub fn ui_test(table: &Table) {
+pub fn ui_setup(table: &Table) {
     wait_for_no_keydown();
     draw_empty_table();
     draw_table(table);

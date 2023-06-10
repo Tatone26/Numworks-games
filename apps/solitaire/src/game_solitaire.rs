@@ -10,7 +10,9 @@ use numworks_utils::{
 use crate::{
     eadk::{display::push_rect_uniform, Color, Rect},
     menu::{menu, MyOption, OptionType},
-    ui_solitaire::{draw_selection, draw_stock, ui_test},
+    ui_solitaire::{
+        draw_fondations_stack, draw_selection, draw_stock, draw_tableau_stack, ui_setup,
+    },
     utils::{fill_screen, ColorConfig},
 };
 
@@ -154,12 +156,13 @@ const REPETITION_SPEED: u16 = 200;
 pub fn game(_exemple: bool) -> u8 {
     {
         let mut table = create_table();
-        ui_test(&table);
+        ui_setup(&table);
         let mut cursor_pos = CursorPos::Tableau(3);
-        draw_selection(cursor_pos, true, &table);
+        draw_selection(cursor_pos, false, false, &table);
         wait_for_no_keydown();
         let mut last_action: u64 = timing::millis();
         let mut last_action_key: u32 = key::ALPHA;
+        let mut selection: Option<CursorPos> = None;
         loop {
             let keyboard_state = keyboard::scan();
             if (keyboard_state.key_down(key::DOWN)
@@ -223,8 +226,18 @@ pub fn game(_exemple: bool) -> u8 {
                     }
                 }
                 if old_pos != cursor_pos {
-                    draw_selection(old_pos, false, &table);
-                    draw_selection(cursor_pos, true, &table);
+                    draw_selection(
+                        old_pos,
+                        true,
+                        selection.is_some() && old_pos == selection.unwrap(),
+                        &table,
+                    );
+                    draw_selection(
+                        cursor_pos,
+                        false,
+                        selection.is_some() && cursor_pos == selection.unwrap(),
+                        &table,
+                    );
                 }
                 last_action = timing::millis();
             } else if keyboard_state.key_down(key::EXE)
@@ -236,10 +249,93 @@ pub fn game(_exemple: bool) -> u8 {
                     table.stock_iter += 1;
                 }
                 draw_stock(&table.stock, table.stock_iter);
+                if selection.is_some() {
+                    if let CursorPos::Stock(_) = selection.unwrap() {
+                        selection = None;
+                    }
+                }
+                if let CursorPos::Stock(_) = cursor_pos {
+                    draw_selection(cursor_pos, false, false, &table);
+                }
                 last_action_key = key::EXE;
                 last_action = timing::millis();
-            } else if keyboard_state.key_down(key::OK) {
-                todo!();
+            } else if keyboard_state.key_down(key::OK)
+                && timing::millis() >= (last_action + REPETITION_SPEED as u64)
+            {
+                if selection.is_none() {
+                    match cursor_pos {
+                        CursorPos::Tableau(i) => {
+                            if !table.tableau[i as usize].is_empty() {
+                                selection = Some(cursor_pos)
+                            }
+                        }
+                        CursorPos::Fondations(i) => {
+                            if !table.fondations[i as usize].is_empty() {
+                                selection = Some(cursor_pos)
+                            }
+                        }
+                        CursorPos::Stock(i) => {
+                            if i == 0 && table.stock_iter > 0 {
+                                selection = Some(cursor_pos)
+                            }
+                        }
+                    }
+                    draw_selection(cursor_pos, false, selection.is_some(), &table);
+                } else {
+                    if selection.unwrap() == cursor_pos {
+                        draw_selection(cursor_pos, false, false, &table);
+                        selection = None;
+                    } else if let CursorPos::Stock(_) = cursor_pos {
+                        // Nothing to do ?
+                    } else {
+                        let selected_pos = selection.unwrap();
+                        let new_card = {
+                            match selected_pos {
+                                CursorPos::Tableau(i) => table.tableau[i as usize].pop(),
+                                CursorPos::Fondations(i) => table.fondations[i as usize].pop(),
+                                CursorPos::Stock(_) => {
+                                    Some(table.stock.remove(table.stock_iter - 1))
+                                }
+                            }
+                        };
+                        if new_card.is_some() {
+                            // TODO : verifications pour savoir si mouvement possible
+                            let mut new_card_2 = new_card.unwrap();
+                            new_card_2.visible = true;
+                            match selected_pos {
+                                CursorPos::Tableau(i) => {
+                                    if !table.tableau[i as usize].is_empty() {
+                                        table.tableau[i as usize].last_mut().unwrap().visible =
+                                            true;
+                                    }
+                                    draw_tableau_stack(&table.tableau[i as usize], i as u16);
+                                }
+                                CursorPos::Fondations(i) => {
+                                    draw_fondations_stack(&table.fondations[i as usize], i as u16)
+                                }
+                                CursorPos::Stock(_) => {
+                                    table.stock_iter -= 1;
+                                    draw_stock(&table.stock, table.stock_iter)
+                                }
+                            }
+                            match cursor_pos {
+                                CursorPos::Tableau(i) => unsafe {
+                                    table.tableau[i as usize].push_unchecked(new_card_2);
+                                    draw_tableau_stack(&table.tableau[i as usize], i as u16);
+                                },
+                                CursorPos::Fondations(i) => unsafe {
+                                    table.fondations[i as usize].push_unchecked(new_card_2);
+                                    draw_fondations_stack(&table.fondations[i as usize], i as u16);
+                                },
+                                _ => (), // Should NOT be possible.
+                            }
+                            selection = None;
+                            draw_selection(cursor_pos, false, false, &table);
+                        }
+                    }
+                }
+                last_action_key = key::OK;
+                last_action = timing::millis();
             } else if !keyboard_state.key_down(last_action_key) {
                 last_action = timing::millis() - REPETITION_SPEED as u64;
             }
