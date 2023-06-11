@@ -22,7 +22,7 @@ const NAMES_LIST: [&'static str; 13] = [
     "A\0", "2\0", "3\0", "4\0", "5\0", "6\0", "7\0", "8\0", "9\0", "10\0", "J\0", "Q\0", "K\0",
 ];
 
-const BACKGROUND_COLOR: Color = Color::from_rgb888(1, 115, 55);
+pub const BACKGROUND_COLOR: Color = Color::from_rgb888(1, 115, 55);
 const CARD_HEIGHT: u16 = 56;
 const CARD_WIDTH: u16 = 35;
 const HIDDEN_CARD_TILE: u16 = 4;
@@ -110,7 +110,13 @@ fn get_pos_from_cursor_pos(cursor_pos: &CursorPos, table: &Table) -> Point {
     };
 }
 
-pub fn draw_selection(cursor_pos: &CursorPos, clear: bool, selected: bool, table: &Table) {
+pub fn draw_selection(
+    cursor_pos: &CursorPos,
+    clear: bool,
+    selected: bool,
+    table: &Table,
+    selection_size: u8,
+) {
     let pos = get_pos_from_cursor_pos(cursor_pos, table);
     display::wait_for_vblank();
     let empty: bool = {
@@ -135,7 +141,6 @@ pub fn draw_selection(cursor_pos: &CursorPos, clear: bool, selected: bool, table
                 3
             }
         };
-        draw_tile::<PIXELS>(&TILESET, pos, Point::new(tile, 2), 1, true);
         draw_tile::<PIXELS>(
             &TILESET,
             Point::new(pos.x, pos.y + TILESET.tile_size),
@@ -143,6 +148,31 @@ pub fn draw_selection(cursor_pos: &CursorPos, clear: bool, selected: bool, table
             1,
             true,
         );
+        match cursor_pos {
+            CursorPos::Tableau(b) => {
+                let stack = &table.tableau[*b as usize];
+                for i in 0..selection_size {
+                    draw_tile::<PIXELS>(
+                        &TILESET,
+                        Point::new(
+                            pos.x,
+                            pos.y
+                                - (i as u16) * {
+                                    if stack.len() <= 7 {
+                                        LARGE_CHAR_HEIGHT
+                                    } else {
+                                        LARGE_CHAR_HEIGHT / 2
+                                    }
+                                },
+                        ),
+                        Point::new(tile, 2),
+                        1,
+                        true,
+                    );
+                }
+            }
+            _ => draw_tile::<PIXELS>(&TILESET, pos, Point::new(tile, 2), 1, true),
+        }
     }
 }
 
@@ -161,13 +191,13 @@ fn draw_empty_table() {
     fill_screen(BACKGROUND_COLOR);
     let table = Table::empty();
     for i in 0..4 {
-        draw_selection(&CursorPos::Fondations(i), true, false, &table);
+        draw_selection(&CursorPos::Fondations(i), true, false, &table, 1);
     }
     for i in 0..2 {
-        draw_selection(&CursorPos::Stock(i), true, false, &table);
+        draw_selection(&CursorPos::Stock(i), true, false, &table, 1);
     }
     for i in 0..7 {
-        draw_selection(&CursorPos::Tableau(i), true, false, &table);
+        draw_selection(&CursorPos::Tableau(i), true, false, &table, 1);
     }
 }
 
@@ -237,13 +267,7 @@ pub fn draw_stock(stack: &Vec<Card, 52>, stock_iter: usize) {
             BACKGROUND_COLOR,
         );
         if stock_iter > 0 {
-            let start: usize = {
-                if (stock_iter as i16 - 3) > 0 {
-                    stock_iter - 3
-                } else {
-                    0
-                }
-            };
+            let start: usize = { stock_iter.saturating_sub(3) };
             let mut o: u16 = 0;
             for i in start..stock_iter {
                 let mut card: Card = stack.get(i).unwrap().clone();

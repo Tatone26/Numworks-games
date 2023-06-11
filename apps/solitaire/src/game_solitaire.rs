@@ -1,6 +1,7 @@
 use heapless::Vec;
 use numworks_utils::{
     eadk::{key, keyboard, timing, State},
+    menu::pause_menu,
     utils::{randint, wait_for_no_keydown},
 };
 
@@ -9,18 +10,17 @@ use crate::{
     menu::{menu, MyOption, OptionType},
     ui_solitaire::{
         draw_fondations_stack, draw_selection, draw_stock, draw_tableau_stack, ui_setup,
+        BACKGROUND_COLOR,
     },
     utils::{fill_screen, ColorConfig},
 };
 
 // This dictates the principal colors that will be used
 const COLOR_CONFIG: ColorConfig = ColorConfig {
-    text: Color::BLACK,
-    bckgrd: Color::WHITE,
+    text: Color::WHITE,
+    bckgrd: BACKGROUND_COLOR,
     alt: Color::RED,
 };
-
-static mut EXEMPLE: bool = false;
 
 fn vis_addon() {
     push_rect_uniform(
@@ -36,12 +36,12 @@ fn vis_addon() {
 /// Menu, Options and Game start
 pub fn start() {
     let mut opt: [&mut MyOption; 1] = [&mut MyOption {
-        name: "Option !\0",
+        name: "Move anywhere !\0",
         value: 0,
         possible_values: {
             let mut v = Vec::new();
-            unsafe { v.push_unchecked((OptionType::Bool(true), "True\0")) };
-            unsafe { v.push_unchecked((OptionType::Bool(false), "False\0")) };
+            unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
+            unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
             v
         },
     }];
@@ -55,9 +55,6 @@ pub fn start() {
         );
         // The menu does everything itself !
         if start == 0 {
-            unsafe {
-                EXEMPLE = opt[0].get_param_value(); // You could use mutable statics, but it is not very good
-            }
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
                 let action = game(opt[0].get_param_value()); // calling the game based on the parameters is better
@@ -142,16 +139,17 @@ impl FromValue for u8 {
 const REPETITION_SPEED: u16 = 200;
 
 /// The entire game is here.
-pub fn game(_exemple: bool) -> u8 {
+pub fn game(move_anywhere: bool) -> u8 {
     {
         let mut table = create_table();
         ui_setup(&table);
         let mut cursor_pos = CursorPos::Tableau(3);
-        draw_selection(&cursor_pos, false, false, &table);
+        draw_selection(&cursor_pos, false, false, &table, 1);
         wait_for_no_keydown();
         let mut last_action: u64 = timing::millis();
         let mut last_action_key: u32 = key::ALPHA;
         let mut selection: Option<CursorPos> = None;
+        let mut selection_size: u8 = 1;
         loop {
             let keyboard_state = keyboard::scan();
             if (keyboard_state.key_down(key::DOWN)
@@ -178,12 +176,18 @@ pub fn game(_exemple: bool) -> u8 {
                         true,
                         selection.is_some() && old_pos == selection.unwrap(),
                         &table,
+                        if selection.is_some() && old_pos == selection.unwrap() {
+                            selection_size
+                        } else {
+                            1
+                        },
                     );
                     draw_selection(
                         &cursor_pos,
                         false,
                         selection.is_some() && cursor_pos == selection.unwrap(),
                         &table,
+                        1,
                     );
                 }
                 last_action = timing::millis();
@@ -193,21 +197,81 @@ pub fn game(_exemple: bool) -> u8 {
                 turn_stock(&mut table, &mut selection, &cursor_pos);
                 last_action_key = key::EXE;
                 last_action = timing::millis();
+            } else if keyboard_state.key_down(key::SHIFT)
+                && timing::millis() >= (last_action + REPETITION_SPEED as u64)
+            {
+                if let CursorPos::Tableau(b) = cursor_pos {
+                    if selection.is_some() && selection.unwrap() == cursor_pos {
+                        if selection_size < table.tableau[b as usize].len() as u8 {
+                            selection_size += 1;
+                            draw_selection(&cursor_pos, false, true, &table, selection_size);
+                        }
+                    }
+                }
+                last_action_key = key::SHIFT;
+                last_action = timing::millis();
+            } else if keyboard_state.key_down(key::ALPHA)
+                && timing::millis() >= (last_action + REPETITION_SPEED as u64)
+            {
+                if let CursorPos::Tableau(_) = cursor_pos {
+                    if selection.is_some() && selection.unwrap() == cursor_pos {
+                        if selection_size > 1 {
+                            draw_selection(&cursor_pos, true, false, &table, selection_size);
+                            selection_size -= 1;
+                            draw_selection(&cursor_pos, false, true, &table, selection_size);
+                        }
+                    }
+                }
+                last_action_key = key::ALPHA;
+                last_action = timing::millis();
             } else if keyboard_state.key_down(key::OK)
                 && timing::millis() >= (last_action + REPETITION_SPEED as u64)
             {
                 if let CursorPos::Stock(1) = cursor_pos {
                     turn_stock(&mut table, &mut selection, &cursor_pos);
                 } else {
-                    move_card(&mut table, &mut selection, &cursor_pos);
+                    move_card(
+                        &mut table,
+                        &mut selection,
+                        &mut selection_size,
+                        &cursor_pos,
+                        move_anywhere,
+                    );
                 }
                 last_action_key = key::OK;
                 last_action = timing::millis();
+            } else if keyboard_state.key_down(key::BACK) {
+                if selection.is_some() {
+                    draw_selection(&selection.unwrap(), true, false, &table, selection_size);
+                    if selection.unwrap() == cursor_pos {
+                        draw_selection(&cursor_pos, false, false, &table, 1);
+                    }
+                    selection = None;
+                    selection_size = 1;
+                }
             } else if !keyboard_state.key_down(last_action_key) {
                 last_action = timing::millis() - REPETITION_SPEED as u64;
             }
+            if keyboard_state.key_down(key::BACKSPACE) {
+                let action = pause_menu(&COLOR_CONFIG, 0);
+                if action == 0 {
+                    ui_setup(&table);
+                    draw_selection(
+                        &cursor_pos,
+                        false,
+                        selection.is_some() && selection.unwrap() == cursor_pos,
+                        &table,
+                        1,
+                    );
+                    if selection.is_some() {
+                        draw_selection(&selection.unwrap(), false, true, &table, selection_size);
+                    }
+                    last_action = timing::millis();
+                } else {
+                    return action;
+                }
+            }
         }
-        return 1;
     }
 }
 
@@ -288,12 +352,18 @@ fn turn_stock(table: &mut Table, selection: &mut Option<CursorPos>, cursor_pos: 
     }
     if let CursorPos::Stock(_) = cursor_pos {
         // Do not redraw selection if not necessary. That's the kind of optimisations we want.
-        draw_selection(cursor_pos, false, false, &table);
+        draw_selection(cursor_pos, false, false, &table, 1);
     }
 }
 
 /// God help me
-fn move_card(table: &mut Table, selection: &mut Option<CursorPos>, cursor_pos: &CursorPos) {
+fn move_card(
+    table: &mut Table,
+    selection: &mut Option<CursorPos>,
+    selection_size: &mut u8,
+    cursor_pos: &CursorPos,
+    move_anywhere: bool,
+) {
     if selection.is_none() {
         match cursor_pos {
             CursorPos::Tableau(i) => {
@@ -312,15 +382,17 @@ fn move_card(table: &mut Table, selection: &mut Option<CursorPos>, cursor_pos: &
                 }
             }
         }
-        draw_selection(cursor_pos, false, selection.is_some(), &table);
+        *selection_size = 1;
+        draw_selection(cursor_pos, false, selection.is_some(), &table, 1);
     } else {
         if selection.unwrap() == *cursor_pos {
             // If same place, then unselect
             *selection = None;
-            draw_selection(cursor_pos, false, false, &table);
+            draw_selection(cursor_pos, false, false, &table, 1);
+            *selection_size = 1;
         } else if let CursorPos::Stock(_) = cursor_pos {
             // if there is a selection but we click on stock ? The other case are taken cared of outside of this function.
-        } else if is_move_possible(table, cursor_pos, &selection.unwrap()) {
+        } else if move_anywhere || is_move_possible(table, cursor_pos, &selection.unwrap()) {
             // Here, we move the card (if possible of course.)
             let selected_pos = selection.unwrap();
             let mut new_card = {
@@ -360,8 +432,9 @@ fn move_card(table: &mut Table, selection: &mut Option<CursorPos>, cursor_pos: &
                 },
                 _ => (), // Should NOT be possible.
             }
-            draw_selection(cursor_pos, false, false, &table);
+            draw_selection(cursor_pos, false, false, &table, 1);
             *selection = None;
+            *selection_size = 1;
         }
     }
 }
