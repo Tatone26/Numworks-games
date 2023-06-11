@@ -4,6 +4,7 @@ use numworks_utils::{
         display::{self, draw_string, push_rect_uniform, SCREEN_WIDTH},
         Color, Point, Rect,
     },
+    menu::MenuConfig,
     utils::{
         draw_tile, fill_screen, wait_for_no_keydown, Tileset, LARGE_CHAR_HEIGHT, LARGE_CHAR_WIDTH,
     },
@@ -288,7 +289,7 @@ pub fn draw_stock(stack: &Vec<Card, 52>, stock_iter: usize) {
     }
 }
 
-fn draw_table(table: &Table) {
+pub fn draw_table(table: &Table) {
     for i in 0..7 {
         draw_tableau_stack(&table.tableau[i], i as u16);
     }
@@ -339,3 +340,14 @@ pub fn menu_vis_addon() {
         Point::new(x_start + (CARD_WIDTH + 5) * 3, 50),
     );
 }
+
+pub const REPLAY_MENU_CONFIG: MenuConfig = MenuConfig {
+    choices: &["Resume\0", "Menu\0", "Exit\0"],
+    rect_margins: (20, 10),
+    dimensions: (
+        SCREEN_WIDTH * 2 / 5,
+        LARGE_CHAR_HEIGHT * 7,
+    ),
+    offset: (0, 50),
+    back_key_return: 0,
+};

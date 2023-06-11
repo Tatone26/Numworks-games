@@ -1,16 +1,16 @@
 use heapless::Vec;
 use numworks_utils::{
     eadk::{key, keyboard, timing, State},
-    menu::pause_menu,
-    utils::{randint, wait_for_no_keydown},
+    menu::{pause_menu, selection_menu},
+    utils::{draw_centered_string, randint, wait_for_no_keydown},
 };
 
 use crate::{
-    eadk::{display::push_rect_uniform, Color, Rect},
+    eadk::Color,
     menu::{menu, MyOption, OptionType},
     ui_solitaire::{
-        draw_fondations_stack, draw_selection, draw_stock, draw_tableau_stack, menu_vis_addon,
-        ui_setup, BACKGROUND_COLOR,
+        draw_fondations_stack, draw_selection, draw_stock, draw_tableau_stack,
+        menu_vis_addon, ui_setup, BACKGROUND_COLOR, REPLAY_MENU_CONFIG,
     },
     utils::{fill_screen, ColorConfig},
 };
@@ -254,6 +254,12 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
                         &cursor_pos,
                         move_anywhere,
                     );
+                    if check_for_win(&table) {
+                        auto_win(&mut table);
+                        timing::msleep(1000);
+                        let action = selection_menu(&COLOR_CONFIG, &REPLAY_MENU_CONFIG, false);
+                        return action;
+                    }
                 }
                 last_action_key = key::OK;
                 last_action = timing::millis();
@@ -569,4 +575,62 @@ fn create_table() -> Table {
     }
     table.stock = deck;
     return table;
+}
+
+fn check_for_win(table: &Table) -> bool {
+    if !table.stock.is_empty() {
+        return false;
+    } else {
+        for v in &table.fondations {
+            if v.is_empty() {
+                return false;
+            }
+        }
+        for v in table.tableau.iter().rev() {
+            for c in v {
+                if !c.visible {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+fn auto_win(table: &mut Table) {
+    while {
+        let mut test = false;
+        for v in &table.tableau {
+            if !v.is_empty() {
+                test = true;
+                break;
+            }
+        }
+        test
+    } {
+        'test: for (i, fond) in table.fondations.iter_mut().enumerate() {
+            let last_card = fond.last().unwrap(); // Safe because of check_for_win
+            let card_to_find = Card {
+                suit: last_card.suit,
+                number: last_card.number + 1,
+                visible: true,
+            };
+            for (e, v) in table.tableau.iter_mut().enumerate() {
+                if v.last().is_some()
+                    && v.last().unwrap().suit == card_to_find.suit
+                    && v.last().unwrap().number == card_to_find.number
+                {
+                    let card_to_move = v.pop();
+                    if card_to_move.is_some() {
+                        let _ = fond.push(card_to_move.unwrap());
+                    }
+                    draw_tableau_stack(v, e as u16);
+                    draw_fondations_stack(fond, i as u16);
+                    timing::msleep(100);
+                    break 'test;
+                }
+            }
+        }
+    }
+    draw_centered_string("BRAVO !\0", 50, true, &COLOR_CONFIG, true);
 }
