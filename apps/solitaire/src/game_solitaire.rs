@@ -2,15 +2,15 @@ use heapless::Vec;
 use numworks_utils::{
     eadk::{key, keyboard, timing, State},
     menu::{pause_menu, selection_menu},
-    utils::{draw_centered_string, randint, wait_for_no_keydown},
+    utils::{draw_centered_string, randint, wait_for_no_keydown, fading},
 };
 
 use crate::{
     eadk::Color,
     menu::{menu, MyOption, OptionType},
     ui_solitaire::{
-        draw_fondations_stack, draw_selection, draw_stock, draw_tableau_stack,
-        menu_vis_addon, ui_setup, BACKGROUND_COLOR, REPLAY_MENU_CONFIG,
+        draw_fondations_stack, draw_selection, draw_stock, draw_tableau_stack, menu_vis_addon,
+        ui_setup, BACKGROUND_COLOR, REPLAY_MENU_CONFIG,
     },
     utils::{fill_screen, ColorConfig},
 };
@@ -24,20 +24,10 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption; 2] = [
-        &mut MyOption {
-            name: "Move anywhere ! - DEBUG\0",
-            value: 1,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
-                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
-                v
-            },
-        },
+    let mut opt: [&mut MyOption; 1] = [
         &mut MyOption {
             name: "Difficulty\0",
-            value: 0,
+            value: 2,
             possible_values: {
                 let mut v = Vec::new();
                 unsafe { v.push_unchecked((OptionType::Int(1), "Easy\0")) };
@@ -59,7 +49,7 @@ pub fn start() {
         if start == 0 {
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                let action = game(opt[1].get_param_value(), opt[0].get_param_value()); // calling the game based on the parameters is better
+                let action = game(opt[0].get_param_value(), false); // calling the game based on the parameters is better
                 if action == 2 {
                     // 2 means quitting
                     return;
@@ -263,6 +253,34 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
                 }
                 last_action_key = key::OK;
                 last_action = timing::millis();
+            } else if keyboard_state.key_down(key::TOOLBOX)
+                && timing::millis() >= (last_action + REPETITION_SPEED as u64)
+            {
+                // Auto-move to fondations piles.
+                for i in 0..4 {
+                    if is_move_possible(
+                        &mut table,
+                        &CursorPos::Fondations(i),
+                        &cursor_pos,
+                        &selection_size,
+                    ) {
+                        move_card(
+                            &mut table,
+                            &mut Some(cursor_pos),
+                            &mut selection_size,
+                            &CursorPos::Fondations(i),
+                            false,
+                        );
+                        if selection.is_some() && selection.unwrap() == CursorPos::Fondations(i) {
+                            selection = None;
+                        }
+                        draw_selection(&CursorPos::Fondations(i), true, false, &table, 1);
+                        draw_selection(&cursor_pos, false, false, &table, 1);
+                        break;
+                    }
+                }
+                last_action = timing::millis();
+                last_action_key = key::TOOLBOX;
             } else if keyboard_state.key_down(key::BACK) {
                 if selection.is_some() {
                     draw_selection(&selection.unwrap(), true, false, &table, selection_size);
@@ -276,7 +294,7 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
                 last_action = timing::millis() - REPETITION_SPEED as u64;
             }
             if keyboard_state.key_down(key::BACKSPACE) {
-                let action = pause_menu(&COLOR_CONFIG, 0);
+                let action = pause_menu(&COLOR_CONFIG, 4);
                 if action == 0 {
                     ui_setup(&table);
                     draw_selection(
@@ -291,6 +309,7 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
                     }
                     last_action = timing::millis();
                 } else {
+                    fading(500);
                     return action;
                 }
             }
@@ -370,6 +389,9 @@ fn turn_stock(
         table.stock_iter = 0;
     } else {
         table.stock_iter += difficulty as usize;
+        if table.stock_iter > table.stock.len() {
+            table.stock_iter = table.stock.len()
+        }
     }
     draw_stock(&table.stock, table.stock_iter);
     if selection.is_some() {

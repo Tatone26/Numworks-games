@@ -91,7 +91,7 @@ checksum = "bebd363326d05ec3e2f532ab7660680f3b02130d780c299bca73469d521bc0ed"
 
 [[package]]
 name = "solitaire"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "heapless",
  "numworks_utils",

@@ -97,7 +97,7 @@ fn get_pos_from_cursor_pos(cursor_pos: &CursorPos, table: &Table) -> Point {
         CursorPos::Fondations(i) => return Point::new(20 + (*i as u16) * (CARD_WIDTH + 6), 10),
         CursorPos::Stock(i) => {
             if *i == 1 {
-                return Point::new(SCREEN_WIDTH - CARD_WIDTH - 21, 10);
+                return Point::new(SCREEN_WIDTH - CARD_WIDTH - 19, 10);
             } else {
                 let mut o = 0;
                 if table.stock_iter == 2 {
@@ -105,7 +105,7 @@ fn get_pos_from_cursor_pos(cursor_pos: &CursorPos, table: &Table) -> Point {
                 } else if table.stock_iter >= 2 {
                     o = 2;
                 }
-                return Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 21 + o * CARD_WIDTH / 2, 10);
+                return Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 23 + o * CARD_WIDTH / 2, 10);
             }
         }
     };
@@ -251,16 +251,16 @@ pub fn draw_stock(stack: &Vec<Card, 52>, stock_iter: usize) {
     display::wait_for_vblank();
     if !stack.is_empty() {
         if stock_iter >= stack.len() {
-            draw_empty_place(Point::new(SCREEN_WIDTH - CARD_WIDTH - 21, 10));
+            draw_empty_place(Point::new(SCREEN_WIDTH - CARD_WIDTH - 19, 10));
         } else {
             draw_card(
                 stack.get(stock_iter).unwrap(),
-                Point::new(SCREEN_WIDTH - CARD_WIDTH - 21, 10),
+                Point::new(SCREEN_WIDTH - CARD_WIDTH - 19, 10),
             );
         }
         push_rect_uniform(
             Rect {
-                x: SCREEN_WIDTH - 3 * CARD_WIDTH - 21,
+                x: SCREEN_WIDTH - 3 * CARD_WIDTH - 23,
                 y: 10,
                 height: CARD_HEIGHT,
                 width: CARD_WIDTH * 2,
@@ -276,16 +276,16 @@ pub fn draw_stock(stack: &Vec<Card, 52>, stock_iter: usize) {
                 display::wait_for_vblank();
                 draw_card(
                     &card,
-                    Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 21 + o * CARD_WIDTH / 2, 10),
+                    Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 23 + o * CARD_WIDTH / 2, 10),
                 );
                 o += 1;
             }
         } else {
-            draw_empty_place(Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 21, 10));
+            draw_empty_place(Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 23, 10));
         }
     } else {
-        draw_empty_place(Point::new(SCREEN_WIDTH - CARD_WIDTH - 21, 10));
-        draw_empty_place(Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 21, 10))
+        draw_empty_place(Point::new(SCREEN_WIDTH - CARD_WIDTH - 19, 10));
+        draw_empty_place(Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 23, 10))
     }
 }
 
