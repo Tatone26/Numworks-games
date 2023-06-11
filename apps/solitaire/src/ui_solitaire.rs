@@ -9,7 +9,7 @@ use numworks_utils::{
     },
 };
 
-use crate::game_solitaire::{Card, CursorPos, Table};
+use crate::game_solitaire::{Card, CursorPos, Suit, Table};
 
 /// Images work really well with square tiles. You can still draw other images, but it is less good.
 static TILESET: Tileset = Tileset {
@@ -202,17 +202,17 @@ fn draw_empty_table() {
 }
 
 pub fn draw_tableau_stack(stack: &Vec<Card, 52>, number: u16) {
+    display::wait_for_vblank();
+    push_rect_uniform(
+        Rect {
+            x: 20 + number * (CARD_WIDTH + 6),
+            y: CARD_HEIGHT + 25,
+            height: 200,
+            width: CARD_WIDTH,
+        },
+        BACKGROUND_COLOR,
+    );
     if !stack.is_empty() {
-        display::wait_for_vblank();
-        push_rect_uniform(
-            Rect {
-                x: 20 + number * (CARD_WIDTH + 6),
-                y: CARD_HEIGHT + 25,
-                height: 200,
-                width: CARD_WIDTH,
-            },
-            BACKGROUND_COLOR,
-        );
         for (i, c) in stack.iter().enumerate() {
             draw_card(
                 c,
@@ -302,4 +302,40 @@ pub fn ui_setup(table: &Table) {
     wait_for_no_keydown();
     draw_empty_table();
     draw_table(table);
+}
+
+pub fn menu_vis_addon() {
+    let x_start = SCREEN_WIDTH / 2 - 2 * CARD_WIDTH - 7;
+    draw_card(
+        &Card {
+            suit: Suit::Heart,
+            number: 0,
+            visible: true,
+        },
+        Point::new(x_start, 50),
+    );
+    draw_card(
+        &Card {
+            suit: Suit::Spade,
+            number: 10,
+            visible: true,
+        },
+        Point::new(x_start + CARD_WIDTH + 5, 50),
+    );
+    draw_card(
+        &Card {
+            suit: Suit::Diamond,
+            number: 11,
+            visible: true,
+        },
+        Point::new(x_start + (CARD_WIDTH + 5) * 2, 50),
+    );
+    draw_card(
+        &Card {
+            suit: Suit::Club,
+            number: 12,
+            visible: true,
+        },
+        Point::new(x_start + (CARD_WIDTH + 5) * 3, 50),
+    );
 }
