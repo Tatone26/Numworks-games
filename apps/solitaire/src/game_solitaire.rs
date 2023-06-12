@@ -2,7 +2,7 @@ use heapless::Vec;
 use numworks_utils::{
     eadk::{key, keyboard, timing, State},
     menu::{pause_menu, selection_menu},
-    utils::{draw_centered_string, randint, wait_for_no_keydown, fading},
+    utils::{draw_centered_string, fading, randint, wait_for_no_keydown},
 };
 
 use crate::{
@@ -24,19 +24,17 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption; 1] = [
-        &mut MyOption {
-            name: "Difficulty\0",
-            value: 2,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Int(1), "Easy\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(2), "Normal\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(3), "HARD\0")) };
-                v
-            },
+    let mut opt: [&mut MyOption; 1] = [&mut MyOption {
+        name: "Difficulty\0",
+        value: 2,
+        possible_values: {
+            let mut v = Vec::new();
+            unsafe { v.push_unchecked((OptionType::Int(1), "Easy\0")) };
+            unsafe { v.push_unchecked((OptionType::Int(2), "Normal\0")) };
+            unsafe { v.push_unchecked((OptionType::Int(3), "HARD\0")) };
+            v
         },
-    ];
+    }];
     loop {
         let start = menu(
             "SOLITAIRE\0",
@@ -276,6 +274,12 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
                         }
                         draw_selection(&CursorPos::Fondations(i), true, false, &table, 1);
                         draw_selection(&cursor_pos, false, false, &table, 1);
+                        if check_for_win(&table) {
+                            auto_win(&mut table);
+                            timing::msleep(1000);
+                            let action = selection_menu(&COLOR_CONFIG, &REPLAY_MENU_CONFIG, false);
+                            return action;
+                        }
                         break;
                     }
                 }
@@ -528,34 +532,53 @@ fn is_move_possible(
 ) -> bool {
     let card_to_move = {
         match selection {
-            CursorPos::Tableau(i) => table.tableau[*i as usize]
-                .get(table.tableau[*i as usize].len() - *selection_size as usize),
+            CursorPos::Tableau(i) => {
+                table.tableau[*i as usize].get(if { table.tableau[*i as usize].len() } > 0 {
+                    table.tableau[*i as usize].len() - *selection_size as usize
+                } else {
+                    0
+                })
+            }
             CursorPos::Fondations(i) => table.fondations[*i as usize].last(),
-            CursorPos::Stock(_) => table.stock.get(table.stock_iter - 1),
-        }
-    }
-    .unwrap(); // no check, should not be any problem here... BUT BE WARNED
-    match cursor_pos {
-        CursorPos::Tableau(i) => {
-            let base_card = table.tableau[*i as usize].last();
-            if base_card.is_some() {
-                return is_card_placable_on_other_card(card_to_move, base_card.unwrap());
-            } else {
-                return card_to_move.number == 12;
+            CursorPos::Stock(_) => {
+                if table.stock_iter > 0 {
+                    table.stock.get(table.stock_iter - 1)
+                } else {
+                    None
+                }
             }
         }
-        CursorPos::Fondations(i) => {
-            if table.fondations[*i as usize].is_empty() {
-                return card_to_move.number == 0;
-            } else if (table.fondations[*i as usize].last().unwrap().suit == card_to_move.suit)
-                && (table.fondations[*i as usize].last().unwrap().number == card_to_move.number - 1)
-            {
-                return true;
-            } else {
-                return false;
+    };
+    if card_to_move.is_some() {
+        match cursor_pos {
+            CursorPos::Tableau(i) => {
+                let base_card = table.tableau[*i as usize].last();
+                if base_card.is_some() {
+                    return is_card_placable_on_other_card(
+                        card_to_move.unwrap(),
+                        base_card.unwrap(),
+                    );
+                } else {
+                    return card_to_move.unwrap().number == 12;
+                }
             }
+            CursorPos::Fondations(i) => {
+                if table.fondations[*i as usize].is_empty() {
+                    return card_to_move.unwrap().number == 0;
+                } else if (table.fondations[*i as usize].last().unwrap().suit
+                    == card_to_move.unwrap().suit)
+                    && (table.fondations[*i as usize].last().unwrap().number
+                        == card_to_move.unwrap().number - 1)
+                {
+                    return true;
+                } else {
+                    return false;
+                }
+            }
+            CursorPos::Stock(_) => return false,
         }
-        CursorPos::Stock(_) => return false,
+    } else {
+        return false;
     }
 }
 
@@ -654,5 +677,5 @@ fn auto_win(table: &mut Table) {
             }
         }
     }
-    draw_centered_string("BRAVO !\0", 50, true, &COLOR_CONFIG, true);
+    draw_centered_string(" BRAVO ! \0", 75, true, &COLOR_CONFIG, false);
 }
