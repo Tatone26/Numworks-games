@@ -186,6 +186,12 @@ pub mod display {
         }
     }
 
+    pub fn pull_rect(rect : Rect, pixels : &[Color]) {
+        unsafe {
+            eadk_display_pull_rect(rect, pixels.as_ptr());
+        }
+    }
+
     pub fn draw_string(
         string: &str,
         pos: Point,
@@ -215,6 +221,7 @@ pub mod display {
             background_color: Color,
         );
         fn eadk_display_wait_for_vblank();
+        fn eadk_display_pull_rect(rect : Rect, color: *const Color);
     }
 }
 

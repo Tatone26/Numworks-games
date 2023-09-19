@@ -5,7 +5,8 @@ use numworks_utils::eadk;
 use numworks_utils::menu;
 use numworks_utils::utils;
 
-mod game_p4;
+pub mod game_p4;
+pub mod IA_p4;
 pub mod ui_p4;
 
 #[used]
