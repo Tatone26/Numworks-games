@@ -1,4 +1,7 @@
-use heapless::Vec;
+use core::str::FromStr;
+
+use heapless::{String, Vec};
+use numworks_utils::utils::draw_centered_string;
 
 use crate::{
     eadk::{
@@ -91,6 +94,13 @@ pub fn game(_exemple: bool) -> u8 {
             &COLOR_CONFIG,
             true,
         );
+        let memory_test: Vec<u16, 64000> = Vec::new(); // yes to 32000, 64000,  no to 320000, 264000, 128000, 96000
+                                                       // from this, I can maybe conclude that I have around 128 000 bytes at my disposition, which is around 125 Kb.
+                                                       // Good news, it passes the apparent 32Kb stack size !
+        let mut text: String<52> = String::from_str("Memory test passed ! ").unwrap();
+        text.push(memory_test.len() as u8 as char).unwrap();
+        draw_centered_string(&text, 50, true, &COLOR_CONFIG, true);
+
         loop {
             let keyboard_state = keyboard::scan();
             if keyboard_state.key_down(key::OK) {
