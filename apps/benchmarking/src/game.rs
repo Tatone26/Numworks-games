@@ -1,10 +1,14 @@
 use core::str::FromStr;
 
+use engine::scene::Scene;
 use heapless::{String, Vec};
 use numworks_utils::{
-    eadk::display::{SCREEN_HEIGHT, SCREEN_WIDTH},
+    eadk::{
+        battery::battery_charging,
+        display::{SCREEN_HEIGHT, SCREEN_WIDTH},
+    },
     menu::MAX_OPTIONS_VALUES,
-    utils::draw_centered_string,
+    utils::{draw_centered_string, TRANSPARENCY_COLOR},
 };
 
 use crate::{
@@ -95,27 +99,62 @@ pub fn game(_exemple: bool) -> u8 {
         let mut text: String<52> = String::from_str("Memory test passed ! ").unwrap();
         text.push(memory_test.len() as u8 as char).unwrap();
         draw_centered_string(&text, 50, true, &COLOR_CONFIG, true);
-
         loop {
             let keyboard_state = keyboard::scan();
             if keyboard_state.key_down(key::OK) {
                 wait_for_no_keydown();
                 // fill_screen(Color::WHITE);
-                let image = engine::image::Image::from_bytes(engine::TEST_DATA);
-                display::wait_for_vblank();
-                image.draw(Point {
-                    x: SCREEN_WIDTH - image.width,
-                    y: SCREEN_HEIGHT - image.height,
-                });
-                image.draw_part(
-                    Rect {
-                        x: 0,
-                        y: 0,
-                        width: 50,
-                        height: 50,
+                let image = engine::image::Image::from_bytes(engine::TEST_DATA_2);
+
+                let background = engine::sprite::Sprite {
+                    pos: Point { x: 0, y: 0 },
+                    linked_image: &image,
+                    linked_image_part: Rect {
+                        x: 35,
+                        y: 70,
+                        width: 35,
+                        height: 56,
                     },
-                    Point { x: 0, y: 0 },
-                )
+                    transparency: None,
+                    z_position: 0,
+                    sprite_type: engine::sprite::SpriteType::Fixed,
+                    moved: false,
+                };
+                let sprite = engine::sprite::Sprite {
+                    pos: Point { x: 0, y: 0 },
+                    linked_image: &image,
+                    linked_image_part: Rect {
+                        x: 105,
+                        y: 70,
+                        width: 35,
+                        height: 56,
+                    },
+                    transparency: Some(TRANSPARENCY_COLOR),
+                    z_position: 1,
+                    sprite_type: engine::sprite::SpriteType::Movable,
+                    moved: false,
+                };
+                let sprite2 = engine::sprite::Sprite {
+                    pos: Point { x: 10, y: 10 },
+                    linked_image: &image,
+                    linked_image_part: Rect {
+                        x: 140,
+                        y: 70,
+                        width: 35,
+                        height: 56,
+                    },
+                    transparency: Some(TRANSPARENCY_COLOR),
+                    z_position: 0,
+                    sprite_type: engine::sprite::SpriteType::Movable,
+                    moved: false,
+                };
+                let mut scene: Scene<'_, 10> = Scene::default();
+                scene.insert(&sprite);
+                scene.insert(&sprite2);
+                scene.insert(&background);
+                display::wait_for_vblank();
+                image.draw(Point { x: 100, y: 100 });
+                scene.draw_entire_scene();
             } else if keyboard_state.key_down(key::ONE) {
                 display::wait_for_vblank();
                 fill_screen(Color::WHITE);

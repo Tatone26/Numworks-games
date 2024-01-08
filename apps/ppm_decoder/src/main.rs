@@ -9,6 +9,9 @@ macro_rules! file_error {
 fn read_number(input: &[u8], starting_index: usize) -> (u32, usize) {
     let mut i = starting_index;
     let mut result = 0;
+    while input[i].is_ascii_whitespace() {
+        i += 1;
+    }
     loop {
         if let Some(x) = input.get(i) {
             if x.is_ascii_digit() {
@@ -43,7 +46,7 @@ fn read_pixel(input: &[u8], starting_index: usize, max_value: u32) -> Option<(u1
     let true_r = ((r as f32 / (max_value as f32)) * (31.0)).round() as u8;
     let true_b = ((b as f32 / (max_value as f32)) * (31.0)).round() as u8;
     let true_g = ((g as f32 / (max_value as f32)) * (63.0)).round() as u8;
-    println!("truer {true_r} g {true_g} b {true_b:#04x} : rgb {r} {g} {b}");
+    // println!("truer {true_r} g {true_g} b {true_b:#04x} : rgb {r} {g} {b}");
     Some((
         ((true_r as u16) << 11 | (true_g as u16) << 5 | true_b as u16),
         starting_index + 3,
@@ -88,7 +91,7 @@ fn main() {
 
     let mut data = vec![];
     while let Some((x, j)) = read_pixel(&input, i, max_value) {
-        println!("pixel {x:#06x}");
+        // println!("pixel {x:#06x}");
         data.push(x);
         i = j;
     }
@@ -97,6 +100,7 @@ fn main() {
 
     let mut info_as_bytes = [(width as u16).to_be_bytes(), (height as u16).to_be_bytes()].concat();
     let data_as_bytes = data.into_iter().flat_map(|u| u.to_be_bytes());
+    // info_as_bytes.push(0); // separator
     info_as_bytes.extend(data_as_bytes);
     output_file
         .write_all(&info_as_bytes)
