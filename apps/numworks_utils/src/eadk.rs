@@ -180,13 +180,19 @@ pub mod display {
         }
     }
 
+    pub fn push_rect_ptr(rect: Rect, pixels: *const Color) {
+        unsafe {
+            eadk_display_push_rect(rect, pixels);
+        }
+    }
+
     pub fn push_rect_uniform(rect: Rect, color: Color) {
         unsafe {
             eadk_display_push_rect_uniform(rect, color);
         }
     }
 
-    pub fn pull_rect(rect : Rect, pixels : &[Color]) {
+    pub fn pull_rect(rect: Rect, pixels: &[Color]) {
         unsafe {
             eadk_display_pull_rect(rect, pixels.as_ptr());
         }
@@ -221,7 +227,7 @@ pub mod display {
             background_color: Color,
         );
         fn eadk_display_wait_for_vblank();
-        fn eadk_display_pull_rect(rect : Rect, color: *const Color);
+        fn eadk_display_pull_rect(rect: Rect, color: *const Color);
     }
 }
 

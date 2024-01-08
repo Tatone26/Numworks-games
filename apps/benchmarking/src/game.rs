@@ -1,7 +1,11 @@
 use core::str::FromStr;
 
 use heapless::{String, Vec};
-use numworks_utils::utils::draw_centered_string;
+use numworks_utils::{
+    eadk::display::{SCREEN_HEIGHT, SCREEN_WIDTH},
+    menu::MAX_OPTIONS_VALUES,
+    utils::draw_centered_string,
+};
 
 use crate::{
     eadk::{
@@ -9,9 +13,7 @@ use crate::{
         key, keyboard, Color, Point, Rect,
     },
     menu::{menu, MyOption, OptionType},
-    utils::{
-        draw_string_cfg, draw_tile, fill_screen, tiling, wait_for_no_keydown, ColorConfig, Tileset,
-    },
+    utils::{draw_string_cfg, fill_screen, wait_for_no_keydown, ColorConfig},
 };
 
 // This dictates the principal colors that will be used
@@ -40,7 +42,7 @@ pub fn start() {
         name: "Option !\0",
         value: 0,
         possible_values: {
-            let mut v = Vec::new();
+            let mut v: Vec<(OptionType, &str), MAX_OPTIONS_VALUES> = Vec::new();
             unsafe { v.push_unchecked((OptionType::Bool(true), "True\0")) };
             unsafe { v.push_unchecked((OptionType::Bool(false), "False\0")) };
             v
@@ -76,13 +78,6 @@ pub fn start() {
     }
 }
 
-/// Images work really well with square tiles. You can still draw other images, but it is less good.
-static TILESET: Tileset = Tileset {
-    tile_size: 55,
-    image: include_bytes!("./icon_snake.ppm"),
-};
-const PIXELS: usize = { 55 * 55 } as usize;
-
 /// The entire game is here.
 pub fn game(_exemple: bool) -> u8 {
     {
@@ -106,16 +101,24 @@ pub fn game(_exemple: bool) -> u8 {
             if keyboard_state.key_down(key::OK) {
                 wait_for_no_keydown();
                 // fill_screen(Color::WHITE);
+                let image = engine::image::Image::from_bytes(engine::TEST_DATA);
                 display::wait_for_vblank();
-                tiling::<PIXELS>(
-                    &TILESET,
-                    Point::new(0, 0),
-                    (5, 4),
-                    Point::new(0, 0),
-                    false,
-                    1,
-                );
-                draw_tile::<PIXELS>(&TILESET, Point::new(0, 0), Point::new(0, 0), 2, false);
+                image.draw(Point {
+                    x: SCREEN_WIDTH - image.width,
+                    y: SCREEN_HEIGHT - image.height,
+                });
+                image.draw_part(
+                    Rect {
+                        x: 0,
+                        y: 0,
+                        width: 50,
+                        height: 50,
+                    },
+                    Point { x: 0, y: 0 },
+                )
+            } else if keyboard_state.key_down(key::ONE) {
+                display::wait_for_vblank();
+                fill_screen(Color::WHITE);
             } else if keyboard_state.key_down(key::BACK) {
                 break;
             }
