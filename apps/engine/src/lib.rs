@@ -9,8 +9,8 @@ pub mod scene;
 pub mod sprite;
 
 use scene::Scene;
-pub static TEST_DATA: &[u8; 153605] = include_bytes!("test2");
-pub static TEST_DATA_2: &[u8; 49004] = include_bytes!("test1.txt");
+
+pub static TEST_DATA: &[u8; 230461] = include_bytes!("./arcenciel.ppm");
 
 pub fn main_loop<const MAX_SPRITES: usize>(
     action: fn(State, &mut Scene<MAX_SPRITES>),
@@ -18,7 +18,7 @@ pub fn main_loop<const MAX_SPRITES: usize>(
 ) {
     loop {
         action_loop(action, scene);
-        draw_loop();
+        draw_loop(scene);
     }
 }
 
@@ -30,7 +30,7 @@ fn action_loop<const MAX_SPRITES: usize>(
     action(keyboard_state, scene);
 }
 
-fn draw_loop() {
+fn draw_loop<const MAX_SPRITES: usize>(scene: &mut Scene<MAX_SPRITES>) {
     wait_for_vblank();
-    // todo
+    scene.draw_entire_scene();
 }

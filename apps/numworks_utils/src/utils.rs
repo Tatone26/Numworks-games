@@ -1,4 +1,4 @@
-use heapless::Vec;
+use heapless::{String, Vec};
 
 use crate::eadk::backlight::{brightness, set_brightness};
 use crate::eadk::display::{
@@ -299,4 +299,28 @@ pub fn get_tile<const PIXELS: usize>(
         }
     }
     return image;
+}
+
+pub fn string_from_u16(number: u32) -> String<16> {
+    let mut text: String<16> = String::new();
+    if number == 0 {
+        text.push('0').unwrap();
+        text.truncate(1);
+        return text;
+    }
+    let mut n = number;
+    let mut cpt = 0;
+    while n != 0 {
+        text.push(((n % 10) as u8 + '0' as u8) as char).unwrap();
+        n = n / 10;
+        cpt += 1;
+    }
+    text.truncate(cpt);
+
+    let mut second_text: String<16> = String::new();
+    for i in (0..cpt).rev() {
+        second_text.push(text.chars().nth(i).unwrap()).unwrap();
+    }
+    second_text.truncate(cpt);
+    return second_text;
 }

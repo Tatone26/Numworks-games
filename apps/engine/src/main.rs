@@ -5,7 +5,7 @@ use numworks_utils::eadk;
 use numworks_utils::menu;
 use numworks_utils::utils;
 
-mod game;
+mod engine_main;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]
@@ -21,5 +21,5 @@ pub static EADK_APP_ICON: [u8; 2286] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {
-    game::start();
+    engine_main::start();
 }

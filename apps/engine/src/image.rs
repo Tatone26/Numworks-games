@@ -1,6 +1,10 @@
-use numworks_utils::eadk::{display::push_rect, Color, Point, Rect};
+use numworks_utils::eadk::{
+    display::{push_rect, push_rect_uniform},
+    Color, Point, Rect,
+};
 
 /// This struct is to be used with images included in executable, via include_bytes! macro.
+///
 /// data points to the same data as include_bytes, it just reads it as a Color slice.
 pub struct Image {
     pub width: u16,
@@ -11,7 +15,9 @@ pub struct Image {
 impl Image {
     /// WARNING : the image NEED to be made via MY ppm_decoder, that can be found in this repo too. Will think of making it automatic later.
     /// Otherwise, big boom and crash of the calculator (probably).
-    /// This image is in the format width (2 bytes), height (2 bytes), separator (1 null byte), all colors (2 bytes each), everything next to one another without delimiter or anything.
+    ///
+    /// This image is in the format width (2 bytes), height (2 bytes), all colors (2 bytes each), everything next to one another without delimiter or anything.
+    ///
     /// No need for real precautions, we are working on a calculator that forgets everything every reset.
     pub fn from_bytes(input: &'static [u8]) -> Self {
         Self {
@@ -29,6 +35,7 @@ impl Image {
             width: self.width,
             height: self.height,
         };
+        push_rect_uniform(rect, Color::RED);
         push_rect(rect, self.data);
     }
 
@@ -37,8 +44,9 @@ impl Image {
         &self.data[(self.width * n) as usize..]
     }
 
-    // This version does multiple pushes to screen, so not to have to copy into RAM the image to display.
-    // If we were to copy first, we would need a hard-coded number of pixels, and that's bad.
+    /// This version does multiple pushes to screen, so not to have to copy into RAM the image to display.
+    ///
+    /// If we were to copy first, we would need a hard-coded number of pixels, and that's bad.
     pub fn draw_part(&self, part: Rect, pos: Point) {
         debug_assert!(part.x + part.width <= self.width);
         debug_assert!(part.y + part.height <= self.height);
@@ -55,6 +63,7 @@ impl Image {
         }
     }
 
+    /// Like [Self::draw_part], but with transparency : it is printing row by row, skipping transparent pixels.
     #[allow(clippy::clone_on_copy)]
     pub fn draw_part_with_transparency(&self, part: Rect, pos: Point, transparency: Color) {
         debug_assert!(part.x + part.width <= self.width);

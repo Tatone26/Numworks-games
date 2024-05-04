@@ -1,15 +1,6 @@
-use core::str::FromStr;
-
-use engine::scene::Scene;
+use enginelib::{image::Image, scene::Scene};
 use heapless::{String, Vec};
-use numworks_utils::{
-    eadk::{
-        battery::battery_charging,
-        display::{SCREEN_HEIGHT, SCREEN_WIDTH},
-    },
-    menu::MAX_OPTIONS_VALUES,
-    utils::{draw_centered_string, TRANSPARENCY_COLOR},
-};
+use numworks_utils::{menu::MAX_OPTIONS_VALUES, utils::draw_centered_string};
 
 use crate::{
     eadk::{
@@ -54,7 +45,7 @@ pub fn start() {
     }];
     loop {
         let start = menu(
-            "SNAKE 2.0\0",
+            "Engine TEST\0",
             &mut opt,
             &COLOR_CONFIG,
             vis_addon,
@@ -96,65 +87,64 @@ pub fn game(_exemple: bool) -> u8 {
         let memory_test: Vec<u16, 64000> = Vec::new(); // yes to 32000, 64000,  no to 320000, 264000, 128000, 96000
                                                        // from this, I can maybe conclude that I have around 128 000 bytes at my disposition, which is around 125 Kb.
                                                        // Good news, it passes the apparent 32Kb stack size !
-        let mut text: String<52> = String::from_str("Memory test passed ! ").unwrap();
-        text.push(memory_test.len() as u8 as char).unwrap();
+        let mut text: String<52> = String::new();
+        text.push_str("Memory test passed ! ");
         draw_centered_string(&text, 50, true, &COLOR_CONFIG, true);
+
         loop {
             let keyboard_state = keyboard::scan();
             if keyboard_state.key_down(key::OK) {
                 wait_for_no_keydown();
                 // fill_screen(Color::WHITE);
-                let image = engine::image::Image::from_bytes(engine::TEST_DATA_2);
+                let image: Image = enginelib::image::Image::from_bytes(enginelib::TEST_DATA);
+                let mut text: String<52> = String::new();
+                text.push_str("checks : ");
+                let level_str: String<6> = String::<6>::from(image.height);
+                text.push_str(String::<8>::from(image.height).as_str());
 
-                let background = engine::sprite::Sprite {
-                    pos: Point { x: 0, y: 0 },
-                    linked_image: &image,
-                    linked_image_part: Rect {
-                        x: 35,
-                        y: 70,
-                        width: 35,
-                        height: 56,
+                let background = enginelib::sprite::Sprite::new(
+                    Point { x: 0, y: 0 },
+                    &image,
+                    Rect {
+                        x: 0,
+                        y: 0,
+                        width: 320,
+                        height: 240,
                     },
-                    transparency: None,
-                    z_position: 0,
-                    sprite_type: engine::sprite::SpriteType::Fixed,
-                    moved: false,
-                };
-                let sprite = engine::sprite::Sprite {
-                    pos: Point { x: 0, y: 0 },
-                    linked_image: &image,
-                    linked_image_part: Rect {
+                    None,
+                    0,
+                );
+                /* let sprite = enginelib::sprite::Sprite::new(
+                    Point { x: 0, y: 0 },
+                    &image,
+                    Rect {
                         x: 105,
                         y: 70,
                         width: 35,
                         height: 56,
                     },
-                    transparency: Some(TRANSPARENCY_COLOR),
-                    z_position: 1,
-                    sprite_type: engine::sprite::SpriteType::Movable,
-                    moved: false,
-                };
-                let sprite2 = engine::sprite::Sprite {
-                    pos: Point { x: 10, y: 10 },
-                    linked_image: &image,
-                    linked_image_part: Rect {
+                    Some(TRANSPARENCY_COLOR),
+                    1,
+                );
+                let sprite2 = enginelib::sprite::Sprite::new(
+                    Point { x: 10, y: 10 },
+                    &image,
+                    Rect {
                         x: 140,
                         y: 70,
                         width: 35,
                         height: 56,
                     },
-                    transparency: Some(TRANSPARENCY_COLOR),
-                    z_position: 0,
-                    sprite_type: engine::sprite::SpriteType::Movable,
-                    moved: false,
-                };
+                    Some(TRANSPARENCY_COLOR),
+                    0,
+                ); */
                 let mut scene: Scene<'_, 10> = Scene::default();
-                scene.insert(&sprite);
-                scene.insert(&sprite2);
+                /* scene.insert(&sprite);
+                scene.insert(&sprite2); */
                 scene.insert(&background);
                 display::wait_for_vblank();
-                image.draw(Point { x: 100, y: 100 });
-                scene.draw_entire_scene();
+                image.draw(Point { x: 0, y: 0 });
+                //scene.draw_entire_scene();
             } else if keyboard_state.key_down(key::ONE) {
                 display::wait_for_vblank();
                 fill_screen(Color::WHITE);

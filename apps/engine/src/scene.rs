@@ -1,45 +1,80 @@
 use heapless::{binary_heap::Min, BinaryHeap};
+use numworks_utils::{
+    eadk::{display::push_rect_uniform, Color, Rect},
+    utils::fill_screen,
+};
 
-use crate::sprite::{Sprite, SpriteType};
+use crate::sprite::Sprite;
 
+/// Represents a Graphical Scene, a list of Sprites and tasks to draw.
+///
+/// Used to simplify the relationship between sprites.
+///
+/// Since sprites are likely to be linked to more complicated structs, it only stores references to them.
+///
+/// the Sprites need to have a similar lifetime as the Scene (all created at the same time if possible).
 pub struct Scene<'a, const MAX_SPRITES: usize> {
-    movables: BinaryHeap<Sprite<'a>, Min, MAX_SPRITES>,
-    fixed: BinaryHeap<Sprite<'a>, Min, MAX_SPRITES>,
+    sprites: BinaryHeap<&'a Sprite<'a>, Min, MAX_SPRITES>,
+    background_color: Color,
 }
 
 impl<'a, const MAX_SPRITES: usize> Scene<'a, MAX_SPRITES> {
-    pub fn insert(&mut self, object: &Sprite<'a>) {
-        let list = match object.sprite_type {
-            SpriteType::Movable => &mut self.movables,
-            SpriteType::Fixed => &mut self.fixed,
-        };
-        let _ = list.push(*object);
+    pub fn new(c: Color) -> Self {
+        Scene {
+            background_color: c,
+            ..Default::default()
+        }
     }
 
+    /// Adds a sprite to the list.
+    ///
+    /// WARNING : it is then impossible to remove.
+    pub fn insert(&mut self, object: &'a Sprite) {
+        let _ = self.sprites.push(object);
+    }
+
+    // Adds a task to do in the vblank time (normally a drawing task).
+    /* pub fn push_drawing_task(&mut self, task: &'a dyn Fn() -> ()) {
+        let _ = self.need_to_redraw.push_back(task);
+    } */
+
+    /// Quite explicit.
     pub fn draw_entire_scene(&self) {
-        for b in self.fixed.iter() {
+        fill_screen(self.background_color);
+        for b in self.sprites.iter() {
             b.draw();
         }
-        for m in self.movables.iter() {
-            m.draw();
-        }
     }
 
-    pub fn draw_moved_sprites(&mut self) {
-        for b in self.movables.iter_mut() {
-            if b.moved {
-                b.draw();
-                b.moved = false;
-            }
-        }
+    /// Clears a sprite, very stupidly (just fills it with background color)
+    ///
+    /// Can be used for simple movement : clears, redraw what is behind, and redraws at the new position. Not optimised.
+    pub fn clear_sprite(&mut self, sprite: &'a Sprite) {
+        push_rect_uniform(
+            Rect {
+                x: sprite.pos.x,
+                y: sprite.pos.y,
+                width: sprite.linked_image_part.width,
+                height: sprite.linked_image_part.height,
+            },
+            self.background_color,
+        );
     }
+
+    // Quite explicit.
+    /* pub fn execute_drawing_tasks(&mut self) {
+        while let Some(f) = self.need_to_redraw.pop_front() {
+            f();
+        }
+    } */
 }
 
 impl<'a, const MAX_SPRITES: usize> Default for Scene<'a, MAX_SPRITES> {
     fn default() -> Self {
         Self {
-            movables: BinaryHeap::<Sprite, Min, MAX_SPRITES>::new(),
-            fixed: BinaryHeap::<Sprite, Min, MAX_SPRITES>::new(),
+            sprites: BinaryHeap::<&'a Sprite, Min, MAX_SPRITES>::new(),
+            // need_to_redraw: Deque::default(),
+            background_color: Color::WHITE,
         }
     }
 }
