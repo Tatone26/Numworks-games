@@ -10,7 +10,7 @@ pub mod sprite;
 
 use scene::Scene;
 
-pub static TEST_DATA: &[u8; 230461] = include_bytes!("./arcenciel.ppm");
+pub static TEST_DATA: &[u8; 49004] = include_bytes!("./cartes.decode");
 
 pub fn main_loop<const MAX_SPRITES: usize>(
     action: fn(State, &mut Scene<MAX_SPRITES>),

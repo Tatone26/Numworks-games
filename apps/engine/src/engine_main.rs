@@ -1,6 +1,9 @@
 use enginelib::{image::Image, scene::Scene};
 use heapless::{String, Vec};
-use numworks_utils::{menu::MAX_OPTIONS_VALUES, utils::draw_centered_string};
+use numworks_utils::{
+    menu::MAX_OPTIONS_VALUES,
+    utils::{draw_centered_string, string_from_u16, TRANSPARENCY_COLOR},
+};
 
 use crate::{
     eadk::{
@@ -84,11 +87,11 @@ pub fn game(_exemple: bool) -> u8 {
             &COLOR_CONFIG,
             true,
         );
-        let memory_test: Vec<u16, 64000> = Vec::new(); // yes to 32000, 64000,  no to 320000, 264000, 128000, 96000
-                                                       // from this, I can maybe conclude that I have around 128 000 bytes at my disposition, which is around 125 Kb.
-                                                       // Good news, it passes the apparent 32Kb stack size !
+        let _memory_test: Vec<u16, 64000> = Vec::new(); // yes to 32000, 64000,  no to 320000, 264000, 128000, 96000
+                                                        // from this, I can maybe conclude that I have around 128 000 bytes at my disposition, which is around 125 Kb.
+                                                        // Good news, it passes the apparent 32Kb stack size !
         let mut text: String<52> = String::new();
-        text.push_str("Memory test passed ! ");
+        text.push_str("Memory test passed ! ").unwrap();
         draw_centered_string(&text, 50, true, &COLOR_CONFIG, true);
 
         loop {
@@ -98,9 +101,12 @@ pub fn game(_exemple: bool) -> u8 {
                 // fill_screen(Color::WHITE);
                 let image: Image = enginelib::image::Image::from_bytes(enginelib::TEST_DATA);
                 let mut text: String<52> = String::new();
-                text.push_str("checks : ");
-                let level_str: String<6> = String::<6>::from(image.height);
-                text.push_str(String::<8>::from(image.height).as_str());
+                text.push_str("checks : ").unwrap();
+                let level_str: String<16> = string_from_u16(image.height as u32);
+                text.push_str(&level_str).unwrap();
+                text.push_str(" : ").unwrap();
+                text.push_str(&string_from_u16(image.width as u32)).unwrap();
+                draw_centered_string(&text, 100, true, &COLOR_CONFIG, false);
 
                 let background = enginelib::sprite::Sprite::new(
                     Point { x: 0, y: 0 },
@@ -108,17 +114,17 @@ pub fn game(_exemple: bool) -> u8 {
                     Rect {
                         x: 0,
                         y: 0,
-                        width: 320,
-                        height: 240,
+                        width: image.width,
+                        height: image.height,
                     },
                     None,
                     0,
                 );
-                /* let sprite = enginelib::sprite::Sprite::new(
-                    Point { x: 0, y: 0 },
+                let sprite = enginelib::sprite::Sprite::new(
+                    Point { x: 50, y: 50 },
                     &image,
                     Rect {
-                        x: 105,
+                        x: 100,
                         y: 70,
                         width: 35,
                         height: 56,
@@ -130,21 +136,21 @@ pub fn game(_exemple: bool) -> u8 {
                     Point { x: 10, y: 10 },
                     &image,
                     Rect {
-                        x: 140,
+                        x: 20,
                         y: 70,
                         width: 35,
                         height: 56,
                     },
                     Some(TRANSPARENCY_COLOR),
-                    0,
-                ); */
+                    2,
+                );
                 let mut scene: Scene<'_, 10> = Scene::default();
-                /* scene.insert(&sprite);
-                scene.insert(&sprite2); */
+                scene.insert(&sprite);
+                scene.insert(&sprite2);
                 scene.insert(&background);
                 display::wait_for_vblank();
                 image.draw(Point { x: 0, y: 0 });
-                //scene.draw_entire_scene();
+                scene.draw_entire_scene();
             } else if keyboard_state.key_down(key::ONE) {
                 display::wait_for_vblank();
                 fill_screen(Color::WHITE);
