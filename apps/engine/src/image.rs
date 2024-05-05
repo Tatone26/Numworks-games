@@ -1,7 +1,4 @@
-use numworks_utils::eadk::{
-    display::{push_rect, push_rect_uniform},
-    Color, Point, Rect,
-};
+use numworks_utils::eadk::{display::push_rect, Color, Point, Rect};
 
 /// This struct is to be used with images included in executable, via include_bytes! macro.
 ///
@@ -19,6 +16,9 @@ impl Image {
     /// This image is in the format width (2 bytes), height (2 bytes), all colors (2 bytes each), everything next to one another without delimiter or anything.
     ///
     /// No need for real precautions, we are working on a calculator that forgets everything every reset.
+    ///
+    /// Finally solved problem : width and height needed to be written Big Endian, but Colors needed to be Little Endian.
+    /// Don't ask why.
     pub fn from_bytes(input: &'static [u8]) -> Self {
         Self {
             width: ((input[0] as u16) << 8 | (input[1] as u16)),
@@ -35,7 +35,6 @@ impl Image {
             width: self.width,
             height: self.height,
         };
-        push_rect_uniform(rect, Color::RED);
         push_rect(rect, self.data);
     }
 

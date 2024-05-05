@@ -99,7 +99,7 @@ fn main() {
         fs::File::create(&args[2]).expect("Could not create or open output file.");
 
     let mut info_as_bytes = [(width as u16).to_be_bytes(), (height as u16).to_be_bytes()].concat();
-    let data_as_bytes = data.into_iter().flat_map(|u| u.to_be_bytes());
+    let data_as_bytes = data.into_iter().flat_map(|u| u.to_le_bytes());
     // info_as_bytes.push(0); // separator
     info_as_bytes.extend(data_as_bytes);
     output_file

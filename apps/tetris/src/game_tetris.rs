@@ -141,7 +141,7 @@ static FALL_SPEED_DATA: [f32; 19] = [
     0.59, 0.92, 1.46, 2.36, 3.91, 6.61, 11.43, 20.0,
 ];
 
-pub const HIGH_SCORE: &'static str = "062340\0"; // Need to be 6 char long !
+pub const HIGH_SCORE: &'static str = "077360\0"; // Need to be 6 char long !
 pub const CASE_SIZE: u16 = 10;
 pub const PLAYFIELD_HEIGHT: u16 = 20;
 pub const PLAYFIELD_WIDTH: u16 = 10;

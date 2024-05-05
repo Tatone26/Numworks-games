@@ -6,7 +6,7 @@ use numworks_utils::{
 
 use crate::sprite::Sprite;
 
-/// Represents a Graphical Scene, a list of Sprites and tasks to draw.
+/// Represents a Graphical Scene, essentially a list of sprites.
 ///
 /// Used to simplify the relationship between sprites.
 ///
@@ -33,12 +33,7 @@ impl<'a, const MAX_SPRITES: usize> Scene<'a, MAX_SPRITES> {
         let _ = self.sprites.push(object);
     }
 
-    // Adds a task to do in the vblank time (normally a drawing task).
-    /* pub fn push_drawing_task(&mut self, task: &'a dyn Fn() -> ()) {
-        let _ = self.need_to_redraw.push_back(task);
-    } */
-
-    /// Quite explicit.
+    /// Quite explicit. And stupid.
     pub fn draw_entire_scene(&self) {
         fill_screen(self.background_color);
         for b in self.sprites.iter() {
@@ -46,7 +41,7 @@ impl<'a, const MAX_SPRITES: usize> Scene<'a, MAX_SPRITES> {
         }
     }
 
-    /// Clears a sprite, very stupidly (just fills it with background color)
+    /// Clears a sprite, very simply (just fills it with background color)
     ///
     /// Can be used for simple movement : clears, redraw what is behind, and redraws at the new position. Not optimised.
     pub fn clear_sprite(&mut self, sprite: &'a Sprite) {
@@ -61,12 +56,7 @@ impl<'a, const MAX_SPRITES: usize> Scene<'a, MAX_SPRITES> {
         );
     }
 
-    // Quite explicit.
-    /* pub fn execute_drawing_tasks(&mut self) {
-        while let Some(f) = self.need_to_redraw.pop_front() {
-            f();
-        }
-    } */
+    // TODO : a function to redraw a specific sprite and everything that was behind it, and everything that is now in front of it.
 }
 
 impl<'a, const MAX_SPRITES: usize> Default for Scene<'a, MAX_SPRITES> {

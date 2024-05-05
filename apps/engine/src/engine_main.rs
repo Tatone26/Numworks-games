@@ -106,19 +106,19 @@ pub fn game(_exemple: bool) -> u8 {
                 text.push_str(&level_str).unwrap();
                 text.push_str(" : ").unwrap();
                 text.push_str(&string_from_u16(image.width as u32)).unwrap();
-                draw_centered_string(&text, 100, true, &COLOR_CONFIG, false);
 
                 let background = enginelib::sprite::Sprite::new(
                     Point { x: 0, y: 0 },
                     &image,
                     Rect {
-                        x: 0,
+                        x: 140,
                         y: 0,
-                        width: image.width,
-                        height: image.height,
+                        width: 35,
+                        height: 55,
                     },
                     None,
                     0,
+                    Some((10, 5)),
                 );
                 let sprite = enginelib::sprite::Sprite::new(
                     Point { x: 50, y: 50 },
@@ -131,6 +131,7 @@ pub fn game(_exemple: bool) -> u8 {
                     },
                     Some(TRANSPARENCY_COLOR),
                     1,
+                    None,
                 );
                 let sprite2 = enginelib::sprite::Sprite::new(
                     Point { x: 10, y: 10 },
@@ -143,14 +144,16 @@ pub fn game(_exemple: bool) -> u8 {
                     },
                     Some(TRANSPARENCY_COLOR),
                     2,
+                    None,
                 );
                 let mut scene: Scene<'_, 10> = Scene::default();
                 scene.insert(&sprite);
                 scene.insert(&sprite2);
                 scene.insert(&background);
                 display::wait_for_vblank();
-                image.draw(Point { x: 0, y: 0 });
+                // image.draw(Point { x: 0, y: 0 });
                 scene.draw_entire_scene();
+                draw_centered_string(&text, 100, true, &COLOR_CONFIG, false);
             } else if keyboard_state.key_down(key::ONE) {
                 display::wait_for_vblank();
                 fill_screen(Color::WHITE);
