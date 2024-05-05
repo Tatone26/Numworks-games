@@ -1,12 +1,12 @@
 use heapless::Vec;
 use numworks_utils::eadk::{
     display::{self, SCREEN_HEIGHT, SCREEN_WIDTH},
-    key, keyboard, Point,
+    key, keyboard, timing, Point,
 };
 
 use crate::{
     eadk::Color,
-    flappy_ui::{clear_tile, draw_bird, BACKGROUND, TILESET},
+    flappy_ui::{clear_pipes, clear_tile, draw_bird, draw_pipes, draw_ui, BACKGROUND, TILESET},
     menu::{menu, MyOption, OptionType},
     utils::{fill_screen, ColorConfig},
 };
@@ -63,7 +63,7 @@ pub fn start() {
 const X_BIRD_POS: u16 = SCREEN_WIDTH / 3;
 
 const GRAVITY: f32 = 0.7;
-const JUMP_POWER: f32 = 10.0;
+const JUMP_POWER: f32 = 7.0;
 
 /// The entire game is here.
 pub fn game(_exemple: bool) -> u8 {
@@ -73,13 +73,29 @@ pub fn game(_exemple: bool) -> u8 {
         y: SCREEN_HEIGHT / 2,
     };
 
+    // sans intelligence, l'afficher + à gauche = wrapping moche-
+    let mut pipes_x_pos = SCREEN_WIDTH - 3 * TILESET.tile_size;
     let mut pressed: bool = false;
+
+    const PIPES_REFRESH_SPEED: u64 = 400;
+    let mut last_move: u64 = timing::millis();
 
     let mut y_speed: f32 = 0.0;
     loop {
         y_speed += GRAVITY;
-
         display::wait_for_vblank();
+
+        if timing::millis() - last_move >= PIPES_REFRESH_SPEED {
+            clear_pipes(pipes_x_pos, (50, 150));
+            if pipes_x_pos <= 10 {
+                pipes_x_pos = SCREEN_WIDTH - 3 * TILESET.tile_size;
+            } else {
+                pipes_x_pos -= 5;
+            }
+            draw_pipes(pipes_x_pos, (50, 150));
+            // draw_ui();
+            last_move = timing::millis();
+        }
         clear_tile(pos);
         let new_pos = pos.y as i16 + y_speed as i16;
         if new_pos <= 0 {
