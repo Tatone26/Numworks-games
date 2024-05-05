@@ -163,5 +163,5 @@ pub fn game(_exemple: bool) -> u8 {
         }
     }
     fill_screen(Color::GREEN);
-    return 1;
+    1
 }

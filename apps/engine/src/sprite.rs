@@ -53,14 +53,14 @@ impl<'a> Sprite<'a> {
             new_part.height = image.height - new_part.y - 1;
         } */
 
-        return Sprite {
+        Sprite {
             pos,
             linked_image: image,
             linked_image_part: image_part,
             transparency,
             z_position,
             tiling,
-        };
+        }
     }
     pub fn collide_with(&self, _other: &Self) -> bool {
         todo!()
@@ -98,14 +98,12 @@ impl<'a> Sprite<'a> {
                     }
                 }
             }
+        } else if let Some(c) = self.transparency {
+            self.linked_image
+                .draw_part_with_transparency(self.linked_image_part, self.pos, c);
         } else {
-            if let Some(c) = self.transparency {
-                self.linked_image
-                    .draw_part_with_transparency(self.linked_image_part, self.pos, c);
-            } else {
-                self.linked_image
-                    .draw_part(self.linked_image_part, self.pos);
-            }
+            self.linked_image
+                .draw_part(self.linked_image_part, self.pos);
         }
     }
 }
