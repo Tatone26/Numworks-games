@@ -1,14 +1,15 @@
 use heapless::Vec;
 use numworks_utils::eadk::{
-    display::{self, SCREEN_HEIGHT, SCREEN_WIDTH},
+    display::{self, SCREEN_WIDTH},
     key, keyboard, timing, Point,
 };
 
 use crate::{
+    bird::Player,
     eadk::Color,
     flappy_ui::{
-        clear_bottom_pipes, clear_tile, clear_top_pipe, draw_bird, draw_bottom_pipes,
-        draw_constant_ui, draw_top_pipe, draw_ui, BACKGROUND, TILESET,
+        clear_bottom_pipes, clear_top_pipe, draw_bird, draw_bottom_pipes, draw_constant_ui,
+        draw_top_pipe, draw_ui, BACKGROUND, TILESET,
     },
     menu::{menu, MyOption, OptionType},
     utils::{fill_screen, ColorConfig},
@@ -17,12 +18,18 @@ use crate::{
 // This dictates the principal colors that will be used
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
-    bckgrd: Color::WHITE,
-    alt: Color::RED,
+    bckgrd: BACKGROUND,
+    alt: Color::from_rgb888(255, 166, 65),
 };
 
 fn vis_addon() {
-    // TODO
+    draw_bird(
+        Point {
+            x: SCREEN_WIDTH / 2 - TILESET.tile_size / 2,
+            y: 70,
+        },
+        0,
+    );
 }
 /// Menu, Options and Game start
 pub fn start() {
@@ -66,35 +73,29 @@ pub fn start() {
 /// number of pixels of the window border.
 pub const WINDOW_SIZE: u16 = 20;
 
-const X_BIRD_POS: u16 = SCREEN_WIDTH / 3;
-
-const GRAVITY: f32 = 0.7;
-const JUMP_POWER: f32 = 7.0;
+/// visual, but dictates the speed too.
+const PIPES_REFRESH_SPEED: u64 = 75;
 
 /// The entire game is here.
 pub fn game(_exemple: bool) -> u8 {
     fill_screen(BACKGROUND);
     draw_constant_ui();
-    let mut pos = Point {
-        x: X_BIRD_POS,
-        y: SCREEN_HEIGHT / 2,
-    };
 
     let pipes_interval = (50, 150);
 
     // !! more to the left = bad wrapping.
     let mut pipes_x_pos = SCREEN_WIDTH - 3 * TILESET.tile_size;
     let mut last_pipes_pos: u16 = pipes_x_pos;
-    let mut pressed: bool = false;
-
-    const PIPES_REFRESH_SPEED: u64 = 75;
     let mut pipes_speed = 5;
     let mut bottom_need_to_move: bool = true;
     let mut last_move: u64 = timing::millis();
-    let mut anim: u8 = 0;
-    let mut y_speed: f32 = 0.0;
+
+    let mut bird = Player::new();
+    bird.draw_self();
+
+    let mut score: u16 = 0;
+
     loop {
-        y_speed += GRAVITY;
         display::wait_for_vblank();
         if bottom_need_to_move {
             clear_bottom_pipes(last_pipes_pos, pipes_interval);
@@ -107,6 +108,7 @@ pub fn game(_exemple: bool) -> u8 {
             if pipes_x_pos <= pipes_speed {
                 pipes_x_pos = SCREEN_WIDTH - 3 * TILESET.tile_size;
                 pipes_speed += 1;
+                score += 1;
             } else {
                 pipes_x_pos -= pipes_speed;
             }
@@ -115,31 +117,12 @@ pub fn game(_exemple: bool) -> u8 {
             last_move = timing::millis();
             bottom_need_to_move = true;
         }
-
-        clear_tile(pos);
-        let new_pos = pos.y as i16 + y_speed as i16;
-        if new_pos <= WINDOW_SIZE as i16 {
-            y_speed += GRAVITY; // head bump
-            pos.y = WINDOW_SIZE;
-        } else if new_pos >= (SCREEN_HEIGHT - WINDOW_SIZE - TILESET.tile_size) as i16 {
-            y_speed = 0.1; // foot bump
-            pos.y = SCREEN_HEIGHT - WINDOW_SIZE - TILESET.tile_size;
-        } else {
-            pos.y = new_pos as u16;
-        }
-        draw_bird(pos, anim % 2);
-        anim = anim.wrapping_add(1);
-
         let scan = keyboard::scan();
-        if !pressed && scan.key_down(key::OK) {
-            pressed = true;
-            y_speed = -JUMP_POWER;
-        } else if scan.key_down(key::UP) {
+        bird.action_function(scan);
+        if scan.key_down(key::EXE) {
             break;
-        } else if !scan.key_down(key::OK) {
-            pressed = false;
         }
-        draw_ui();
+        draw_ui(score);
     }
 
     1

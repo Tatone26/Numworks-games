@@ -1,9 +1,9 @@
 use numworks_utils::{
     eadk::{
-        display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
+        display::{draw_string, push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
         Color, Point, Rect,
     },
-    utils::{draw_image, draw_tile, get_tile, Tileset},
+    utils::{draw_image, draw_tile, get_string_pixel_size, get_tile, string_from_u16, Tileset},
 };
 
 use crate::game::WINDOW_SIZE;
@@ -38,7 +38,7 @@ pub fn draw_constant_ui() {
         UI_BACKGROUND,
     )
 }
-pub fn draw_ui() {
+pub fn draw_ui(score: u16) {
     push_rect_uniform(
         Rect {
             x: 0,
@@ -57,6 +57,23 @@ pub fn draw_ui() {
         },
         UI_BACKGROUND,
     );
+    draw_string(
+        "Score : \0",
+        Point { x: 5, y: 1 },
+        true,
+        Color::WHITE,
+        UI_BACKGROUND,
+    );
+    draw_string(
+        &string_from_u16(score as u32),
+        Point {
+            x: 5 + get_string_pixel_size("Score : ", true),
+            y: 1,
+        },
+        true,
+        Color::WHITE,
+        UI_BACKGROUND,
+    )
 }
 
 pub fn draw_bird(pos: Point, frame: u8) {
