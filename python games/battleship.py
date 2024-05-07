@@ -134,9 +134,9 @@ def place_boats(player):
 
 def turn(player, target):
     print_grid(0)
-    draw_string("V--CIBLE--V", 23, 2, black, white)
+    draw_string("V--TARGET--V", 23, 2, black, white)
     print_grid(1)
-    draw_string("^-VOS BATEAUX-^", 155, 185, black, white)
+    draw_string("^-YOUR BOATS-^", 155, 185, black, white)
     for b in player.listBoats: print_boat(1, b)
     for t in player.listTirs: print_shot(0, player, [t[0], t[1]])
     while True:
@@ -149,17 +149,17 @@ def turn(player, target):
             continue
         elif pos + [0] not in [i for b in target.listBoats for i in b]:
             player.listTirs.append(pos + [0])
-            draw_string("Dans l'eau...", 10, 175, black, white)
+            draw_string("Missed...", 10, 175, black, white)
             sleep(1)
             break
         else:
             player.listTirs.append(pos + [1])
-            draw_string("Touché !", 10, 175)
+            draw_string("Hit!", 10, 175)
             for b in target.listBoats:
                 if pos + [0] in b:
                     b[b.index(pos + [0])][2] = 1
                     if False not in [i[2] == 1 for i in b]:
-                        draw_string("Touché coulé !", 10, 175, black, white)
+                        draw_string("Hit and sunk!", 10, 175, black, white)
             sleep(1)
             break
 
@@ -192,7 +192,7 @@ def menu_bn():
     def vis_add():
         print_boat(0, [[8, 5, 0], [9, 5, 0], [10, 5, 1], [11, 5, 0], [12, 5, 0]])
 
-    mod_opt = menu("BATAILLE NAVALE", vis_add, (250, 150, 0), white, [["Mode sombre", ("Non", "Oui"), darkMode]], black)
+    mod_opt = menu("BATTLESHIP", vis_add, (250, 150, 0), white, [["Dark mode", ("No", "Yes"), darkMode]], black)
     if darkMode != mod_opt[0]:
         darkMode = mod_opt[0]
         white, black = black, white

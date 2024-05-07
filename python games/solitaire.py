@@ -223,7 +223,7 @@ def solitaire():
             draw_cursor()
         sleep(0.1)
     draw_centered_string(" BRAVO !! ", 100, white, green)
-    draw_string("REJOUER : <0>", 10, 200, white, green)
+    draw_string("PLAY AGAIN : <0>", 10, 200, white, green)
     draw_string("MENU : <ANS>", 190, 200, white, green)
     while True:
         if keydown(KEY_ANS):
@@ -240,7 +240,7 @@ def menu_sol():
         draw_card(Card(13, 0, 1, shown=True), abs_pos=(122, 70))
         draw_card(Card(1, 3, 1, shown=True), abs_pos=(172, 70))
 
-    list_opt = [["Difficulté", ("Facile", "Normal", "Difficile"), difficulty]]
+    list_opt = [["Difficulty", ("Easy", "Normal", "Hard"), difficulty]]
     modif_opt = menu("SOLITAIRE", vis_add, red, green, list_opt)
     difficulty = modif_opt[0]
     if modif_opt[-1]:

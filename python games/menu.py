@@ -14,9 +14,9 @@ def menu(title, visible_addons, select_col, bkgd_col, list_opt, text_col=(0, 0, 
     def play():
         fill_screen(bkgd_col)
         draw_centered_string(title, 40, text_col, bkgd_col)
-        draw_centered_string("Commencer", 150, text_col, bkgd_col)
+        draw_centered_string("Start", 150, text_col, bkgd_col)
         draw_centered_string("Options", 180, text_col, bkgd_col)
-        draw_string("Quitter:<EXE>", 192, 202, text_col, bkgd_col)
+        draw_string("Quit:<EXE>", 200, 202, text_col, bkgd_col)
         fill_rect(125, 170, 80, 2, select_col)
         visible_addons()
         return move_select(2, 1, vis_fonc)
@@ -36,7 +36,7 @@ def options(olist, select_col, bkgd_col, text_col):
     firsty = 130 - 20 * (4 - len(olist))
     for e, l in enumerate(olist):
         draw_string(l[0] + " : ", 30, firsty - 30 * e, text_col, bkgd_col)
-    draw_string("Retour au menu", 30, 170, text_col, bkgd_col)
+    draw_string("Back", 30, 170, text_col, bkgd_col)
 
     def draw_choices():
         for e in range(len(olist)):
@@ -49,16 +49,16 @@ def options(olist, select_col, bkgd_col, text_col):
 
     def draw_selected(last, new):
         if last == 0:
-            fill_rect(35, 190, 130, 2, bkgd_col)
+            fill_rect(35, 190, 40, 2, bkgd_col)
         else:
             fill_rect(200, firsty + 50 - 30 * last, 30, 2, bkgd_col)
         if new == 0:
-            fill_rect(35, 190, 130, 2, select_col)
+            fill_rect(35, 190, 40, 2, select_col)
         else:
             fill_rect(200, firsty + 50 - 30 * new, 30, 2, select_col)
 
     draw_choices()
-    fill_rect(35, 190, 130, 2, select_col)
+    fill_rect(35, 190, 40, 2, select_col)
     pos = move_select(len(olist) + 1, 0, draw_selected)
     while pos > 0:
         opt = olist[pos - 1]

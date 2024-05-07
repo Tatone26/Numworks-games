@@ -157,7 +157,7 @@ def snk():
     draw_centered_string("Points : " + str(points), 120)
     draw_string("REPLAY : <OK>", 10, 200)
     draw_string("MENU : <EXE>", 190, 200)
-    draw_centered_string("PERDU", 90)
+    draw_centered_string("GAME OVER", 90)
     while not (keydown(KEY_EXE) or keydown(KEY_OK)): pass
     if keydown(KEY_EXE):
         menu_s()
@@ -174,10 +174,10 @@ def menu_s():
         fill_rect(180, 90, 10, 10, l_green)
         fill_rect(210, 90, 10, 10, (255, 0, 0))
 
-    opt_list = [["Terrain continu", ("Oui", "Non"), killerSizes],
-                ["Vitesse", ("Lent", "Moyen", "Rapide"), speed],
-                ["Obstacles", ("Non", "Oui"), obstacles],
-                ["Terrain", ("Entier", "Demi", "2/3"), field[2]]]
+    opt_list = [["Wrapping", ("Yes", "No"), killerSizes],
+                ["Speed", ("Slow", "Normal", "Fast"), speed],
+                ["Obstacles", ("No", "Yes"), obstacles],
+                ["Size", ("Full", "Half", "2/3"), field[2]]]
     opt_modif = menu("SNAKE", addons, green, white, opt_list)
     killerSizes = opt_modif[0]
     speed = opt_modif[1]

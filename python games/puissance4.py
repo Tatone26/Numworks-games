@@ -13,7 +13,7 @@ placedCoins = []
 darkMode = False
 visGrid = True
 visChoice = True
-title = "PUISSANCE 4"
+title = "CONNECT 4"
 nbPlayers = 2
 
 
@@ -124,7 +124,7 @@ def p4():
                 print_coin(x, y, placedCoins[x][y])
     draw_centered_string(title + " !", 100, black, white)
     draw_string("MENU : EXE", 180, 200, black, white)
-    draw_string("REJOUER : OK", 20, 200, black, white)
+    draw_string("REMATCH : OK", 20, 200, black, white)
     while not keydown(KEY_EXE) and not keydown(KEY_OK):
         pass
     if keydown(KEY_EXE):
@@ -142,15 +142,15 @@ def menu_p4():
         if nbPlayers >= 3:
             print_coin(3, 4, green)
 
-    list_opt = [["Mode sombre", ("Non", "Oui"), darkMode], ["Grille visible", ("Non", "Oui"), visGrid],
-                ["Choix visible", ("Non", "Oui"), visChoice], ["Nb de joueurs", ("2", "3"), nbPlayers - 1]]
+    list_opt = [["Dark Mode", ("No", "Yes"), darkMode], ["Visible Grid", ("No", "Yes"), visGrid],
+                ["Visible choice", ("No", "Yes"), visChoice], ["Nb Players", ("2", "3"), nbPlayers - 1]]
     modif_opt = menu(title, vis_add, blue, white, list_opt, black)
     if modif_opt[0] != darkMode: white, black = black, white
     darkMode = modif_opt[0]
     visGrid = modif_opt[1]
     visChoice = modif_opt[2]
     nbPlayers = modif_opt[3] + 1
-    title = "PUISSANCE " + str(6 - nbPlayers)
+    title = "CONNECT " + str(6 - nbPlayers)
     if modif_opt[-1]: p4()
 
 

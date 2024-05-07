@@ -96,7 +96,7 @@ def selection(init_pos, player):
                 draw_box(p)
             if pos in moves and selected_piece is not None and board[selected_piece[0]][selected_piece[1]][1] == player:
                 if board[pos[0]][pos[1]] is not None and board[pos[0]][pos[1]][1] == 5:
-                    draw_string("VICTOIRE", 0, 0)
+                    draw_string("VICTORY", 0, 0)
                 move_piece(selected_piece, pos)
                 # MAX DE TRUCS A VERIFIER ICI
                 return pos
@@ -177,7 +177,7 @@ def chess():
 
 def menu_chess():
     def vis_add():
-        pass
+        draw_string("This has only legal moves in. \nEvery other rules aren't here yet.", 5, 100)
 
     list_opt = []
     modif_opt = menu("CHESS", vis_add, black, green, list_opt, black)

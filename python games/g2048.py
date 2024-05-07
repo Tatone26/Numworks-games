@@ -133,7 +133,7 @@ def game():
     global pts, lbx
     fill_screen((255, 255, 255))
     dw_grid()
-    draw_string("Record :  \n    " + str(best), 5, 180)
+    draw_string("High Score:\n    " + str(best), 5, 180)
     draw_string("Points :", 5, 20)
     draw_pts()
     add_box()
@@ -155,10 +155,10 @@ def game():
                 dead = True
         sleep(0.25)
     replay = False
-    draw_string("Perdu !", xg + 70, yg + 15)
-    draw_string("Rejouer : <OK>", xg + 5, yg + 115)
+    draw_string("You Lost !", xg + 70, yg + 15)
+    draw_string("Replay : <OK>", xg + 5, yg + 115)
     draw_string("Menu : <EXE>", xg + 5, yg + 160)
-    if pts > best: draw_string("Nouveau \n record !", 5, 100)
+    if pts > best: draw_string("New \n High Score !", 5, 100)
     print("Score : " + str(pts))
     while not keydown(KEY_EXE):
         if keydown(KEY_OK):
@@ -179,7 +179,7 @@ def menu2048():
         fill_rect(0, 75, 320, 20, (230, 180, 180))
 
     opt = menu("2048", va, (0, 0, 0), (255, 255, 255),
-               [["Taille plateau", ("3x3", "4x4", "5x5", "6x6", "7x7", "8x8"), size - 2]])
+               [["Size", ("3x3", "4x4", "5x5", "6x6", "7x7", "8x8"), size - 2]])
     size = opt[0] + 2
     if opt[-1]: game()
 
