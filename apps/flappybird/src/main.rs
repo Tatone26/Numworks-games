@@ -8,6 +8,7 @@ use numworks_utils::utils;
 mod bird;
 mod flappy_ui;
 mod game;
+mod pipes;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]

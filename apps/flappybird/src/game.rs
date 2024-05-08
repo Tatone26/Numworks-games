@@ -1,21 +1,22 @@
 use heapless::Vec;
-use numworks_utils::eadk::{
-    display::{self, SCREEN_WIDTH},
-    key, keyboard, timing, Point,
+use numworks_utils::{
+    eadk::{
+        display::{self, SCREEN_WIDTH},
+        key, keyboard, Point,
+    },
+    utils::draw_centered_string,
 };
 
 use crate::{
     bird::Player,
     eadk::Color,
-    flappy_ui::{
-        clear_bottom_pipes, clear_top_pipe, draw_bird, draw_bottom_pipes, draw_constant_ui,
-        draw_top_pipe, draw_ui, BACKGROUND, TILESET,
-    },
+    flappy_ui::{draw_bird, draw_constant_ui, draw_ui, BACKGROUND, TILESET},
     menu::{menu, MyOption, OptionType},
+    pipes::Pipes,
     utils::{fill_screen, ColorConfig},
 };
 
-// This dictates the principal colors that will be used
+// This dictates the principal colors that will be used for menu etc
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
     bckgrd: BACKGROUND,
@@ -73,57 +74,84 @@ pub fn start() {
 /// number of pixels of the window border.
 pub const WINDOW_SIZE: u16 = 20;
 
-/// visual, but dictates the speed too.
-const PIPES_REFRESH_SPEED: u64 = 75;
-
 /// The entire game is here.
 pub fn game(_exemple: bool) -> u8 {
     fill_screen(BACKGROUND);
     draw_constant_ui();
 
-    let pipes_interval = (50, 150);
+    let mut pipes = Pipes::new(3, 75);
+    pipes.draw_self();
 
-    // !! more to the left = bad wrapping.
-    let mut pipes_x_pos = SCREEN_WIDTH - 3 * TILESET.tile_size;
-    let mut last_pipes_pos: u16 = pipes_x_pos;
-    let mut pipes_speed = 5;
-    let mut bottom_need_to_move: bool = true;
-    let mut last_move: u64 = timing::millis();
+    let mut pipes2 = Pipes::new(3, 75);
 
     let mut bird = Player::new();
     bird.draw_self();
 
     let mut score: u16 = 0;
+    let mut can_increase_speed: bool = true;
+
+    let mut delay: u8 = 0;
+    let mut first_pipes: bool = false;
 
     loop {
         display::wait_for_vblank();
-        if bottom_need_to_move {
-            clear_bottom_pipes(last_pipes_pos, pipes_interval);
-            draw_bottom_pipes(pipes_x_pos, pipes_interval);
-            bottom_need_to_move = false;
-        }
-        if timing::millis() - last_move >= PIPES_REFRESH_SPEED {
-            clear_top_pipe(pipes_x_pos, pipes_interval);
-            last_pipes_pos = pipes_x_pos;
-            if pipes_x_pos <= pipes_speed {
-                pipes_x_pos = SCREEN_WIDTH - 3 * TILESET.tile_size;
-                pipes_speed += 1;
-                score += 1;
-            } else {
-                pipes_x_pos -= pipes_speed;
-            }
-            draw_top_pipe(pipes_x_pos, pipes_interval);
-            // draw_ui();
-            last_move = timing::millis();
-            bottom_need_to_move = true;
-        }
+
         let scan = keyboard::scan();
         bird.action_function(scan);
+        if !first_pipes {
+            let add = pipes.action_function();
+            if add != 0 {
+                can_increase_speed = true;
+            }
+            score += add;
+            first_pipes = true;
+        } else {
+            if delay > 65 {
+                let add = pipes2.action_function();
+                score += add;
+                if add != 0 {
+                    can_increase_speed = true;
+                }
+            }
+            first_pipes = false;
+        }
+        if can_increase_speed && score % 5 == 0 {
+            pipes.increase_speed();
+            pipes2.increase_speed();
+            can_increase_speed = false;
+        }
+        if bird_collide_with(&bird, &pipes) || bird_collide_with(&bird, &pipes2) {
+            draw_centered_string("GAME OVER\0", 100, true, &COLOR_CONFIG, true);
+            loop {
+                let scan = keyboard::scan();
+                if scan.key_down(key::EXE) {
+                    break;
+                }
+            }
+            break;
+        }
         if scan.key_down(key::EXE) {
             break;
         }
         draw_ui(score);
+        delay = delay.saturating_add(1);
     }
 
     1
+}
+
+const NICE_COLLISION_MARGIN: u16 = 2;
+
+fn bird_collide_with(bird: &Player, pipes: &Pipes) -> bool {
+    if bird.x_pos + TILESET.tile_size < pipes.x_pos.saturating_sub(5)
+        || bird.x_pos > pipes.x_pos + TILESET.tile_size * 2
+    {
+        return false;
+    } else if bird.y_pos < pipes.interval.0.saturating_sub(NICE_COLLISION_MARGIN)
+        || bird.y_pos + TILESET.tile_size > pipes.interval.1 + NICE_COLLISION_MARGIN
+    {
+        return true;
+    } else {
+        return false;
+    }
 }

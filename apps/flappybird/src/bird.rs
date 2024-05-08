@@ -17,8 +17,8 @@ pub struct Player {
     jump_pressed: bool,  // if the jump button is pressed.
     animation_frame: u8, // where we are on animation.
     y_speed: f32,        // up if negative, down if positive
-    y_pos: u16,
-    x_pos: u16,
+    pub y_pos: u16,
+    pub x_pos: u16,
 }
 
 impl Player {
