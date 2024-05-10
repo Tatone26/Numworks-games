@@ -5,5 +5,7 @@
 
 
         - Press <OK> to jump
-        - Don't die
-                                                                                 
+        - Don't touch the pipes or floor
+
+    Warning : speed sometimes increases !
+                                                                                     

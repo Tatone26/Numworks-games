@@ -30,6 +30,7 @@ pub const MAX_OPTIONS_VALUES: usize = 10;
 pub enum OptionType {
     Bool(bool),
     Int(u16),
+    Double(f32),
 }
 /// An Option of T type, with COUNT possible values
 #[derive(Debug)]
@@ -83,6 +84,14 @@ impl FromValue for u16 {
     fn from_value(value: &OptionType) -> Self {
         match value {
             OptionType::Int(b) => *b,
+            _ => panic!(),
+        }
+    }
+}
+impl FromValue for f32 {
+    fn from_value(value: &OptionType) -> Self {
+        match value {
+            OptionType::Double(b) => *b,
             _ => panic!(),
         }
     }
@@ -290,7 +299,17 @@ fn options(list: &mut [&mut MyOption], cfg: &ColorConfig) -> u8 {
     }
     display::wait_for_vblank();
     fill_screen(cfg.bckgrd);
-    draw_centered_string("OPTIONS\0", 20u16, true, cfg, false);
+    draw_centered_string(
+        "OPTIONS\0",
+        if items_number < 6 {
+            20u16
+        } else {
+            10u16.saturating_sub((items_number - 6 + 1) * 5)
+        },
+        true,
+        cfg,
+        false,
+    );
     let back_text = "Menu : <Back>  \0";
     draw_string_cfg(
         back_text,

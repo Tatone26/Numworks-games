@@ -4,13 +4,17 @@ use numworks_utils::{
         display::{self, SCREEN_WIDTH},
         key, keyboard, Point,
     },
-    utils::draw_centered_string,
+    menu::{selection_menu, MenuConfig},
+    utils::{draw_centered_string, fading, get_tile, LARGE_CHAR_HEIGHT},
 };
 
 use crate::{
     bird::Player,
     eadk::Color,
-    flappy_ui::{draw_bird, draw_constant_ui, draw_ui, BACKGROUND, TILESET},
+    flappy_ui::{
+        draw_bird, draw_constant_ui, draw_top_pipe, draw_top_pipes_pipes, draw_ui, move_cloud,
+        BACKGROUND, PIXELS, TILESET, TILESET_TILE_SIZE,
+    },
     menu::{menu, MyOption, OptionType},
     pipes::Pipes,
     utils::{fill_screen, ColorConfig},
@@ -20,13 +24,13 @@ use crate::{
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
     bckgrd: BACKGROUND,
-    alt: Color::from_rgb888(255, 166, 65),
+    alt: Color::from_rgb888(255, 140, 65),
 };
 
 fn vis_addon() {
     draw_bird(
         Point {
-            x: SCREEN_WIDTH / 2 - TILESET.tile_size / 2,
+            x: SCREEN_WIDTH / 2 - TILESET_TILE_SIZE / 2,
             y: 70,
         },
         0,
@@ -34,16 +38,73 @@ fn vis_addon() {
 }
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption; 1] = [&mut MyOption {
-        name: "Option !\0",
-        value: 0,
-        possible_values: {
-            let mut v = Vec::new();
-            unsafe { v.push_unchecked((OptionType::Bool(true), "True\0")) };
-            unsafe { v.push_unchecked((OptionType::Bool(false), "False\0")) };
-            v
+    let mut opt: [&mut MyOption; 6] = [
+        &mut MyOption {
+            name: "Starting speed\0",
+            value: 1,
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Int(1), "Slow\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(2), "Normal\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(4), "Fast\0")) };
+                v
+            },
         },
-    }];
+        &mut MyOption {
+            name: "Pipes density\0",
+            value: 2,
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Int(1), "Easy\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(2), "Normal\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(3), "Dense\0")) };
+                v
+            },
+        },
+        &mut MyOption {
+            name: "Speed increase\0",
+            value: 2,
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Int(1000), "Never\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(10), "Every 10 pts\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(5), "Every 5 pts\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(1), "Every point\0")) };
+                v
+            },
+        },
+        &mut MyOption {
+            name: "Die on floor\0",
+            value: 1,
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
+                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
+                v
+            },
+        },
+        &mut MyOption {
+            name: "Jump strength\0",
+            value: 1,
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Double(6.0), "Weak\0")) };
+                unsafe { v.push_unchecked((OptionType::Double(6.8), "Normal\0")) };
+                unsafe { v.push_unchecked((OptionType::Double(7.5), "Strong\0")) };
+                v
+            },
+        },
+        &mut MyOption {
+            name: "No collisions\0",
+            value: 0,
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
+                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes (CHEAT)\0")) };
+                v
+            },
+        },
+    ];
     loop {
         let start = menu(
             "FLAPPY BIRD\0",
@@ -56,7 +117,14 @@ pub fn start() {
         if start == 0 {
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                let action = game(opt[0].get_param_value()); // calling the game based on the parameters is better
+                let action = game(
+                    opt[0].get_param_value(),
+                    opt[1].get_param_value(),
+                    opt[2].get_param_value(),
+                    opt[3].get_param_value(),
+                    opt[4].get_param_value(),
+                    opt[5].get_param_value(),
+                ); // calling the game based on the parameters is better
                 if action == 2 {
                     // 2 means quitting
                     return;
@@ -74,84 +142,184 @@ pub fn start() {
 /// number of pixels of the window border.
 pub const WINDOW_SIZE: u16 = 20;
 
+const MAX_PIPES_ON_SCREEN: usize = 3;
+
 /// The entire game is here.
-pub fn game(_exemple: bool) -> u8 {
+pub fn game(
+    starting_speed: u16,
+    nb_pipes_u: u16,
+    speed_increase: u16,
+    killer_floor: bool,
+    jump_power: f32,
+    no_collisions: bool,
+) -> u8 {
+    // Optimisation !!!
+    let left_pipe_tile: [Color; PIXELS] = get_tile::<PIXELS>(&TILESET, Point { x: 1, y: 0 });
+    let right_pipe_tile: [Color; PIXELS] = get_tile::<PIXELS>(&TILESET, Point { x: 2, y: 0 });
+    let left_cloud_tile: [Color; PIXELS] = get_tile::<PIXELS>(&TILESET, Point { x: 1, y: 3 });
+    let right_cloud_tile: [Color; PIXELS] = get_tile::<PIXELS>(&TILESET, Point { x: 2, y: 3 });
+
     fill_screen(BACKGROUND);
     draw_constant_ui();
 
-    let mut pipes = Pipes::new(3, 75);
-    pipes.draw_self();
-
-    let mut pipes2 = Pipes::new(3, 75);
-
-    let mut bird = Player::new();
-    bird.draw_self();
+    let nb_pipes = nb_pipes_u as usize;
+    let mut pipes_list: Vec<Pipes, MAX_PIPES_ON_SCREEN> = Vec::new();
+    for _ in 0..nb_pipes {
+        let _ = pipes_list.push(Pipes::new(starting_speed, 75));
+    }
+    pipes_list[0].draw_self(&left_pipe_tile, &right_pipe_tile);
 
     let mut score: u16 = 0;
-    let mut can_increase_speed: bool = true;
+    let mut bird = Player::new(jump_power);
+    bird.draw_self();
 
-    let mut delay: u8 = 0;
-    let mut first_pipes: bool = false;
+    let mut can_increase_speed: bool = true; // if true, can check for speed increase (true as soon as a point is won)
+
+    let mut active_pipe: Vec<bool, MAX_PIPES_ON_SCREEN> = Vec::new();
+    let _ = active_pipe.push(true);
+    for _ in 1..nb_pipes {
+        let _ = active_pipe.push(false);
+    }
+    let mut counter: usize = 0;
+    let mut start: bool = false;
+
+    // The cloud serve a parallax purpose. I spend FAR TOO MUCH TIME on that but it's so nice to have
+    // one downside is that it might slow things down...
+    let mut cloud_pos: Point = Point {
+        x: SCREEN_WIDTH - WINDOW_SIZE - TILESET_TILE_SIZE * 2,
+        y: WINDOW_SIZE + 5,
+    };
 
     loop {
         display::wait_for_vblank();
 
+        let pipes_turn = counter % nb_pipes;
         let scan = keyboard::scan();
-        bird.action_function(scan);
-        if !first_pipes {
-            let add = pipes.action_function();
+        let death = if start || counter > 20 || scan.key_down(key::OK) {
+            start = true;
+            bird.action_function(scan, killer_floor && (!no_collisions)) // if true : bird touched floor and killer_floor
+        } else {
+            false
+        };
+
+        // pipes turn, activation etc
+        if !death && active_pipe[pipes_turn] {
+            // if pipe active, do that
+            let add = pipes_list[pipes_turn].action_function(&left_pipe_tile, &right_pipe_tile);
             if add != 0 {
+                active_pipe[pipes_turn] = false;
                 can_increase_speed = true;
             }
             score += add;
-            first_pipes = true;
-        } else {
-            if delay > 65 {
-                let add = pipes2.action_function();
-                score += add;
-                if add != 0 {
-                    can_increase_speed = true;
-                }
+
+            let current = pipes_turn;
+            counter = counter.wrapping_add(1);
+            if nb_pipes > 1
+                && !active_pipe[counter % nb_pipes]
+                && pipes_list[current].x_pos
+                    < SCREEN_WIDTH - SCREEN_WIDTH / nb_pipes as u16 - TILESET_TILE_SIZE * nb_pipes_u
+            {
+                active_pipe[counter % nb_pipes] = true;
+            } else if nb_pipes == 1 {
+                active_pipe[current] = true;
             }
-            first_pipes = false;
+        } else {
+            // else skip pipe
+            counter = counter.wrapping_add(1);
         }
-        if can_increase_speed && score % 5 == 0 {
-            pipes.increase_speed();
-            pipes2.increase_speed();
-            can_increase_speed = false;
-        }
-        if bird_collide_with(&bird, &pipes) || bird_collide_with(&bird, &pipes2) {
-            draw_centered_string("GAME OVER\0", 100, true, &COLOR_CONFIG, true);
-            loop {
-                let scan = keyboard::scan();
-                if scan.key_down(key::EXE) {
+
+        if counter % nb_pipes * 2 == 0 {
+            // cloud
+            move_cloud(
+                &mut cloud_pos,
+                counter as u16,
+                &left_cloud_tile,
+                &right_cloud_tile,
+            );
+            for i in 0..nb_pipes {
+                if active_pipe[i]
+                    && cloud_pos.x < pipes_list[i].x_pos + TILESET_TILE_SIZE * 2
+                    && cloud_pos.x + TILESET_TILE_SIZE * 2 > pipes_list[i].x_pos
+                {
+                    if pipes_list[i].interval.0 > WINDOW_SIZE + TILESET_TILE_SIZE * 2 + 5 {
+                        draw_top_pipes_pipes(
+                            pipes_list[i].x_pos,
+                            pipes_list[i].interval,
+                            &left_pipe_tile,
+                            &right_pipe_tile,
+                        );
+                    } else {
+                        draw_top_pipe(
+                            pipes_list[i].x_pos,
+                            pipes_list[i].interval,
+                            &left_pipe_tile,
+                            &right_pipe_tile,
+                        );
+                    }
                     break;
                 }
             }
-            break;
-        }
-        if scan.key_down(key::EXE) {
-            break;
         }
         draw_ui(score);
-        delay = delay.saturating_add(1);
-    }
+        // speed increase
+        if can_increase_speed && score % speed_increase == 0 {
+            for i in 0..(nb_pipes as usize) {
+                pipes_list[i].increase_speed();
+            }
+            can_increase_speed = false;
+        }
 
-    1
+        // collisions
+        let mut collision = false;
+        for i in 0..(nb_pipes as usize) {
+            if !no_collisions && bird_collide_with(&bird, &pipes_list[i]) {
+                collision = true;
+                break;
+            }
+        }
+        if death || collision {
+            // TODO : game over screen and menu
+            draw_centered_string("GAME OVER\0", 70, true, &COLOR_CONFIG, true);
+            let action = flappy_pause(death || collision);
+            return action;
+        }
+    }
 }
 
 const NICE_COLLISION_MARGIN: u16 = 2;
 
 fn bird_collide_with(bird: &Player, pipes: &Pipes) -> bool {
-    if bird.x_pos + TILESET.tile_size < pipes.x_pos.saturating_sub(5)
-        || bird.x_pos > pipes.x_pos + TILESET.tile_size * 2
+    if bird.x_pos + TILESET_TILE_SIZE < pipes.x_pos.saturating_sub(5)
+        || bird.x_pos > pipes.x_pos + TILESET_TILE_SIZE * 2
     {
         return false;
     } else if bird.y_pos < pipes.interval.0.saturating_sub(NICE_COLLISION_MARGIN)
-        || bird.y_pos + TILESET.tile_size > pipes.interval.1 + NICE_COLLISION_MARGIN
+        || bird.y_pos + TILESET_TILE_SIZE > pipes.interval.1 + NICE_COLLISION_MARGIN
     {
         return true;
     } else {
         return false;
     }
+}
+
+fn flappy_pause(death: bool) -> u8 {
+    let action = selection_menu(
+        &COLOR_CONFIG,
+        &MenuConfig {
+            choices: if death {
+                &["Play again\0", "Menu\0", "Exit\0"]
+            } else {
+                &["Resume\0", "Menu\0", "Exit\0"]
+            },
+            rect_margins: (20, 12),
+            dimensions: (SCREEN_WIDTH * 7 / 15, LARGE_CHAR_HEIGHT * 5),
+            offset: (0, if death { 50 } else { 0 }),
+            back_key_return: if death { 2 } else { 1 },
+        },
+        false,
+    );
+    if action != 0 {
+        fading(500);
+    }
+    action
 }
