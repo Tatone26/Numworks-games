@@ -1,5 +1,3 @@
-use core::ptr::drop_in_place;
-
 use heapless::Vec;
 
 use crate::{
@@ -154,7 +152,11 @@ fn table_is_full(table: &Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>, players:
     return true;
 }
 
-pub fn place_coin_nodraw(x: u16, number: u8, table: &mut Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>) -> u16 {
+pub fn place_coin_nodraw(
+    x: u16,
+    number: u8,
+    table: &mut Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>,
+) -> u16 {
     let vec_x = table.get_mut(x as usize).unwrap();
     let mut y = 0;
     for i in vec_x {

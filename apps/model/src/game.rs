@@ -37,7 +37,7 @@ pub fn start() {
         name: "Option !\0",
         value: 0,
         possible_values: {
-            let mut v = Vec::new();
+            let mut v: Vec<(OptionType, &str), 10> = Vec::new();
             unsafe { v.push_unchecked((OptionType::Bool(true), "True\0")) };
             unsafe { v.push_unchecked((OptionType::Bool(false), "False\0")) };
             v

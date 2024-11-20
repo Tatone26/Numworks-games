@@ -12,7 +12,7 @@ pub const TILESET_TILE_SIZE: u16 = 20;
 /// Images work really well with square tiles. You can still draw other images, but it is less good.
 pub static TILESET: Tileset = Tileset {
     tile_size: TILESET_TILE_SIZE,
-    image: include_bytes!("./image.ppm"),
+    image: include_bytes!("./data/image.ppm"),
 };
 pub const PIXELS: usize = { 20 * 20 } as usize;
 
@@ -127,7 +127,7 @@ pub fn draw_ui(score: u16) {
         UI_BACKGROUND,
     );
     draw_string(
-        &string_from_u16(score as u32),
+        &string_from_u16(score),
         Point {
             x: 5 + get_string_pixel_size("Score :  ", true),
             y: 1,

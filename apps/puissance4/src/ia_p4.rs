@@ -1,7 +1,5 @@
-use heapless::Vec;
-use numworks_utils::utils::randint;
-
 use crate::game_p4::{check, place_coin_nodraw, MAX_HEIGHT_SIZE, MAX_WIDTH_SIZE};
+use heapless::Vec;
 
 /* fn find_best_move(table: &Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>, player: u8) -> u8 {
     let ending_moves = find_ending_moves(table, player);

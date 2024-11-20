@@ -1,5 +1,5 @@
 use heapless::String;
-use numworks_utils::utils::string_from_u16;
+use numworks_utils::utils::string_from_u32;
 
 use crate::{
     eadk::{
@@ -128,7 +128,7 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
 pub fn draw_score(score: u32) {
     let mut score_txt: String<7> = String::<7>::new();
     if score < 999_999 {
-        let score_str: String<16> = string_from_u16(score);
+        let score_str: String<10> = string_from_u32(score);
         for _ in 0..(6 - score_str.chars().count()) {
             score_txt.push('0').unwrap();
         }
@@ -148,7 +148,7 @@ pub fn draw_score(score: u32) {
 
 pub fn draw_level(level: u16) {
     let mut level_txt: String<7> = String::<7>::new();
-    let level_str: String<16> = string_from_u16(level as u32);
+    let level_str: String<10> = string_from_u32(level as u32);
     for _ in 0..(6 - level_str.chars().count()) {
         level_txt.push(' ').unwrap();
     }
@@ -165,7 +165,7 @@ pub fn draw_level(level: u16) {
 
 pub fn draw_lines_number(line: u16) {
     let mut line_txt: String<7> = String::<7>::new();
-    let line_str: String<16> = string_from_u16(line as u32);
+    let line_str: String<10> = string_from_u32(line as u32);
     for _ in 0..(6 - line_str.chars().count()) {
         line_txt.push(' ').unwrap();
     }

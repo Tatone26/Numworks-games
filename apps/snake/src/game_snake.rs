@@ -17,6 +17,7 @@ use crate::{
 use eadk::Color;
 use heapless::String;
 use heapless::{Deque, Vec};
+use numworks_utils::utils::string_from_u16;
 
 /// Used to get directions, and nothing else !
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -275,9 +276,10 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
 }
 
 fn snake_pause(points: u16, death: bool) -> u8 {
-    let mut string_points: String<15> = String::from(" Points : ");
+    let mut string_points: String<15> = String::new();
+    string_points.push_str(" Points : ").unwrap();
     string_points
-        .push_str(String::<15>::from(points).as_str())
+        .push_str(string_from_u16(points).as_str())
         .unwrap();
     string_points.push_str(" \0").unwrap();
     draw_centered_string(&string_points, 5, true, &COLOR_CONFIG, false);

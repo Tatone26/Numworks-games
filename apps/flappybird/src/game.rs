@@ -111,7 +111,7 @@ pub fn start() {
             &mut opt,
             &COLOR_CONFIG,
             vis_addon,
-            include_str!("./model_controls.txt"),
+            include_str!("./data/model_controls.txt"),
         );
         // The menu does everything itself !
         if start == 0 {
