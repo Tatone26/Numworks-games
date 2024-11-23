@@ -6,7 +6,7 @@ use numworks_utils::menu;
 use numworks_utils::utils;
 
 pub mod game_p4;
-pub mod ia_p4; // TODO
+pub mod ia_p4;
 pub mod ui_p4;
 
 #[used]

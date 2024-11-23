@@ -110,6 +110,9 @@ pub fn fading(dur: u32) {
 
 /// Gives a [random] integer between a and b (included)
 pub fn randint(a: u32, b: u32) -> u32 {
+    if a == b {
+        return 0;
+    };
     return random() % (b - a) + a;
 }
 

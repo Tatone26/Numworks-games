@@ -3,7 +3,7 @@ use crate::{
         display::{push_rect_uniform, wait_for_vblank},
         Color, Point, Rect,
     },
-    game_p4::{MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE, PLAYERS_COLORS},
+    game_p4::{Alignment, MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE, PLAYERS_COLORS},
     utils::{draw_centered_string, draw_tile, fill_screen, ColorConfig, Tileset, CENTER},
 };
 
@@ -12,11 +12,13 @@ const PIXELS: usize = { COIN_SIZE * COIN_SIZE } as usize;
 const LEFT_POS: u16 = CENTER.x - (COIN_SIZE + 4) / 2 - (COIN_SIZE + 4) * 3;
 const UP_POS: u16 = 60;
 
+/// This tileset contains 3 colors of coins, each with there victoy version.
 static TILESET: Tileset = Tileset {
     tile_size: COIN_SIZE,
     image: include_bytes!("./data/coins.ppm"),
 };
 
+/// Draws a coin at the (x, y) GRID coordinates
 pub fn draw_coin(x: u16, y: u16, color: u16, _c: &ColorConfig, vic: bool) {
     wait_for_vblank();
     draw_tile::<PIXELS>(
@@ -31,6 +33,7 @@ pub fn draw_coin(x: u16, y: u16, color: u16, _c: &ColorConfig, vic: bool) {
     );
 }
 
+/// Draws a full grid, taking into account the number of players.
 pub fn draw_grid(players: u8, c: &ColorConfig) {
     wait_for_vblank();
     fill_screen(c.bckgrd);
@@ -38,12 +41,14 @@ pub fn draw_grid(players: u8, c: &ColorConfig) {
         Rect {
             x: LEFT_POS - 4,
             y: UP_POS - 4,
-            width: (COIN_SIZE + 4) * { MAX_WIDTH_SIZE as u16 - (MAX_PLAYERS - players) as u16 } + 4,
+            width: (COIN_SIZE + 4) * {
+                MAX_WIDTH_SIZE as u16 - (MAX_PLAYERS as u16) + (players as u16)
+            } + 4,
             height: (COIN_SIZE + 2) * 6 + 6,
         },
         c.text,
     );
-    for x in 0..(MAX_WIDTH_SIZE as u16 - (MAX_PLAYERS - players) as u16) {
+    for x in 0..(MAX_WIDTH_SIZE as u16 - (MAX_PLAYERS as u16) + (players as u16)) {
         push_rect_uniform(
             Rect {
                 x: LEFT_POS + (COIN_SIZE + 4) * x - 1,
@@ -71,7 +76,8 @@ pub fn draw_grid(players: u8, c: &ColorConfig) {
     }
 }
 
-// Make sure yourself that y_offset isn't going into negative values.
+/// Draws a coin above the grid (y_offset makes it lower, could technically be fixed in code for optimisation)
+/// Make sure yourself that y_offset isn't going into negative values.
 pub fn draw_selection_coin(x: u16, color: u16, _c: &ColorConfig, y_offset: i16) {
     wait_for_vblank();
     draw_tile::<PIXELS>(
@@ -86,6 +92,7 @@ pub fn draw_selection_coin(x: u16, color: u16, _c: &ColorConfig, y_offset: i16) 
     );
 }
 
+/// Removes eveything above the grid, does NOT take into account y_offset for now -> BAD
 pub fn clear_selection_coin(x: u16, c: &ColorConfig) {
     push_rect_uniform(
         Rect {
@@ -98,18 +105,14 @@ pub fn clear_selection_coin(x: u16, c: &ColorConfig) {
     )
 }
 
-pub fn victory(check: Option<(u8, (u16, u16), (u16, u16))>, c: &ColorConfig) {
-    let victor;
-    let pos1; // TODO
-    let pos2;
-    let color: Color;
-    (victor, pos1, pos2) = check.unwrap();
-    color = PLAYERS_COLORS[(victor - 1) as usize];
-    let x_range = pos1.0..pos2.0 + 1;
-    let y_range = if pos1.1 <= pos2.1 {
-        pos1.1..pos2.1 + 1
+/// Show the victory coins, and a victory text. Is ONLY visual.
+pub fn victory(check: Alignment, c: &ColorConfig) {
+    let color: Color = PLAYERS_COLORS[check.0 as usize];
+    let x_range = check.1 .0..check.2 .0 + 1;
+    let y_range = if check.1 .1 <= check.2 .1 {
+        check.1 .1..check.2 .1 + 1
     } else {
-        pos2.1..pos1.1 + 1
+        check.2 .1..check.1 .1 + 1
     };
     wait_for_vblank();
     draw_centered_string(
@@ -125,21 +128,19 @@ pub fn victory(check: Option<(u8, (u16, u16), (u16, u16))>, c: &ColorConfig) {
     );
     if x_range.len() == 1 {
         for y in y_range {
-            draw_coin(pos1.0, y, victor as u16 - 1, c, true);
+            draw_coin(check.1 .0, y, check.0 as u16, c, true);
         }
     } else if y_range.len() == 1 {
         for x in x_range {
-            draw_coin(x, pos1.1, victor as u16 - 1, c, true);
+            draw_coin(x, check.1 .1, check.0 as u16, c, true);
+        }
+    } else if check.1 .1 <= check.2 .1 {
+        for (x, y) in x_range.zip(y_range) {
+            draw_coin(x, y, check.0 as u16, c, true);
         }
     } else {
-        if pos1.1 <= pos2.1 {
-            for (x, y) in x_range.zip(y_range) {
-                draw_coin(x, y, victor as u16 - 1, c, true);
-            }
-        } else {
-            for (x, y) in x_range.zip(y_range.rev()) {
-                draw_coin(x, y, victor as u16 - 1, c, true);
-            }
+        for (x, y) in x_range.zip(y_range.rev()) {
+            draw_coin(x, y, check.0 as u16, c, true);
         }
     }
 }
