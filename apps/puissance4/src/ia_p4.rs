@@ -1,8 +1,6 @@
-use core::{i16, option::Iter};
+use core::i16;
 
-use crate::game_p4::{
-    check, place_coin_nodraw, start, MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE,
-};
+use crate::game_p4::{check, place_coin_nodraw, MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE};
 use heapless::Vec;
 use numworks_utils::utils::randint;
 
@@ -13,9 +11,23 @@ pub fn find_best_move(
     nb_players: u8,
     depth: u8,
 ) -> u8 {
+    // if you can win, do
+    let win = find_winning_moves(table, player, nb_players);
+    if let Some(x) = win {
+        return x;
+    }
+    // block one of the next player winning moves
+    if let Some(p) = find_winning_moves(table, (player + 1) % nb_players, nb_players) {
+        return p;
+    }
+    // find the best move otherwise
     let (col, _) = minimax(table, player, player, nb_players, i16::MIN, i16::MAX, depth);
     if col.is_none() {
-        panic!("the IA couldn't find a move !");
+        if get_valid_moves(table)[3] {
+            return 3; // default starting move !
+        } else {
+            panic!("Stupid AI ! can't find a move when there are some !");
+        }
     }
     col.unwrap()
 }
@@ -39,8 +51,15 @@ fn minimax(
     let mut alpha = alpha;
     let mut beta = beta;
 
-    let mut best_move: u8 = 0;
-    let valid_moves = get_valid_moves(table);
+    let mut best_move: Option<u8> = None;
+    let mut valid_moves = get_valid_moves(table);
+    for d in valid_moves
+        .iter_mut()
+        .take(MAX_WIDTH_SIZE)
+        .skip(MAX_WIDTH_SIZE - MAX_PLAYERS + nb_players as usize)
+    {
+        *d = false;
+    }
     // full table = terminal node
     if valid_moves.is_empty() {
         // full table, can't play anymore
@@ -48,24 +67,36 @@ fn minimax(
     }
     // end of game = terminal node
     let check = check(table, nb_players);
-    if let Some(x) = check {
-        if x.0 == player {
-            return (None, if maximizing { i16::MAX } else { i16::MIN });
-        }
+    if check.is_some() {
+        return (
+            None,
+            if maximizing {
+                i16::MIN + 1 // safety net to make sure it does register those moves
+            } else {
+                i16::MAX - 1
+            },
+        );
     }
     // Randomizing which moves it checks first
-    let mut moves_done: Vec<u8, MAX_WIDTH_SIZE> = Vec::new();
-    while valid_moves.iter().any(|a| !moves_done.contains(a)) {
-        let choice = randint(0, MAX_WIDTH_SIZE as u32);
-        if let Some(&col) = valid_moves.get(choice as usize) {
+    let mut moves_done: [bool; MAX_WIDTH_SIZE] = [false; MAX_WIDTH_SIZE];
+    while valid_moves
+        .iter()
+        .enumerate()
+        .any(|(i, a)| *a && !moves_done[i])
+    {
+        let choice = randint(
+            0,
+            (MAX_WIDTH_SIZE as u32) - MAX_PLAYERS as u32 + nb_players as u32,
+        );
+        if valid_moves[choice as usize] {
             // loop if already tested
-            if moves_done.contains(&col) {
+            if moves_done[choice as usize] {
                 continue;
             }
 
             // creating fake table (next node)
             let mut copy = table.clone();
-            place_coin_nodraw(col, player, &mut copy);
+            place_coin_nodraw(choice as u8, player, &mut copy);
 
             // Get the evaluation of the child node
             // every player tries to minimize the gain of the AI (which will translate to trying to maximize their own)
@@ -83,7 +114,7 @@ fn minimax(
                 if down_eval > value {
                     // maximizing
                     value = down_eval;
-                    best_move = col;
+                    best_move = Some(choice as u8);
                 }
                 if alpha < value {
                     alpha = value;
@@ -92,10 +123,10 @@ fn minimax(
                     break;
                 }
             } else {
-                if value == i16::MIN || down_eval < value {
+                if down_eval < value {
                     // minimizing (adversaries turn)
                     value = down_eval;
-                    best_move = col;
+                    best_move = Some(choice as u8);
                 }
                 if beta > value {
                     beta = value;
@@ -104,20 +135,20 @@ fn minimax(
                     break;
                 }
             }
-            moves_done.push(col).unwrap();
+            moves_done[choice as usize] = true;
         }
     }
-    (Some(best_move), value)
+    (best_move, value)
 }
 
 /// Return all valid moves (columns not full)
 fn get_valid_moves(
     table: &Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>,
-) -> Vec<u8, MAX_WIDTH_SIZE> {
-    let mut result_vec = Vec::<u8, MAX_WIDTH_SIZE>::new();
-    for i in 0..MAX_WIDTH_SIZE {
+) -> [bool; MAX_WIDTH_SIZE] {
+    let mut result_vec = [false; MAX_WIDTH_SIZE];
+    for (i, d) in result_vec.iter_mut().enumerate() {
         if table.get(i).unwrap().iter().any(|a| *a == u8::MAX) {
-            let _ = result_vec.push(i as u8);
+            *d = true;
         }
     }
     result_vec
@@ -166,8 +197,7 @@ fn evaluate_table(
 }
 
 /// Returns the number of times x coins (of this player) have been seen aligned, and chere is this alignment
-/// It is pretty stupid on diagonals, but since we are using the same everytime so errors should compensate, right ?
-/// need to redo diagonals checks later
+/// Could probably be refactored and sped up ?
 pub fn look_for_aligned_coins(
     table: &Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>,
     player: u8,
@@ -218,18 +248,82 @@ pub fn look_for_aligned_coins(
         }
     }
 
-    let up_right_x = (0..MAX_HEIGHT_SIZE)
-        .map(|start_y| (0..(MAX_HEIGHT_SIZE - start_y)).map(move |t| (t, start_y + t)));
-    let up_right_y = (1..MAX_WIDTH_SIZE)
-        .map(|start_x| (0..(MAX_WIDTH_SIZE - start_x)).map(move |t| (start_x + t, t)));
-    let down_right_x =
-        (0..MAX_HEIGHT_SIZE).map(|start_y| (0..(start_y + 1)).map(move |t| (t, start_y - t)));
-    let down_right_y = (1..MAX_WIDTH_SIZE).map(|start_x| {
-        (0..(MAX_WIDTH_SIZE - start_x)).map(move |t| (start_x + t, MAX_HEIGHT_SIZE - 1 - t))
-    });
-    let diag_test: &[&dyn Iterator<Item = dyn Iterator<Item = (usize, usize)>>] =
-        [&up_right_x, &up_right_y, &down_right_x, &down_right_y];
+    // Testing all up-right diagonals starting on x = 0
+    for start_y in 0..MAX_HEIGHT_SIZE {
+        let mut count = 0;
+        for (x, y) in (0..MAX_WIDTH_SIZE)
+            .map(|t| (t, start_y + t))
+            .take_while(|(_, r)| *r < MAX_HEIGHT_SIZE)
+        {
+            if *table.get(x).unwrap().get(y).unwrap() == player {
+                count += 1;
+            } else {
+                count = 0;
+            }
+            if count == number_of_coins {
+                if result == 0 {
+                    first_pos = (
+                        x as u16 + 1 - number_of_coins as u16,
+                        y as u16 + 1 - number_of_coins as u16,
+                    );
+                    last_pos = (x as u16, y as u16);
+                }
+                result += 1;
+                count = 0;
+            }
+        }
+    }
+    // Testing all up-right diagonals starting on x = 0 (skipping the first one)
+    for start_x in 1..MAX_WIDTH_SIZE {
+        let mut count = 0;
+        for (x, y) in (0..MAX_HEIGHT_SIZE)
+            .map(|t| (start_x + t, t))
+            .take_while(|(r, _)| *r < MAX_WIDTH_SIZE)
+        {
+            if *table.get(x).unwrap().get(y).unwrap() == player {
+                count += 1;
+            } else {
+                count = 0;
+            }
+            if count == number_of_coins {
+                if result == 0 {
+                    first_pos = (
+                        x as u16 + 1 - number_of_coins as u16,
+                        y as u16 + 1 - number_of_coins as u16,
+                    );
+                    last_pos = (x as u16, y as u16);
+                }
+                result += 1;
+                count = 0;
+            }
+        }
+    }
 
+    // Testing all down-right diagonals starting on x = 0
+    for start_y in 0..MAX_HEIGHT_SIZE {
+        let mut count = 0;
+        for (x, y) in (0..MAX_WIDTH_SIZE)
+            .take_while(|t| *t <= start_y)
+            .map(|t| (t, start_y - t))
+        {
+            if *table.get(x).unwrap().get(y).unwrap() == player {
+                count += 1;
+            } else {
+                count = 0;
+            }
+            if count == number_of_coins {
+                if result == 0 {
+                    first_pos = (
+                        x as u16 + 1 - number_of_coins as u16,
+                        y as u16 + number_of_coins as u16 - 1,
+                    );
+                    last_pos = (x as u16, y as u16);
+                }
+                result += 1;
+                count = 0;
+            }
+        }
+    }
     // Testing all down-right diagonals starting on x = 0 (skipping the first one)
     for start_x in 1..MAX_WIDTH_SIZE {
         let mut count = 0;
@@ -257,4 +351,33 @@ pub fn look_for_aligned_coins(
     }
 
     (result, first_pos, last_pos)
+}
+
+fn find_winning_moves(
+    table: &Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>,
+    player: u8,
+    nb_players: u8,
+) -> Option<u8> {
+    let valid_moves = get_valid_moves(table);
+    for (col, valid) in valid_moves
+        .iter()
+        .enumerate()
+        .take(MAX_WIDTH_SIZE - MAX_PLAYERS + nb_players as usize)
+    {
+        let mut copy = table.clone();
+        if *valid {
+            place_coin_nodraw(col as u8, player, &mut copy);
+            let res = look_for_aligned_coins(
+                &copy,
+                player,
+                4,
+                MAX_WIDTH_SIZE - MAX_PLAYERS + nb_players as usize,
+            )
+            .0;
+            if res > 0 {
+                return Some(col as u8);
+            }
+        }
+    }
+    None
 }

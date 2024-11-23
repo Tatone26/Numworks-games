@@ -33,9 +33,9 @@ fn vis_addon() {
 }
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption; 3] = [
+    let mut opt: [&mut MyOption; 4] = [
         &mut MyOption {
-            name: "Solo Game\n",
+            name: "Solo Game\0",
             value: 0,
             possible_values: {
                 let mut v = Vec::new();
@@ -61,6 +61,17 @@ pub fn start() {
                 let mut v = Vec::new();
                 unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
                 unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
+                v
+            },
+        },
+        &mut MyOption {
+            name: "IA Strength\0",
+            value: 1,
+            possible_values: {
+                let mut v = Vec::new();
+                unsafe { v.push_unchecked((OptionType::Int(4), "Weak\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(6), "Normal\0")) };
+                unsafe { v.push_unchecked((OptionType::Int(8), "Strong\0")) };
                 v
             },
         },
@@ -91,6 +102,7 @@ pub fn start() {
                 let action = game(
                     opt[1].get_param_value::<u16>() as u8,
                     opt[0].get_param_value::<bool>(),
+                    opt[3].get_param_value::<u16>() as u8,
                     &color_config,
                 ); // calling the game based on the parameters is better
                 if action == 2 {
@@ -113,7 +125,7 @@ pub const MAX_HEIGHT_SIZE: usize = 6;
 pub const PLAYERS_COLORS: [Color; 3] = [Color::BLUE, Color::RED, Color::from_rgb888(250, 200, 0)];
 
 /// The entire game is here.
-pub fn game(nb_players: u8, solo: bool, c: &ColorConfig) -> u8 {
+pub fn game(nb_players: u8, solo: bool, ia_strength: u8, c: &ColorConfig) -> u8 {
     let mut table: Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE> = Vec::new();
     for _ in 0..MAX_WIDTH_SIZE {
         let mut new_vec = Vec::<u8, MAX_HEIGHT_SIZE>::new();
@@ -124,6 +136,7 @@ pub fn game(nb_players: u8, solo: bool, c: &ColorConfig) -> u8 {
     }
     let mut players_pos: [u16; 3] = [3, 3, 3];
     draw_grid(nb_players, c);
+    let mut count_turns: u8 = 0;
     'gameloop: loop {
         for (player, pos) in players_pos.iter_mut().enumerate().take(nb_players as usize) {
             if player == 0 || !solo {
@@ -133,7 +146,18 @@ pub fn game(nb_players: u8, solo: bool, c: &ColorConfig) -> u8 {
                 }
                 place_coin(*pos as u8, player as u8, &mut table, c);
             } else {
-                let choice: u16 = find_best_move(&table, player as u8, nb_players, 6).into();
+                let choice: u16 = find_best_move(
+                    &table,
+                    player as u8,
+                    nb_players,
+                    if count_turns < ia_strength {
+                        // speed up the start of the game !
+                        count_turns
+                    } else {
+                        ia_strength
+                    },
+                )
+                .into();
                 *pos = choice;
                 place_coin(choice as u8, player as u8, &mut table, c);
             }
@@ -146,6 +170,7 @@ pub fn game(nb_players: u8, solo: bool, c: &ColorConfig) -> u8 {
                 draw_centered_string("Egalite !\0", 10, true, c, false);
                 break 'gameloop;
             }
+            count_turns += 1;
         }
     }
     let menu_config = MenuConfig {

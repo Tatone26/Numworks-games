@@ -6,8 +6,10 @@
 
     The first player to align 4 coins of 
         his color wins !
-    Of course, diagonals work.
+    Of course, diagonals work too.   
 
-    PS: "Puissance 4" is known 
-        as "Connect 4" in english.
-                                                                           
+    The AI may not be very smart, but winning
+    against it is surprisingly difficult, 
+    even in its weakest setting... Never 
+    missing any obvious winning move may be 
+    the key after all !                                                                  
