@@ -62,55 +62,55 @@ impl Tetrimino {
     pub fn get_blocks(&self) -> [(i16, i16); 4] {
         match self.tetri {
             TetriType::T => match self.rotation {
-                0 => return [(0, 0), (-1, 0), (1, 0), (0, -1)],
-                1 => return [(0, 0), (1, 0), (0, 1), (0, -1)],
-                2 => return [(0, 0), (-1, 0), (1, 0), (0, 1)],
-                _ => return [(0, 0), (-1, 0), (0, 1), (0, -1)],
+                0 => [(0, 0), (-1, 0), (1, 0), (0, -1)],
+                1 => [(0, 0), (1, 0), (0, 1), (0, -1)],
+                2 => [(0, 0), (-1, 0), (1, 0), (0, 1)],
+                _ => [(0, 0), (-1, 0), (0, 1), (0, -1)],
             },
             TetriType::J => match self.rotation {
-                0 => return [(-1, 0), (-1, -1), (0, 0), (1, 0)],
-                1 => return [(0, 1), (0, 0), (0, -1), (1, -1)],
-                2 => return [(-1, 0), (0, 0), (1, 0), (1, 1)],
-                _ => return [(-1, 1), (0, 1), (0, 0), (0, -1)],
+                0 => [(-1, 0), (-1, -1), (0, 0), (1, 0)],
+                1 => [(0, 1), (0, 0), (0, -1), (1, -1)],
+                2 => [(-1, 0), (0, 0), (1, 0), (1, 1)],
+                _ => [(-1, 1), (0, 1), (0, 0), (0, -1)],
             },
             TetriType::Z => match self.rotation {
-                0 => return [(-1, -1), (0, -1), (0, 0), (1, 0)],
-                1 => return [(0, 0), (0, 1), (1, 0), (1, -1)],
-                2 => return [(-1, 0), (0, 0), (0, 1), (1, 1)],
-                _ => return [(-1, 1), (-1, 0), (0, 0), (0, -1)],
+                0 => [(-1, -1), (0, -1), (0, 0), (1, 0)],
+                1 => [(0, 0), (0, 1), (1, 0), (1, -1)],
+                2 => [(-1, 0), (0, 0), (0, 1), (1, 1)],
+                _ => [(-1, 1), (-1, 0), (0, 0), (0, -1)],
             },
-            TetriType::O => return [(0, 0), (-1, 0), (-1, 1), (0, 1)],
+            TetriType::O => [(0, 0), (-1, 0), (-1, 1), (0, 1)],
             TetriType::S => match self.rotation {
-                0 => return [(-1, 0), (0, 0), (0, -1), (1, -1)],
-                1 => return [(0, 0), (1, 1), (1, 0), (0, -1)],
-                2 => return [(1, 0), (0, 0), (0, 1), (-1, 1)],
-                _ => return [(-1, -1), (-1, 0), (0, 0), (0, 1)],
+                0 => [(-1, 0), (0, 0), (0, -1), (1, -1)],
+                1 => [(0, 0), (1, 1), (1, 0), (0, -1)],
+                2 => [(1, 0), (0, 0), (0, 1), (-1, 1)],
+                _ => [(-1, -1), (-1, 0), (0, 0), (0, 1)],
             },
             TetriType::L => match self.rotation {
-                0 => return [(-1, 0), (0, 0), (1, 0), (1, -1)],
-                1 => return [(1, 1), (0, 1), (0, 0), (0, -1)],
-                2 => return [(-1, 0), (-1, 1), (0, 0), (1, 0)],
-                _ => return [(0, 1), (0, 0), (0, -1), (-1, -1)],
+                0 => [(-1, 0), (0, 0), (1, 0), (1, -1)],
+                1 => [(1, 1), (0, 1), (0, 0), (0, -1)],
+                2 => [(-1, 0), (-1, 1), (0, 0), (1, 0)],
+                _ => [(0, 1), (0, 0), (0, -1), (-1, -1)],
             },
             TetriType::I => match self.rotation {
-                0 => return [(0, 0), (1, 0), (-1, 0), (-2, 0)],
-                1 => return [(0, 0), (0, -1), (0, 1), (0, 2)],
-                2 => return [(0, 1), (1, 1), (-1, 1), (-2, 1)],
-                _ => return [(-1, 0), (-1, -1), (-1, 1), (-1, 2)],
+                0 => [(0, 0), (1, 0), (-1, 0), (-2, 0)],
+                1 => [(0, 0), (0, -1), (0, 1), (0, 2)],
+                2 => [(0, 1), (1, 1), (-1, 1), (-2, 1)],
+                _ => [(-1, 0), (-1, -1), (-1, 1), (-1, 2)],
             },
         }
     }
 
     pub fn get_blocks_grid_pos(&self) -> [SignedPoint; 4] {
         let mut res = Vec::<SignedPoint, 4>::new();
-        for (_, e) in self.get_blocks().iter().enumerate() {
+        for e in self.get_blocks().iter() {
             res.push(SignedPoint {
                 x: e.0 + self.pos.x,
                 y: e.1 + self.pos.y,
             })
             .unwrap();
         }
-        return res.into_array().unwrap();
+        res.into_array().unwrap()
     }
 }
 
@@ -187,7 +187,7 @@ pub fn get_random_bag() -> Vec<Tetrimino, 7> {
         res.push(tetri_list.swap_remove(0)).unwrap_unchecked();
     }
 
-    return res;
+    res
 }
 
 /// Tetris.wiki uses an inversed y axis compared to me, so all y values are inversed.
@@ -262,25 +262,24 @@ static I_WALL_KICKS_TABLE: [(i16, i16); 32] = [
 ];
 
 pub fn get_wall_kicks_data(tetri: &Tetrimino, right: bool) -> &[(i16, i16)] {
-    let table: &[(i16, i16); 32];
-    match tetri.tetri {
-        TetriType::I => table = &I_WALL_KICKS_TABLE,
+    let table: &[(i16, i16); 32] = match tetri.tetri {
+        TetriType::I => &I_WALL_KICKS_TABLE,
         TetriType::O => return &[],
-        _ => table = &WALL_KICK_TABLE,
-    }
+        _ => &WALL_KICK_TABLE,
+    };
     if right {
-        return match tetri.rotation {
+        match tetri.rotation {
             0 => &table[0..4],
             1 => &table[8..12],
             2 => &table[16..20],
             _ => &table[24..28],
-        };
+        }
     } else {
-        return match tetri.rotation {
+        match tetri.rotation {
             0 => &table[28..32],
             3 => &table[20..24],
             2 => &table[12..16],
             _ => &table[4..8],
-        };
+        }
     }
 }

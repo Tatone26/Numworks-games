@@ -1,10 +1,6 @@
 #![no_std]
 #![no_main]
 
-use numworks_utils::eadk;
-use numworks_utils::menu;
-use numworks_utils::utils;
-
 mod bird;
 mod flappy_ui;
 mod game;

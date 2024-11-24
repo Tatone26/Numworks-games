@@ -1,10 +1,12 @@
+use numworks_utils::graphical::{draw_centered_string, fill_screen, tiling::Tileset, ColorConfig};
+
 use crate::{
     eadk::{
         display::{push_rect_uniform, wait_for_vblank},
         Color, Point, Rect,
     },
     game_p4::{Alignment, MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE, PLAYERS_COLORS},
-    utils::{draw_centered_string, draw_tile, fill_screen, ColorConfig, Tileset, CENTER},
+    utils::CENTER,
 };
 
 const COIN_SIZE: u16 = 21;
@@ -15,14 +17,14 @@ const UP_POS: u16 = 60;
 /// This tileset contains 3 colors of coins, each with there victoy version.
 static TILESET: Tileset = Tileset {
     tile_size: COIN_SIZE,
-    image: include_bytes!("./data/coins.ppm"),
+    width: 2 * COIN_SIZE,
+    image: include_bytes!("./data/image.nppm"),
 };
 
 /// Draws a coin at the (x, y) GRID coordinates
 pub fn draw_coin(x: u16, y: u16, color: u16, _c: &ColorConfig, vic: bool) {
     wait_for_vblank();
-    draw_tile::<PIXELS>(
-        &TILESET,
+    TILESET.draw_tile::<PIXELS>(
         Point::new(
             LEFT_POS + (COIN_SIZE + 4) * x,
             UP_POS + (COIN_SIZE + 2) * (5 - y),
@@ -80,8 +82,7 @@ pub fn draw_grid(players: u8, c: &ColorConfig) {
 /// Make sure yourself that y_offset isn't going into negative values.
 pub fn draw_selection_coin(x: u16, color: u16, _c: &ColorConfig, y_offset: i16) {
     wait_for_vblank();
-    draw_tile::<PIXELS>(
-        &TILESET,
+    TILESET.draw_tile::<PIXELS>(
         Point::new(
             LEFT_POS + (COIN_SIZE + 4) * x,
             ((UP_POS - COIN_SIZE - 4) as i16 + y_offset) as u16,

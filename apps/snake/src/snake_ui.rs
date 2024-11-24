@@ -1,9 +1,12 @@
 use heapless::Deque;
+use numworks_utils::{
+    graphical::{fill_screen, tiling::Tileset},
+    utils::CENTER,
+};
 
 use crate::{
     eadk::{display::push_rect_uniform, Color, Point, Rect},
     game_snake::{Direction, GRID_OFFSET, MAX_ARRAY_SIZE, MAX_HEIGHT, MAX_WIDTH},
-    utils::{draw_tile, fill_screen, Tileset, CENTER},
 };
 
 pub const DARK_GRAY: Color = Color::from_rgb888(60, 60, 80);
@@ -22,7 +25,8 @@ const MENU_FIGURE_Y: u16 = 70;
 
 pub static TILEMAP: Tileset = Tileset {
     tile_size: CASE_SIZE,
-    image: include_bytes!("./data/tiles.ppm"),
+    width: 6 * CASE_SIZE,
+    image: include_bytes!("./data/image.nppm"),
 };
 
 /// Draws a box (case) of the grid
@@ -52,8 +56,7 @@ pub fn draw_fruit(x: u16, y: u16, original: bool) {
         draw_box(x, y, Color::RED);
     } else {
         unsafe {
-            draw_tile::<PIXELS>(
-                &TILEMAP,
+            TILEMAP.draw_tile::<PIXELS>(
                 Point::new(x * CASE_SIZE + GRID_OFFSET.0, y * CASE_SIZE + GRID_OFFSET.1),
                 Point::new(0, 0),
                 1,
@@ -64,15 +67,14 @@ pub fn draw_fruit(x: u16, y: u16, original: bool) {
 }
 pub fn draw_snake_front(x: u16, y: u16, direction: Direction, original: bool) {
     if !original {
-        draw_tile::<PIXELS>(
-            &TILEMAP,
+        TILEMAP.draw_tile::<PIXELS>(
             unsafe { Point::new(x * CASE_SIZE + GRID_OFFSET.0, y * CASE_SIZE + GRID_OFFSET.1) },
             Point::new(
                 match direction {
-                    Direction::UP => 1,
-                    Direction::DOWN => 2,
-                    Direction::LEFT => 4,
-                    Direction::RIGHT => 3,
+                    Direction::Up => 1,
+                    Direction::Down => 2,
+                    Direction::Left => 4,
+                    Direction::Right => 3,
                 },
                 0,
             ),
@@ -88,8 +90,7 @@ pub fn draw_wall(x: u16, y: u16, original: bool) {
     if original {
         draw_box(x, y, Color::BLACK)
     } else {
-        draw_tile::<PIXELS>(
-            &TILEMAP,
+        TILEMAP.draw_tile::<PIXELS>(
             unsafe { Point::new(x * CASE_SIZE + GRID_OFFSET.0, y * CASE_SIZE + GRID_OFFSET.1) },
             Point::new(5, 0),
             1,
@@ -158,8 +159,7 @@ pub fn draw_terrain(wrapping: bool) {
 
 /// Menu Visual Addon
 pub fn menu_vis_addon() {
-    draw_tile::<PIXELS>(
-        &TILEMAP,
+    TILEMAP.draw_tile::<PIXELS>(
         Point::new(CENTER.x - CASE_SIZE, MENU_FIGURE_Y),
         Point::new(3, 0),
         2,
@@ -174,8 +174,7 @@ pub fn menu_vis_addon() {
         },
         DARK_GREEN,
     );
-    draw_tile::<PIXELS>(
-        &TILEMAP,
+    TILEMAP.draw_tile::<PIXELS>(
         Point::new(CENTER.x + CASE_SIZE * 3, MENU_FIGURE_Y),
         Point::new(0, 0),
         2,

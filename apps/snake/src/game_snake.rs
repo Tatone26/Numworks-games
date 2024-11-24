@@ -4,28 +4,32 @@ use crate::{
         display::{self, SCREEN_HEIGHT, SCREEN_WIDTH},
         key, keyboard, timing, Point,
     },
-    menu::{menu, selection_menu, MenuConfig, MyOption, OptionType},
     snake_ui::{
         draw_box, draw_fruit, draw_snake, draw_snake_front, draw_terrain, draw_terrain_box,
         draw_wall, BCKD_GRAY, CASE_SIZE, DARK_GREEN,
     },
-    utils::{
-        draw_centered_string, fading, randint, wait_for_no_keydown, ColorConfig, CENTER,
-        LARGE_CHAR_HEIGHT,
-    },
+    utils::{randint, wait_for_no_keydown, CENTER, LARGE_CHAR_HEIGHT},
 };
 use eadk::Color;
 use heapless::String;
 use heapless::{Deque, Vec};
-use numworks_utils::utils::string_from_u16;
+use numworks_utils::{
+    graphical::{draw_centered_string, fading, ColorConfig},
+    menu::{
+        selection,
+        settings::{Setting, SettingType},
+        start_menu, MenuConfig,
+    },
+    utils::string_from_u16,
+};
 
 /// Used to get directions, and nothing else !
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum Direction {
-    UP,
-    DOWN,
-    LEFT,
-    RIGHT,
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 /// The max y value on the grid
@@ -47,62 +51,62 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption; 5] = [
-        &mut MyOption {
+    let mut opt: [&mut Setting; 5] = [
+        &mut Setting {
             name: "Speed :\0",
             value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Int(3), "Fast\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(2), "Normal\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(1), "Slow\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(3), "Fast\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(2), "Normal\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(1), "Slow\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Terrain :\0",
             value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Int(1), "Small\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(2), "Medium\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(3), "Immense\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(1), "Small\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(2), "Medium\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(3), "Immense\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Walls :\0",
             value: 0,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
-                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Wrapping :\0",
             value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
-                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Sprites :\0",
             value: 0,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Bool(false), "Yes\0")) };
-                unsafe { v.push_unchecked((OptionType::Bool(true), "No\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(false), "Yes\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(true), "No\0")) };
                 v
             },
         },
     ];
     loop {
-        let start = menu(
+        let start = start_menu(
             "SNAKE\0",
             &mut opt,
             &COLOR_CONFIG,
@@ -159,7 +163,7 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
         snake.push_front_unchecked(Point::new(3, 1));
     }
     let mut last_move: u64 = timing::millis();
-    let mut direction: Direction = Direction::RIGHT;
+    let mut direction: Direction = Direction::Right;
     let mut last_direction: Direction = direction;
     let mut fruit_pos: Point = get_random_point();
     while is_in_snake(&fruit_pos, &snake) {
@@ -179,13 +183,13 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
         let keyboard_state = keyboard::scan();
         // very efficient scan, register most of the input, do any verification every move only.
         if keyboard_state.key_down(key::UP) {
-            direction = Direction::UP;
+            direction = Direction::Up;
         } else if keyboard_state.key_down(key::DOWN) {
-            direction = Direction::DOWN;
+            direction = Direction::Down;
         } else if keyboard_state.key_down(key::RIGHT) {
-            direction = Direction::RIGHT;
+            direction = Direction::Right;
         } else if keyboard_state.key_down(key::LEFT) {
-            direction = Direction::LEFT;
+            direction = Direction::Left;
         } else if keyboard_state.key_down(key::OK) {
             let action = snake_pause(points, false);
             if action == 0 {
@@ -209,7 +213,7 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
             let front_point: Point;
             unsafe {
                 // Dangerous place ! Have to be really cautious about what I'm doing to this array !
-                front_point = snake.front().unwrap().clone();
+                front_point = *snake.front().unwrap();
                 match get_point_from_dir(&front_point, &direction, &snake, &walls, wrapping) {
                     // renvoie None si le nouveau point n'existe pas, est un mur ou une partie du snake (derniere partie exclue)
                     x @ Some(_) => {
@@ -223,11 +227,11 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
             if (new_point.x == fruit_pos.x) && (new_point.y == fruit_pos.y) {
                 // if we ate the fruit
                 points += 1;
-                let next_direct_pos: Point; // Evite que les murs ou les fruits apparaissent directement devant le joueur
+                let next_direct_pos: Point = // Evite que les murs ou les fruits apparaissent directement devant le joueur
                 match get_point_from_dir(&new_point, &direction, &snake, &walls, wrapping) {
-                    x @ Some(_) => next_direct_pos = x.unwrap(),
-                    None => unsafe { next_direct_pos = Point::new(MAX_WIDTH, MAX_HEIGHT) },
-                }
+                    x @ Some(_) =>  x.unwrap(),
+                    None => unsafe {  Point::new(MAX_WIDTH, MAX_HEIGHT) },
+                };
                 if has_walls && ((points % 2) == 0) {
                     // add walls
                     let mut new_wall = get_random_point();
@@ -279,11 +283,17 @@ fn snake_pause(points: u16, death: bool) -> u8 {
     let mut string_points: String<15> = String::new();
     string_points.push_str(" Points : ").unwrap();
     string_points
-        .push_str(string_from_u16(points).as_str())
+        .push_str(
+            string_from_u16(points)
+                .as_str()
+                .split_terminator('\0')
+                .next()
+                .unwrap(),
+        )
         .unwrap();
     string_points.push_str(" \0").unwrap();
     draw_centered_string(&string_points, 5, true, &COLOR_CONFIG, false);
-    let action = selection_menu(
+    let action = selection(
         &COLOR_CONFIG,
         &MenuConfig {
             choices: if death {
@@ -301,29 +311,29 @@ fn snake_pause(points: u16, death: bool) -> u8 {
     if action != 0 {
         fading(500);
     }
-    return action;
+    action
 }
 
 fn check_direction(direction: Direction, last_direction: Direction) -> Direction {
     match direction {
         // need to check if the direction is not the opposite of the actual direction.
-        Direction::UP => {
-            if last_direction == Direction::DOWN {
+        Direction::Up => {
+            if last_direction == Direction::Down {
                 return last_direction;
             }
         }
-        Direction::DOWN => {
-            if last_direction == Direction::UP {
+        Direction::Down => {
+            if last_direction == Direction::Up {
                 return last_direction;
             }
         }
-        Direction::LEFT => {
-            if last_direction == Direction::RIGHT {
+        Direction::Left => {
+            if last_direction == Direction::Right {
                 return last_direction;
             }
         }
-        Direction::RIGHT => {
-            if last_direction == Direction::LEFT {
+        Direction::Right => {
+            if last_direction == Direction::Left {
                 return last_direction;
             }
         }
@@ -338,7 +348,7 @@ fn is_in_snake(p: &Point, snake: &Deque<Point, MAX_ARRAY_SIZE>) -> bool {
             return true;
         }
     }
-    return false;
+    false
 }
 
 /// Check if a given Point is in a Vec (the walls)
@@ -348,7 +358,7 @@ fn is_in_walls(p: &Point, walls: &Vec<Point, MAX_ARRAY_SIZE>) -> bool {
             return true;
         }
     }
-    return false;
+    false
 }
 
 /// Give a random Point, corresponding to a position on the game grid
@@ -356,7 +366,7 @@ fn get_random_point() -> Point {
     unsafe {
         let x = randint(0, (MAX_WIDTH - 1) as u32) as u16;
         let y = randint(0, (MAX_HEIGHT - 1) as u32) as u16;
-        return Point::new(x, y);
+        Point::new(x, y)
     }
 }
 
@@ -371,7 +381,7 @@ fn get_point_from_dir(
     let mut new_point = Point::new(p.x, p.y);
     match d {
         // Big boom here ! x and y can not be < 0 !! (or too big for that matter)
-        Direction::UP => {
+        Direction::Up => {
             if new_point.y >= 1 {
                 new_point.y -= 1
             } else if wrapping {
@@ -380,7 +390,7 @@ fn get_point_from_dir(
                 return None;
             }
         }
-        Direction::DOWN => unsafe {
+        Direction::Down => unsafe {
             if new_point.y < MAX_HEIGHT - 1 {
                 new_point.y += 1
             } else if wrapping {
@@ -389,7 +399,7 @@ fn get_point_from_dir(
                 return None;
             }
         },
-        Direction::LEFT => {
+        Direction::Left => {
             if new_point.x >= 1 {
                 new_point.x -= 1
             } else if wrapping {
@@ -398,7 +408,7 @@ fn get_point_from_dir(
                 return None;
             }
         }
-        Direction::RIGHT => unsafe {
+        Direction::Right => unsafe {
             if new_point.x < MAX_WIDTH - 1 {
                 new_point.x += 1
             } else if wrapping {

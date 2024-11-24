@@ -13,6 +13,7 @@ name = "connect_four"
 version = "0.4.0"
 dependencies = [
  "heapless",
+ "nppm_decoder",
  "numworks_utils",
 ]
 
@@ -34,6 +35,10 @@ dependencies = [
  "hash32",
  "stable_deref_trait",
 ]
+
+[[package]]
+name = "nppm_decoder"
+version = "0.1.0"
 
 [[package]]
 name = "numworks_utils"

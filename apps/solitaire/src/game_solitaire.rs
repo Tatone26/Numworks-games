@@ -1,18 +1,21 @@
 use heapless::Vec;
 use numworks_utils::{
     eadk::{key, keyboard, timing, State},
-    menu::{pause_menu, selection_menu},
-    utils::{draw_centered_string, fading, randint, wait_for_no_keydown},
+    graphical::{draw_centered_string, fading, fill_screen, ColorConfig},
+    menu::{
+        self, pause_menu,
+        settings::{Setting, SettingType},
+        start_menu,
+    },
+    utils::{randint, wait_for_no_keydown},
 };
 
 use crate::{
     eadk::Color,
-    menu::{menu, MyOption, OptionType},
     ui_solitaire::{
         draw_fondations_stack, draw_selection, draw_stock, draw_tableau_stack, menu_vis_addon,
         ui_setup, BACKGROUND_COLOR, REPLAY_MENU_CONFIG,
     },
-    utils::{fill_screen, ColorConfig},
 };
 
 // This dictates the principal colors that will be used
@@ -24,19 +27,19 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption; 1] = [&mut MyOption {
+    let mut opt: [&mut Setting; 1] = [&mut Setting {
         name: "Difficulty\0",
         value: 2,
         possible_values: {
             let mut v = Vec::new();
-            unsafe { v.push_unchecked((OptionType::Int(1), "Easy\0")) };
-            unsafe { v.push_unchecked((OptionType::Int(2), "Normal\0")) };
-            unsafe { v.push_unchecked((OptionType::Int(3), "HARD\0")) };
+            unsafe { v.push_unchecked((SettingType::Int(1), "Easy\0")) };
+            unsafe { v.push_unchecked((SettingType::Int(2), "Normal\0")) };
+            unsafe { v.push_unchecked((SettingType::Int(3), "HARD\0")) };
             v
         },
     }];
     loop {
-        let start = menu(
+        let start = start_menu(
             "SOLITAIRE\0",
             &mut opt,
             &COLOR_CONFIG,
@@ -87,7 +90,7 @@ pub struct Table {
 
 impl Table {
     pub fn empty() -> Self {
-        let table = Table {
+        Table {
             tableau: [
                 Vec::new(),
                 Vec::new(),
@@ -100,8 +103,7 @@ impl Table {
             fondations: [Vec::new(), Vec::new(), Vec::new(), Vec::new()],
             stock: Vec::new(),
             stock_iter: 0,
-        };
-        return table;
+        }
     }
 }
 
@@ -193,23 +195,22 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
                 if let CursorPos::Tableau(b) = cursor_pos {
                     if selection.is_some() && selection.unwrap() == cursor_pos {
                         let size = table.tableau[b as usize].len();
-                        if selection_size < size as u8 {
-                            if table.tableau[b as usize]
+                        if selection_size < size as u8
+                            && table.tableau[b as usize]
                                 .get(size - selection_size as usize - 1)
                                 .unwrap()
                                 .visible
-                                && is_card_placable_on_other_card(
-                                    table.tableau[b as usize]
-                                        .get(size - selection_size as usize)
-                                        .unwrap(),
-                                    table.tableau[b as usize]
-                                        .get(size - selection_size as usize - 1)
-                                        .unwrap(),
-                                )
-                            {
-                                selection_size += 1;
-                                draw_selection(&cursor_pos, false, true, &table, selection_size);
-                            }
+                            && is_card_placable_on_other_card(
+                                table.tableau[b as usize]
+                                    .get(size - selection_size as usize)
+                                    .unwrap(),
+                                table.tableau[b as usize]
+                                    .get(size - selection_size as usize - 1)
+                                    .unwrap(),
+                            )
+                        {
+                            selection_size += 1;
+                            draw_selection(&cursor_pos, false, true, &table, selection_size);
                         }
                     }
                 }
@@ -219,12 +220,11 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
                 && timing::millis() >= (last_action + REPETITION_SPEED as u64)
             {
                 if let CursorPos::Tableau(_) = cursor_pos {
-                    if selection.is_some() && selection.unwrap() == cursor_pos {
-                        if selection_size > 1 {
-                            draw_selection(&cursor_pos, true, false, &table, selection_size);
-                            selection_size -= 1;
-                            draw_selection(&cursor_pos, false, true, &table, selection_size);
-                        }
+                    if selection.is_some() && selection.unwrap() == cursor_pos && selection_size > 1
+                    {
+                        draw_selection(&cursor_pos, true, false, &table, selection_size);
+                        selection_size -= 1;
+                        draw_selection(&cursor_pos, false, true, &table, selection_size);
                     }
                 }
                 last_action_key = key::ALPHA;
@@ -245,7 +245,7 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
                     if check_for_win(&table) {
                         auto_win(&mut table);
                         timing::msleep(1000);
-                        let action = selection_menu(&COLOR_CONFIG, &REPLAY_MENU_CONFIG, false);
+                        let action = menu::selection(&COLOR_CONFIG, &REPLAY_MENU_CONFIG, false);
                         return action;
                     }
                 }
@@ -277,7 +277,7 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
                         if check_for_win(&table) {
                             auto_win(&mut table);
                             timing::msleep(1000);
-                            let action = selection_menu(&COLOR_CONFIG, &REPLAY_MENU_CONFIG, false);
+                            let action = menu::selection(&COLOR_CONFIG, &REPLAY_MENU_CONFIG, false);
                             return action;
                         }
                         break;
@@ -308,8 +308,8 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
                         &table,
                         1,
                     );
-                    if selection.is_some() {
-                        draw_selection(&selection.unwrap(), false, true, &table, selection_size);
+                    if let Some(select) = selection {
+                        draw_selection(&select, false, true, &table, selection_size);
                     }
                     last_action = timing::millis();
                 } else {
@@ -321,16 +321,17 @@ pub fn game(difficulty: u16, move_anywhere: bool) -> u8 {
     }
 }
 
+#[inline]
 fn new_cursor_pos_value(cursor_pos: &CursorPos, new_value: u8) -> CursorPos {
     match cursor_pos {
-        CursorPos::Tableau(_) => return CursorPos::Tableau(new_value),
-        CursorPos::Fondations(_) => return CursorPos::Fondations(new_value),
-        CursorPos::Stock(_) => return CursorPos::Stock(new_value),
+        CursorPos::Tableau(_) => CursorPos::Tableau(new_value),
+        CursorPos::Fondations(_) => CursorPos::Fondations(new_value),
+        CursorPos::Stock(_) => CursorPos::Stock(new_value),
     }
 }
 
 fn move_cursor(cursor_pos: &mut CursorPos, keyboard_state: &State) {
-    let value = u8::from_value(&cursor_pos);
+    let value = u8::from_value(cursor_pos);
     if keyboard_state.key_down(key::LEFT) {
         if value > 0 {
             *cursor_pos = new_cursor_pos_value(cursor_pos, value - 1);
@@ -406,7 +407,7 @@ fn turn_stock(
     }
     if let CursorPos::Stock(_) = cursor_pos {
         // Do not redraw selection if not necessary. That's the kind of optimisations we want.
-        draw_selection(cursor_pos, false, false, &table, 1);
+        draw_selection(cursor_pos, false, false, table, 1);
     }
 }
 
@@ -437,70 +438,68 @@ fn move_card(
             }
         }
         *selection_size = 1;
-        draw_selection(cursor_pos, false, selection.is_some(), &table, 1);
-    } else {
-        if selection.unwrap() == *cursor_pos {
-            // If same place, then unselect
-            if *selection_size > 1 {
-                draw_selection(&selection.unwrap(), true, false, &table, *selection_size);
-            }
-            draw_selection(&cursor_pos, false, false, &table, 1);
-            *selection = None;
-            *selection_size = 1;
-        } else if let CursorPos::Stock(_) = cursor_pos {
-            // if there is a selection but we click on stock ? The other case are taken cared of outside of this function.
-        } else if move_anywhere
-            || is_move_possible(table, cursor_pos, &selection.unwrap(), &selection_size)
-        {
-            // Here, we move the card (if possible of course.)
-            let selected_pos = selection.unwrap();
-            let mut cards_to_move = Vec::<Card, 13>::new();
-            for _ in 0..*selection_size {
-                let mut new_card = {
-                    // We REMOVE the card from its old place, so if there is nothing we cry
-                    match selected_pos {
-                        CursorPos::Tableau(i) => table.tableau[i as usize].pop(),
-                        CursorPos::Fondations(i) => table.fondations[i as usize].pop(),
-                        CursorPos::Stock(_) => Some(table.stock.remove(table.stock_iter - 1)),
-                    }
-                }
-                .unwrap();
-                new_card.visible = true;
-                let _ = cards_to_move.push(new_card);
-            }
-            // TODO : verifications pour savoir si mouvement possible
-            match selected_pos {
-                CursorPos::Tableau(i) => {
-                    if !table.tableau[i as usize].is_empty() {
-                        table.tableau[i as usize].last_mut().unwrap().visible = true;
-                    }
-                    draw_tableau_stack(&table.tableau[i as usize], i as u16);
-                }
-                CursorPos::Fondations(i) => {
-                    draw_fondations_stack(&table.fondations[i as usize], i as u16)
-                }
-                CursorPos::Stock(_) => {
-                    table.stock_iter -= 1;
-                    draw_stock(&table.stock, table.stock_iter)
-                }
-            }
-            match cursor_pos {
-                CursorPos::Tableau(i) => unsafe {
-                    for _ in 0..*selection_size {
-                        table.tableau[*i as usize].push_unchecked(cards_to_move.pop().unwrap());
-                    }
-                    draw_tableau_stack(&table.tableau[*i as usize], *i as u16);
-                },
-                CursorPos::Fondations(i) => unsafe {
-                    table.fondations[*i as usize].push_unchecked(cards_to_move.pop().unwrap());
-                    draw_fondations_stack(&table.fondations[*i as usize], *i as u16);
-                },
-                _ => (), // Should NOT be possible.
-            }
-            draw_selection(cursor_pos, false, false, &table, 1);
-            *selection = None;
-            *selection_size = 1;
+        draw_selection(cursor_pos, false, selection.is_some(), table, 1);
+    } else if selection.unwrap() == *cursor_pos {
+        // If same place, then unselect
+        if *selection_size > 1 {
+            draw_selection(&selection.unwrap(), true, false, table, *selection_size);
         }
+        draw_selection(cursor_pos, false, false, table, 1);
+        *selection = None;
+        *selection_size = 1;
+    } else if let CursorPos::Stock(_) = cursor_pos {
+        // if there is a selection but we click on stock ? The other case are taken cared of outside of this function.
+    } else if move_anywhere
+        || is_move_possible(table, cursor_pos, &selection.unwrap(), selection_size)
+    {
+        // Here, we move the card (if possible of course.)
+        let selected_pos = selection.unwrap();
+        let mut cards_to_move = Vec::<Card, 13>::new();
+        for _ in 0..*selection_size {
+            let mut new_card = {
+                // We REMOVE the card from its old place, so if there is nothing we cry
+                match selected_pos {
+                    CursorPos::Tableau(i) => table.tableau[i as usize].pop(),
+                    CursorPos::Fondations(i) => table.fondations[i as usize].pop(),
+                    CursorPos::Stock(_) => Some(table.stock.remove(table.stock_iter - 1)),
+                }
+            }
+            .unwrap();
+            new_card.visible = true;
+            let _ = cards_to_move.push(new_card);
+        }
+        // TODO : verifications pour savoir si mouvement possible
+        match selected_pos {
+            CursorPos::Tableau(i) => {
+                if !table.tableau[i as usize].is_empty() {
+                    table.tableau[i as usize].last_mut().unwrap().visible = true;
+                }
+                draw_tableau_stack(&table.tableau[i as usize], i as u16);
+            }
+            CursorPos::Fondations(i) => {
+                draw_fondations_stack(&table.fondations[i as usize], i as u16)
+            }
+            CursorPos::Stock(_) => {
+                table.stock_iter -= 1;
+                draw_stock(&table.stock, table.stock_iter)
+            }
+        }
+        match cursor_pos {
+            CursorPos::Tableau(i) => unsafe {
+                for _ in 0..*selection_size {
+                    table.tableau[*i as usize].push_unchecked(cards_to_move.pop().unwrap());
+                }
+                draw_tableau_stack(&table.tableau[*i as usize], *i as u16);
+            },
+            CursorPos::Fondations(i) => unsafe {
+                table.fondations[*i as usize].push_unchecked(cards_to_move.pop().unwrap());
+                draw_fondations_stack(&table.fondations[*i as usize], *i as u16);
+            },
+            _ => (), // Should NOT be possible.
+        }
+        draw_selection(cursor_pos, false, false, table, 1);
+        *selection = None;
+        *selection_size = 1;
     }
 }
 
@@ -521,7 +520,7 @@ fn is_card_placable_on_other_card(card_to_move: &Card, base_card: &Card) -> bool
             }
         };
     }
-    return false;
+    false
 }
 
 fn is_move_possible(
@@ -553,32 +552,26 @@ fn is_move_possible(
         match cursor_pos {
             CursorPos::Tableau(i) => {
                 let base_card = table.tableau[*i as usize].last();
-                if base_card.is_some() {
-                    return is_card_placable_on_other_card(
-                        card_to_move.unwrap(),
-                        base_card.unwrap(),
-                    );
+                if let Some(b_c) = base_card {
+                    is_card_placable_on_other_card(card_to_move.unwrap(), b_c)
                 } else {
-                    return card_to_move.unwrap().number == 12;
+                    card_to_move.unwrap().number == 12
                 }
             }
             CursorPos::Fondations(i) => {
                 if table.fondations[*i as usize].is_empty() {
-                    return card_to_move.unwrap().number == 0;
-                } else if (table.fondations[*i as usize].last().unwrap().suit
-                    == card_to_move.unwrap().suit)
-                    && (table.fondations[*i as usize].last().unwrap().number
-                        == card_to_move.unwrap().number - 1)
-                {
-                    return true;
+                    card_to_move.unwrap().number == 0
                 } else {
-                    return false;
+                    (table.fondations[*i as usize].last().unwrap().suit
+                        == card_to_move.unwrap().suit)
+                        && (table.fondations[*i as usize].last().unwrap().number
+                            == card_to_move.unwrap().number - 1)
                 }
             }
-            CursorPos::Stock(_) => return false,
+            CursorPos::Stock(_) => false,
         }
     } else {
-        return false;
+        false
     }
 }
 
@@ -593,16 +586,16 @@ fn shuffle_deck(deck: &mut Vec<Card, 52>) {
 fn create_table() -> Table {
     let mut deck = Vec::<Card, 52>::new();
     let suit_list = [Suit::Club, Suit::Diamond, Suit::Heart, Suit::Spade];
-    for i in 0..4 {
+    for s in &suit_list {
         for e in 0..13 {
             let test = deck.push(Card {
-                suit: suit_list[i],
+                suit: *s,
                 number: e,
                 visible: false,
             });
             if test.is_err() {
                 fill_screen(Color::RED);
-                loop {}
+                panic!("Couldn't put cards in the table !");
             }
         }
     }
@@ -619,7 +612,7 @@ fn create_table() -> Table {
         table.tableau[i].last_mut().unwrap().visible = true;
     }
     table.stock = deck;
-    return table;
+    table
 }
 
 fn check_for_win(table: &Table) -> bool {
@@ -639,7 +632,7 @@ fn check_for_win(table: &Table) -> bool {
             }
         }
     }
-    return true;
+    true
 }
 
 fn auto_win(table: &mut Table) {
@@ -666,8 +659,8 @@ fn auto_win(table: &mut Table) {
                     && v.last().unwrap().number == card_to_find.number
                 {
                     let card_to_move = v.pop();
-                    if card_to_move.is_some() {
-                        let _ = fond.push(card_to_move.unwrap());
+                    if let Some(c_t_m) = card_to_move {
+                        let _ = fond.push(c_t_m);
                     }
                     draw_tableau_stack(v, e as u16);
                     draw_fondations_stack(fond, i as u16);

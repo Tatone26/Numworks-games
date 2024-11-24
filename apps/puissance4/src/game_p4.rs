@@ -1,6 +1,14 @@
 use core::u8;
 
 use heapless::Vec;
+use numworks_utils::{
+    graphical::{draw_centered_string, ColorConfig},
+    menu::{
+        self,
+        settings::{Setting, SettingType},
+        start_menu,
+    },
+};
 
 use crate::{
     eadk::{
@@ -8,9 +16,9 @@ use crate::{
         key, keyboard, timing, Color,
     },
     ia_p4::{find_best_move, look_for_aligned_coins},
-    menu::{menu, selection_menu, MenuConfig, MyOption, OptionType},
+    menu::MenuConfig,
     ui_p4::{clear_selection_coin, draw_coin, draw_grid, draw_selection_coin, victory},
-    utils::{draw_centered_string, wait_for_no_keydown, ColorConfig, LARGE_CHAR_HEIGHT},
+    utils::{wait_for_no_keydown, LARGE_CHAR_HEIGHT},
 };
 
 // This dictates the principal colors that will be used
@@ -33,51 +41,51 @@ fn vis_addon() {
 }
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption; 4] = [
-        &mut MyOption {
+    let mut opt: [&mut Setting; 4] = [
+        &mut Setting {
             name: "Solo Game\0",
             value: 0,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
-                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Players\0",
             value: 0,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Int(2), "2\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(3), "3\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(2), "2\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(3), "3\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Dark mode\0",
             value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
-                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "IA Strength\0",
             value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Int(4), "Weak\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(6), "Normal\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(8), "Strong\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(4), "Weak\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(6), "Normal\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(8), "Strong\0")) };
                 v
             },
         },
     ];
     loop {
-        let start = menu(
+        let start = start_menu(
             "PUISSANCE 4\0",
             &mut opt,
             &COLOR_CONFIG,
@@ -175,12 +183,12 @@ pub fn game(nb_players: u8, solo: bool, ia_strength: u8, c: &ColorConfig) -> u8 
     }
     let menu_config = MenuConfig {
         choices: &["Replay\0", "Menu\0", "Exit\0"],
-        rect_margins: (0, 0),
+        rect_margins: (20, 0),
         dimensions: (SCREEN_WIDTH, LARGE_CHAR_HEIGHT),
         offset: (0, SCREEN_HEIGHT / 2 - LARGE_CHAR_HEIGHT),
         back_key_return: 1,
     };
-    selection_menu(c, &menu_config, true)
+    menu::selection(c, &menu_config, true)
 }
 
 /// Return True if the table is full (the game has ended in a tie)

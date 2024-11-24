@@ -2,8 +2,6 @@
 #![no_main]
 
 use numworks_utils::eadk;
-use numworks_utils::menu;
-use numworks_utils::utils;
 
 mod game_solitaire;
 pub mod ui_solitaire;

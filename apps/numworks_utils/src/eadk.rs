@@ -1,5 +1,9 @@
 use core::f32::consts::PI;
 
+/// This file represents all the function we can call in the Epsilon ecosystem.
+/// This is the libc of the Numworks.
+/// There are also some quality of life functions directly linked to the structures defined here, kindly given by the Numworks team.
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct Color {
@@ -180,7 +184,10 @@ pub mod display {
         }
     }
 
-    pub fn push_rect_ptr(rect: Rect, pixels: *const Color) {
+    /// Personnal addon : useful for some technical things.
+    /// # Safety
+    ///    Just be smart
+    pub unsafe fn push_rect_ptr(rect: Rect, pixels: *const Color) {
         unsafe {
             eadk_display_push_rect(rect, pixels);
         }
@@ -269,20 +276,21 @@ pub mod timing {
     }
 }
 
+/// Does not seem to work for now
 pub mod battery {
 
     pub fn battery_charging() -> bool {
-        unsafe { return eadk_battery_is_charging() }
+        unsafe { eadk_battery_is_charging() }
     }
 
     #[must_use]
     pub fn battery_voltage() -> f32 {
-        unsafe { return eadk_battery_voltage() }
+        unsafe { eadk_battery_voltage() }
     }
 
     #[must_use]
     pub fn battery_level() -> u8 {
-        unsafe { return eadk_battery_level() }
+        unsafe { eadk_battery_level() }
     }
 
     extern "C" {

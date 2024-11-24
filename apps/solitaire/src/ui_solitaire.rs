@@ -4,10 +4,9 @@ use numworks_utils::{
         display::{self, draw_string, push_rect_uniform, SCREEN_WIDTH},
         Color, Point, Rect,
     },
+    graphical::{fill_screen, tiling::Tileset},
     menu::MenuConfig,
-    utils::{
-        draw_tile, fill_screen, wait_for_no_keydown, Tileset, LARGE_CHAR_HEIGHT, LARGE_CHAR_WIDTH,
-    },
+    utils::{wait_for_no_keydown, LARGE_CHAR_HEIGHT, LARGE_CHAR_WIDTH},
 };
 
 use crate::game_solitaire::{Card, CursorPos, Suit, Table};
@@ -15,11 +14,12 @@ use crate::game_solitaire::{Card, CursorPos, Suit, Table};
 /// Images work really well with square tiles. You can still draw other images, but it is less good.
 static TILESET: Tileset = Tileset {
     tile_size: 35,
-    image: include_bytes!("./data/cartes.ppm"),
+    width: 35 * 5,
+    image: include_bytes!("./data/image.nppm"),
 };
 const PIXELS: usize = { 35 * 35 } as usize;
 
-const NAMES_LIST: [&'static str; 13] = [
+const NAMES_LIST: [&str; 13] = [
     "A\0", "2\0", "3\0", "4\0", "5\0", "6\0", "7\0", "8\0", "9\0", "10\0", "J\0", "Q\0", "K\0",
 ];
 
@@ -30,9 +30,8 @@ const HIDDEN_CARD_TILE: u16 = 4;
 
 fn draw_card(card: &Card, pos: Point) {
     if card.visible {
-        draw_tile::<PIXELS>(&TILESET, pos, Point::new(card.suit as u16, 0), 1, false);
-        draw_tile::<PIXELS>(
-            &TILESET,
+        TILESET.draw_tile::<PIXELS>(pos, Point::new(card.suit as u16, 0), 1, false);
+        TILESET.draw_tile::<PIXELS>(
             Point::new(pos.x, pos.y + TILESET.tile_size),
             Point::new(card.suit as u16, 1),
             1,
@@ -62,9 +61,8 @@ fn draw_card(card: &Card, pos: Point) {
             Color::WHITE,
         );
     } else {
-        draw_tile::<PIXELS>(&TILESET, pos, Point::new(HIDDEN_CARD_TILE, 0), 1, false);
-        draw_tile::<PIXELS>(
-            &TILESET,
+        TILESET.draw_tile::<PIXELS>(pos, Point::new(HIDDEN_CARD_TILE, 0), 1, false);
+        TILESET.draw_tile::<PIXELS>(
             Point::new(pos.x, pos.y + TILESET.tile_size),
             Point::new(HIDDEN_CARD_TILE, 1),
             1,
@@ -77,7 +75,7 @@ fn get_pos_from_cursor_pos(cursor_pos: &CursorPos, table: &Table) -> Point {
     match cursor_pos {
         CursorPos::Tableau(i) => {
             let number_of_cards = table.tableau[*i as usize].len() as u16;
-            return Point::new(
+            Point::new(
                 20 + (*i as u16) * (CARD_WIDTH + 6),
                 CARD_HEIGHT
                     + 25
@@ -92,12 +90,12 @@ fn get_pos_from_cursor_pos(cursor_pos: &CursorPos, table: &Table) -> Point {
                             LARGE_CHAR_HEIGHT / 2
                         }
                     },
-            );
+            )
         }
-        CursorPos::Fondations(i) => return Point::new(20 + (*i as u16) * (CARD_WIDTH + 6), 10),
+        CursorPos::Fondations(i) => Point::new(20 + (*i as u16) * (CARD_WIDTH + 6), 10),
         CursorPos::Stock(i) => {
             if *i == 1 {
-                return Point::new(SCREEN_WIDTH - CARD_WIDTH - 19, 10);
+                Point::new(SCREEN_WIDTH - CARD_WIDTH - 19, 10)
             } else {
                 let mut o = 0;
                 if table.stock_iter == 2 {
@@ -105,10 +103,10 @@ fn get_pos_from_cursor_pos(cursor_pos: &CursorPos, table: &Table) -> Point {
                 } else if table.stock_iter >= 2 {
                     o = 2;
                 }
-                return Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 23 + o * CARD_WIDTH / 2, 10);
+                Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 23 + o * CARD_WIDTH / 2, 10)
             }
         }
-    };
+    }
 }
 
 pub fn draw_selection(
@@ -125,7 +123,7 @@ pub fn draw_selection(
             CursorPos::Tableau(b) => table.tableau[*b as usize].is_empty(),
             CursorPos::Fondations(b) => table.fondations[*b as usize].is_empty(),
             CursorPos::Stock(b) => {
-                (*b == 0 && table.stock_iter <= 0)
+                (*b == 0 && table.stock_iter == 0)
                     || (*b == 1 && table.stock_iter >= table.stock.len())
             }
         }
@@ -142,8 +140,7 @@ pub fn draw_selection(
                 3
             }
         };
-        draw_tile::<PIXELS>(
-            &TILESET,
+        TILESET.draw_tile::<PIXELS>(
             Point::new(pos.x, pos.y + TILESET.tile_size),
             Point::new(tile, 3),
             1,
@@ -153,8 +150,7 @@ pub fn draw_selection(
             CursorPos::Tableau(b) => {
                 let stack = &table.tableau[*b as usize];
                 for i in 0..selection_size {
-                    draw_tile::<PIXELS>(
-                        &TILESET,
+                    TILESET.draw_tile::<PIXELS>(
                         Point::new(
                             pos.x,
                             pos.y
@@ -172,15 +168,14 @@ pub fn draw_selection(
                     );
                 }
             }
-            _ => draw_tile::<PIXELS>(&TILESET, pos, Point::new(tile, 2), 1, true),
+            _ => TILESET.draw_tile::<PIXELS>(pos, Point::new(tile, 2), 1, true),
         }
     }
 }
 
 fn draw_empty_place(pos: Point) {
-    draw_tile::<PIXELS>(&TILESET, pos, Point::new(0, 2), 1, true);
-    draw_tile::<PIXELS>(
-        &TILESET,
+    TILESET.draw_tile::<PIXELS>(pos, Point::new(0, 2), 1, true);
+    TILESET.draw_tile::<PIXELS>(
         Point::new(pos.x, pos.y + TILESET.tile_size),
         Point::new(0, 3),
         1,
@@ -269,16 +264,14 @@ pub fn draw_stock(stack: &Vec<Card, 52>, stock_iter: usize) {
         );
         if stock_iter > 0 {
             let start: usize = { stock_iter.saturating_sub(3) };
-            let mut o: u16 = 0;
-            for i in start..stock_iter {
-                let mut card: Card = stack.get(i).unwrap().clone();
+            for (o, i) in (0..).zip(start..stock_iter) {
+                let mut card: Card = *stack.get(i).unwrap();
                 card.visible = true;
                 display::wait_for_vblank();
                 draw_card(
                     &card,
                     Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 23 + o * CARD_WIDTH / 2, 10),
                 );
-                o += 1;
             }
         } else {
             draw_empty_place(Point::new(SCREEN_WIDTH - 3 * CARD_WIDTH - 23, 10));
@@ -344,10 +337,7 @@ pub fn menu_vis_addon() {
 pub const REPLAY_MENU_CONFIG: MenuConfig = MenuConfig {
     choices: &["Resume\0", "Menu\0", "Exit\0"],
     rect_margins: (20, 10),
-    dimensions: (
-        SCREEN_WIDTH * 2 / 5,
-        LARGE_CHAR_HEIGHT * 7,
-    ),
+    dimensions: (SCREEN_WIDTH * 2 / 5, LARGE_CHAR_HEIGHT * 7),
     offset: (0, 50),
     back_key_return: 0,
 };

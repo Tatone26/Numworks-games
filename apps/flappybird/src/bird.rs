@@ -35,7 +35,7 @@ impl Player {
     }
 
     /// Execute each frame (or a soon as the calculator can)
-    pub fn action_function(self: &mut Self, keyboard_state: State, killer_floor: bool) -> bool {
+    pub fn action_function(&mut self, keyboard_state: State, killer_floor: bool) -> bool {
         self.y_speed += GRAVITY;
         if self.y_speed > MAX_SPEED {
             self.y_speed = MAX_SPEED;
@@ -65,14 +65,14 @@ impl Player {
         false
     }
 
-    fn clear_self(self: &Self) {
+    fn clear_self(&self) {
         clear_tile(Point {
             x: self.x_pos,
             y: self.y_pos,
         })
     }
 
-    pub fn draw_self(self: &mut Self) {
+    pub fn draw_self(&mut self) {
         if self.y_speed.is_sign_negative() {
             self.animation_frame = 1;
         } else {

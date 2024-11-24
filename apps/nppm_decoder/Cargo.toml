@@ -1,7 +1,10 @@
 [package]
-name = "ppm_decoder"
+name = "nppm_decoder"
 version = "0.1.0"
 edition = "2021"
+
+[lib]
+name = "nppm_decoder"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

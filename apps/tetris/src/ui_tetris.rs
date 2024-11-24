@@ -1,5 +1,8 @@
 use heapless::String;
-use numworks_utils::utils::string_from_u32;
+use numworks_utils::{
+    graphical::{draw_image, draw_string_cfg, tiling::Tileset},
+    utils::{string_from_u32, CENTER},
+};
 
 use crate::{
     eadk::{
@@ -11,16 +14,14 @@ use crate::{
         PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH,
     },
     tetriminos::Tetrimino,
-    utils::{
-        draw_image, draw_string_cfg, draw_tile, get_tile, tiling, Tileset, CENTER,
-        LARGE_CHAR_HEIGHT,
-    },
+    utils::LARGE_CHAR_HEIGHT,
 };
 
 // static Tileset: &[u8; 3014] = include_bytes!("tiles.ppm");
 
 static TILESET: Tileset = Tileset {
-    image: include_bytes!("./data/tiles.ppm"),
+    width: CASE_SIZE * 10,
+    image: include_bytes!("./data/image.nppm"),
     tile_size: CASE_SIZE,
 };
 
@@ -73,14 +74,13 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
     push_rect_uniform(
         Rect {
             x: CENTER.x - (PLAYFIELD_WIDTH / 2 + 1) * CASE_SIZE,
-            y: CASE_SIZE * 1,
+            y: CASE_SIZE,
             width: CASE_SIZE * (PLAYFIELD_WIDTH + 2),
             height: CASE_SIZE * (PLAYFIELD_HEIGHT + 2),
         },
         BACKGROUND_DARK_GRAY,
     );
-    tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
-        &TILESET,
+    TILESET.tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
         Point::new(start_x, start_y),
         (PLAYFIELD_WIDTH, PLAYFIELD_HEIGHT),
         Point::new(7, 0),
@@ -128,7 +128,7 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
 pub fn draw_score(score: u32) {
     let mut score_txt: String<7> = String::<7>::new();
     if score < 999_999 {
-        let score_str: String<10> = string_from_u32(score);
+        let score_str: String<11> = string_from_u32(score);
         for _ in 0..(6 - score_str.chars().count()) {
             score_txt.push('0').unwrap();
         }
@@ -148,7 +148,7 @@ pub fn draw_score(score: u32) {
 
 pub fn draw_level(level: u16) {
     let mut level_txt: String<7> = String::<7>::new();
-    let level_str: String<10> = string_from_u32(level as u32);
+    let level_str: String<11> = string_from_u32(level as u32);
     for _ in 0..(6 - level_str.chars().count()) {
         level_txt.push(' ').unwrap();
     }
@@ -165,7 +165,7 @@ pub fn draw_level(level: u16) {
 
 pub fn draw_lines_number(line: u16) {
     let mut line_txt: String<7> = String::<7>::new();
-    let line_str: String<10> = string_from_u32(line as u32);
+    let line_str: String<11> = string_from_u32(line as u32);
     for _ in 0..(6 - line_str.chars().count()) {
         line_txt.push(' ').unwrap();
     }
@@ -182,14 +182,11 @@ pub fn draw_lines_number(line: u16) {
 
 /// Draws a given tetrimino.
 pub fn draw_tetrimino(tetri: &Tetrimino, clear: bool) {
-    let image: [Color; (CASE_SIZE * CASE_SIZE) as usize] = get_tile(
-        &TILESET,
-        if clear {
-            Point::new(7, 0)
-        } else {
-            Point::new(tetri.color as u16, 0)
-        },
-    );
+    let image: [Color; (CASE_SIZE * CASE_SIZE) as usize] = TILESET.get_tile(if clear {
+        Point::new(7, 0)
+    } else {
+        Point::new(tetri.color as u16, 0)
+    });
     for pos in tetri.get_blocks_grid_pos() {
         if (pos.x >= 0) & (pos.y >= 0) {
             draw_image(
@@ -246,8 +243,7 @@ pub fn draw_held_tetrimino(tetri: &Tetrimino) {
 
 pub fn draw_blank_line(y: u16) {
     let start_x = CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE;
-    tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
-        &TILESET,
+    TILESET.tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
         Point::new(start_x, y * CASE_SIZE + 2 * CASE_SIZE),
         (PLAYFIELD_WIDTH, 1),
         Point::new(7, 0),
@@ -257,8 +253,7 @@ pub fn draw_blank_line(y: u16) {
 }
 
 fn draw_block_image(abs_x: u16, abs_y: u16, x_map: u16) {
-    draw_tile::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
-        &TILESET,
+    TILESET.draw_tile::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
         Point::new(abs_x, abs_y),
         Point::new(x_map, 0),
         1,

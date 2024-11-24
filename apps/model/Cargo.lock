@@ -32,8 +32,13 @@ name = "my_app"
 version = "0.1.0"
 dependencies = [
  "heapless",
+ "nppm_decoder",
  "numworks_utils",
 ]
+
+[[package]]
+name = "nppm_decoder"
+version = "0.1.0"
 
 [[package]]
 name = "numworks_utils"

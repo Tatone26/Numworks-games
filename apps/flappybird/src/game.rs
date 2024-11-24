@@ -1,23 +1,26 @@
 use heapless::Vec;
+
 use numworks_utils::{
     eadk::{
         display::{self, SCREEN_WIDTH},
-        key, keyboard, Point,
+        key, keyboard, Color, Point,
     },
-    menu::{selection_menu, MenuConfig},
-    utils::{draw_centered_string, fading, get_tile, LARGE_CHAR_HEIGHT},
+    graphical::{draw_centered_string, fading, fill_screen, ColorConfig},
+    menu::{
+        selection,
+        settings::{Setting, SettingType},
+        start_menu, MenuConfig,
+    },
+    utils::LARGE_CHAR_HEIGHT,
 };
 
 use crate::{
     bird::Player,
-    eadk::Color,
     flappy_ui::{
         draw_bird, draw_constant_ui, draw_top_pipe, draw_top_pipes_pipes, draw_ui, move_cloud,
         BACKGROUND, PIXELS, TILESET, TILESET_TILE_SIZE,
     },
-    menu::{menu, MyOption, OptionType},
     pipes::Pipes,
-    utils::{fill_screen, ColorConfig},
 };
 
 // This dictates the principal colors that will be used for menu etc
@@ -38,75 +41,75 @@ fn vis_addon() {
 }
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut MyOption; 6] = [
-        &mut MyOption {
+    let mut opt: [&mut Setting; 6] = [
+        &mut Setting {
             name: "Starting speed\0",
             value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Int(1), "Slow\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(2), "Normal\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(4), "Fast\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(1), "Slow\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(2), "Normal\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(4), "Fast\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Pipes density\0",
             value: 2,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Int(1), "Easy\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(2), "Normal\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(3), "Dense\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(1), "Easy\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(2), "Normal\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(3), "Dense\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Speed increase\0",
             value: 2,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Int(1000), "Never\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(10), "Every 10 pts\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(5), "Every 5 pts\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(1), "Every point\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(1000), "Never\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(10), "Every 10 pts\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(5), "Every 5 pts\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(1), "Every point\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Die on floor\0",
             value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
-                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Jump strength\0",
             value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Double(6.0), "Weak\0")) };
-                unsafe { v.push_unchecked((OptionType::Double(6.8), "Normal\0")) };
-                unsafe { v.push_unchecked((OptionType::Double(7.5), "Strong\0")) };
+                unsafe { v.push_unchecked((SettingType::Double(6.0), "Weak\0")) };
+                unsafe { v.push_unchecked((SettingType::Double(6.8), "Normal\0")) };
+                unsafe { v.push_unchecked((SettingType::Double(7.5), "Strong\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "No collisions\0",
             value: 0,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
-                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes (CHEAT)\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes (CHEAT)\0")) };
                 v
             },
         },
     ];
     loop {
-        let start = menu(
+        let start = start_menu(
             "FLAPPY BIRD\0",
             &mut opt,
             &COLOR_CONFIG,
@@ -153,11 +156,11 @@ pub fn game(
     jump_power: f32,
     no_collisions: bool,
 ) -> u8 {
-    // Optimisation !!!
-    let left_pipe_tile: [Color; PIXELS] = get_tile::<PIXELS>(&TILESET, Point { x: 1, y: 0 });
-    let right_pipe_tile: [Color; PIXELS] = get_tile::<PIXELS>(&TILESET, Point { x: 2, y: 0 });
-    let left_cloud_tile: [Color; PIXELS] = get_tile::<PIXELS>(&TILESET, Point { x: 1, y: 3 });
-    let right_cloud_tile: [Color; PIXELS] = get_tile::<PIXELS>(&TILESET, Point { x: 2, y: 3 });
+    // Optimisation : storing the pipes in RAM !
+    let left_pipe_tile: [Color; PIXELS] = TILESET.get_tile::<PIXELS>(Point { x: 1, y: 0 });
+    let right_pipe_tile: [Color; PIXELS] = TILESET.get_tile::<PIXELS>(Point { x: 2, y: 0 });
+    let left_cloud_tile: [Color; PIXELS] = TILESET.get_tile::<PIXELS>(Point { x: 1, y: 3 });
+    let right_cloud_tile: [Color; PIXELS] = TILESET.get_tile::<PIXELS>(Point { x: 2, y: 3 });
 
     fill_screen(BACKGROUND);
     draw_constant_ui();
@@ -263,7 +266,7 @@ pub fn game(
         draw_ui(score);
         // speed increase
         if can_increase_speed && score % speed_increase == 0 {
-            for i in 0..(nb_pipes as usize) {
+            for i in 0..nb_pipes {
                 pipes_list[i].increase_speed();
             }
             can_increase_speed = false;
@@ -271,7 +274,7 @@ pub fn game(
 
         // collisions
         let mut collision = false;
-        for i in 0..(nb_pipes as usize) {
+        for i in 0..nb_pipes {
             if !no_collisions && bird_collide_with(&bird, &pipes_list[i]) {
                 collision = true;
                 break;
@@ -288,22 +291,20 @@ pub fn game(
 
 const NICE_COLLISION_MARGIN: u16 = 2;
 
+#[inline]
 fn bird_collide_with(bird: &Player, pipes: &Pipes) -> bool {
     if bird.x_pos + TILESET_TILE_SIZE < pipes.x_pos.saturating_sub(5)
         || bird.x_pos > pipes.x_pos + TILESET_TILE_SIZE * 2
     {
-        return false;
-    } else if bird.y_pos < pipes.interval.0.saturating_sub(NICE_COLLISION_MARGIN)
-        || bird.y_pos + TILESET_TILE_SIZE > pipes.interval.1 + NICE_COLLISION_MARGIN
-    {
-        return true;
+        false
     } else {
-        return false;
+        bird.y_pos < pipes.interval.0.saturating_sub(NICE_COLLISION_MARGIN)
+            || bird.y_pos + TILESET_TILE_SIZE > pipes.interval.1 + NICE_COLLISION_MARGIN
     }
 }
 
 fn flappy_pause(death: bool) -> u8 {
-    let action = selection_menu(
+    let action = selection(
         &COLOR_CONFIG,
         &MenuConfig {
             choices: if death {

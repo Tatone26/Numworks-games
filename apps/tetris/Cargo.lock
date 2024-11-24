@@ -28,6 +28,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "nppm_decoder"
+version = "0.1.0"
+
+[[package]]
 name = "numworks_utils"
 version = "0.1.0"
 dependencies = [
@@ -45,5 +49,6 @@ name = "tetris"
 version = "0.1.0"
 dependencies = [
  "heapless",
+ "nppm_decoder",
  "numworks_utils",
 ]

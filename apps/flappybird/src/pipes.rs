@@ -24,10 +24,6 @@ pub struct Pipes {
     has_moved: bool,
 }
 
-/// visual, but dictates the speed too.
-/// unneeded now that the game is kinda optimised, I think.
-const PIPES_REFRESH_SPEED: u64 = 0;
-
 impl Pipes {
     pub fn new(speed: u16, interval_size: u16) -> Self {
         Self {
@@ -48,12 +44,12 @@ impl Pipes {
         (up, up + interval_size)
     }
 
-    pub fn increase_speed(self: &mut Self) {
+    pub fn increase_speed(&mut self) {
         self.speed += 1;
     }
 
     pub fn action_function(
-        self: &mut Self,
+        &mut self,
         left_tile: &[Color; PIXELS],
         right_tile: &[Color; PIXELS],
     ) -> u16 {
@@ -62,28 +58,25 @@ impl Pipes {
             draw_bottom_pipes(self.x_pos, self.interval, left_tile, right_tile);
             self.has_moved = false;
         }
-        let time = timing::millis();
         let mut result = 0;
-        if time - self.last_move >= PIPES_REFRESH_SPEED {
-            clear_top_pipe(self.x_pos, self.interval, self.speed);
-            self.last_pos = self.x_pos;
-            if self.x_pos <= self.speed {
-                clear_bottom_pipes(self.x_pos, self.interval, self.speed);
-                self.interval = Self::random_interval(self.interval.1 - self.interval.0);
-                self.x_pos = SCREEN_WIDTH - 3 * TILESET_TILE_SIZE;
-                result += 1;
-                // draw_bottom_pipes(self.x_pos, self.interval);
-            } else {
-                self.x_pos -= self.speed;
-                draw_top_pipe(self.x_pos, self.interval, left_tile, right_tile);
-            }
-            self.last_move = time;
-            self.has_moved = true;
+        clear_top_pipe(self.x_pos, self.interval, self.speed);
+        self.last_pos = self.x_pos;
+        if self.x_pos <= self.speed {
+            clear_bottom_pipes(self.x_pos, self.interval, self.speed);
+            self.interval = Self::random_interval(self.interval.1 - self.interval.0);
+            self.x_pos = SCREEN_WIDTH - 3 * TILESET_TILE_SIZE;
+            result += 1;
+            // draw_bottom_pipes(self.x_pos, self.interval);
+        } else {
+            self.x_pos -= self.speed;
+            draw_top_pipe(self.x_pos, self.interval, left_tile, right_tile);
         }
+        self.last_move = timing::millis();
+        self.has_moved = true;
         result
     }
 
-    pub fn draw_self(self: &mut Self, left_tile: &[Color; PIXELS], right_tile: &[Color; PIXELS]) {
+    pub fn draw_self(&mut self, left_tile: &[Color; PIXELS], right_tile: &[Color; PIXELS]) {
         draw_bottom_pipes(self.x_pos, self.interval, left_tile, right_tile);
         draw_top_pipe(self.x_pos, self.interval, left_tile, right_tile);
     }

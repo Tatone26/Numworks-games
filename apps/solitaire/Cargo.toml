@@ -7,4 +7,7 @@ edition = "2021"
 
 [dependencies]
 heapless = "0.8.0"
-numworks_utils = {path = "../numworks_utils", version = "0.1.0"}
+numworks_utils = { path = "../numworks_utils", version = "0.1.0" }
+
+[build-dependencies]
+nppm_decoder = { path = "../nppm_decoder", version = "*" }

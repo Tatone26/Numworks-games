@@ -3,7 +3,8 @@ use numworks_utils::{
         display::{draw_string, push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
         Color, Point, Rect,
     },
-    utils::{draw_image, draw_tile, get_string_pixel_size, string_from_u16, Tileset},
+    graphical::{draw_image, tiling::Tileset},
+    utils::{get_string_pixel_size, string_from_u16},
 };
 
 use crate::game::WINDOW_SIZE;
@@ -12,7 +13,8 @@ pub const TILESET_TILE_SIZE: u16 = 20;
 /// Images work really well with square tiles. You can still draw other images, but it is less good.
 pub static TILESET: Tileset = Tileset {
     tile_size: TILESET_TILE_SIZE,
-    image: include_bytes!("./data/image.ppm"),
+    width: 4 * TILESET_TILE_SIZE + 1, // error in the ppm file
+    image: include_bytes!("./data/image.nppm"),
 };
 pub const PIXELS: usize = { 20 * 20 } as usize;
 
@@ -139,8 +141,7 @@ pub fn draw_ui(score: u16) {
 }
 
 pub fn draw_bird(pos: Point, frame: u8) {
-    draw_tile::<PIXELS>(
-        &TILESET,
+    TILESET.draw_tile::<PIXELS>(
         pos,
         Point {
             x: frame as u16 * 3,
@@ -234,8 +235,7 @@ pub fn clear_bottom_pipes(posx: u16, interval: (u16, u16), speed: u16) {
 /// number 1 for top pipe, 2 for bottom.
 fn draw_pipe_entrance(posx: u16, posy: u16, number: u16) {
     if posx >= TILESET_TILE_SIZE {
-        draw_tile::<PIXELS>(
-            &TILESET,
+        TILESET.draw_tile::<PIXELS>(
             Point {
                 x: posx - TILESET_TILE_SIZE,
                 y: posy,
@@ -245,25 +245,22 @@ fn draw_pipe_entrance(posx: u16, posy: u16, number: u16) {
             true,
         );
     }
-    draw_tile::<PIXELS>(
-        &TILESET,
+    TILESET.draw_tile::<PIXELS>(
         Point { x: posx, y: posy },
         Point { x: 1, y: number },
         1,
         false,
     );
-    draw_tile::<PIXELS>(
-        &TILESET,
+    TILESET.draw_tile::<PIXELS>(
         Point {
-            x: posx + 1 * TILESET_TILE_SIZE,
+            x: posx + TILESET_TILE_SIZE,
             y: posy,
         },
         Point { x: 2, y: number },
         1,
         false,
     );
-    draw_tile::<PIXELS>(
-        &TILESET,
+    TILESET.draw_tile::<PIXELS>(
         Point {
             x: posx + 2 * TILESET_TILE_SIZE,
             y: posy,

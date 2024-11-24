@@ -1,17 +1,24 @@
 use heapless::Vec;
+use numworks_utils::{
+    graphical::{draw_centered_string, ColorConfig},
+    menu::{
+        pause_menu, selection,
+        settings::{Setting, SettingType},
+        start_menu, MenuConfig,
+    },
+    utils::randint,
+};
 
 use crate::{
     eadk::{
         display::{self, wait_for_vblank},
         key, keyboard, timing, Color,
     },
-    menu::{menu, pause_menu, selection_menu, MenuConfig, MyOption, OptionType},
     tetriminos::{get_initial_tetri, get_random_bag, get_wall_kicks_data, SignedPoint, Tetrimino},
     ui_tetris::{
         draw_blank_line, draw_block, draw_held_tetrimino, draw_level, draw_lines_number,
         draw_next_tetrimino, draw_score, draw_stable_ui, draw_tetrimino,
     },
-    utils::{draw_centered_string, randint, ColorConfig},
 };
 
 // This dictates the principal colors that will be used
@@ -33,33 +40,33 @@ fn vis_addon() {
 }
 /// Menu, Options and Game start/*  */
 pub fn start() {
-    let mut opt: [&mut MyOption; 2] = [
-        &mut MyOption {
+    let mut opt: [&mut Setting; 2] = [
+        &mut Setting {
             name: "Ghost Piece\0",
             value: 0,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Bool(true), "Yes\0")) };
-                unsafe { v.push_unchecked((OptionType::Bool(false), "No\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
+                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
                 v
             },
         },
-        &mut MyOption {
+        &mut Setting {
             name: "Starting Level\0",
             value: 0,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((OptionType::Int(1), "1\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(3), "3\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(5), "5\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(7), "7\0")) };
-                unsafe { v.push_unchecked((OptionType::Int(9), "9\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(1), "1\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(3), "3\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(5), "5\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(7), "7\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(9), "9\0")) };
                 v
             },
         },
     ];
     loop {
-        let start = menu(
+        let start = start_menu(
             "TETRIS \0",
             &mut opt,
             &COLOR_CONFIG,
@@ -93,19 +100,17 @@ struct Grid {
 impl Grid {
     // Does the grid initialisation for you
     fn new() -> Self {
-        return Self {
+        Self {
             grid: [[None; (PLAYFIELD_HEIGHT as usize)]; (PLAYFIELD_WIDTH as usize)],
-        };
+        }
     }
 
     /// Returns the color at the given position, None if the pos is outside the grid
     fn get_color_at(&self, x: i16, y: i16) -> Option<u8> {
-        if (y < 0) || (x < 0) {
-            return None;
-        } else if (x as u16 >= PLAYFIELD_WIDTH) || (y as u16 >= PLAYFIELD_HEIGHT) {
-            return None;
+        if (y < 0) || (x < 0) || (x as u16 >= PLAYFIELD_WIDTH) || (y as u16 >= PLAYFIELD_HEIGHT) {
+            None
         } else {
-            return self.grid[x as usize][y as usize];
+            self.grid[x as usize][y as usize]
         }
     }
 
@@ -141,7 +146,7 @@ static FALL_SPEED_DATA: [f32; 19] = [
     0.59, 0.92, 1.46, 2.36, 3.91, 6.61, 11.43, 20.0,
 ];
 
-pub const HIGH_SCORE: &'static str = "077360\0"; // Need to be 6 char long !
+pub const HIGH_SCORE: &str = "077360\0"; // Need to be 6 char long !
 pub const CASE_SIZE: u16 = 10;
 pub const PLAYFIELD_HEIGHT: u16 = 20;
 pub const PLAYFIELD_WIDTH: u16 = 10;
@@ -263,12 +268,11 @@ pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
             && (keyboard_state.key_down(RIGHT_KEY) || keyboard_state.key_down(LEFT_KEY))
         {
             // MOVE
-            let direction: i16;
-            if keyboard_state.key_down(LEFT_KEY) {
-                direction = -1
+            let direction: i16 = if keyboard_state.key_down(LEFT_KEY) {
+                -1
             } else {
-                direction = 1
-            }
+                1
+            };
             if can_move(&current_tetri, (direction, 0), &grid) {
                 draw_tetrimino(&current_tetri, true);
                 draw_ghost_tetri(&current_tetri, &grid, true, ghost_piece);
@@ -317,7 +321,7 @@ pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
                 current_tetri = get_initial_tetri(held_tetri.unwrap().tetri);
                 held_tetri = Some(temp.clone());
             } else {
-                if random_bag.len() == 0 {
+                if random_bag.is_empty() {
                     random_bag = get_random_bag();
                 }
                 current_tetri = next_tetri.clone();
@@ -327,7 +331,7 @@ pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
             }
             draw_ghost_tetri(&current_tetri, &grid, false, ghost_piece);
             draw_tetrimino(&current_tetri, false);
-            draw_held_tetrimino(&held_tetri.as_ref().unwrap());
+            draw_held_tetrimino(held_tetri.as_ref().unwrap());
         }
         if (timings.fall
             + if (!buttons.soft_drop && keyboard_state.key_down(SOFT_DROP_KEY))
@@ -367,7 +371,7 @@ pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
                 }
                 if death {
                     draw_centered_string(" GAME OVER \0", 10, true, &COLOR_CONFIG, true);
-                    let action = selection_menu(&COLOR_CONFIG, &DEATH_MENU, false);
+                    let action = selection(&COLOR_CONFIG, &DEATH_MENU, false);
                     break 'gameloop action;
                 }
 
@@ -386,7 +390,7 @@ pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
                     }
                     bring_lines_down(&clear_lines_y, &mut grid);
                 }
-                if random_bag.len() == 0 {
+                if random_bag.is_empty() {
                     random_bag = get_random_bag();
                 }
                 current_tetri = next_tetri.clone();
@@ -422,16 +426,16 @@ pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
                 for x in 0..PLAYFIELD_WIDTH {
                     for y in 0..PLAYFIELD_HEIGHT {
                         let c = grid.get_color_at(x as i16, y as i16);
-                        if c.is_some() {
-                            draw_block(x, y, c.unwrap() as u16)
+                        if let Some(c_) = c {
+                            draw_block(x, y, c_ as u16)
                         }
                     }
                 }
                 wait_for_vblank();
                 draw_tetrimino(&current_tetri, false);
                 draw_ghost_tetri(&current_tetri, &grid, false, ghost_piece);
-                if held_tetri.is_some() {
-                    draw_held_tetrimino(&held_tetri.as_ref().unwrap());
+                if let Some(held_tetri_) = &held_tetri {
+                    draw_held_tetrimino(held_tetri_);
                 }
                 draw_next_tetrimino(&next_tetri);
             }
@@ -451,12 +455,12 @@ fn bring_lines_down(clear_lines_y: &Vec<i16, 4>, grid: &mut Grid) {
     for (i, e) in clear_lines_y.iter().enumerate() {
         for j in (0..*e + i as i16).rev() {
             for x in 0..PLAYFIELD_WIDTH {
-                let last_color = grid.get_color_at(x as i16, j as i16);
-                if last_color.is_some() {
-                    grid.set_color_at(x as i16, j as i16 + 1, last_color.unwrap());
+                let last_color = grid.get_color_at(x as i16, j);
+                if let Some(last_color_) = last_color {
+                    grid.set_color_at(x as i16, j + 1, last_color_);
                 }
             }
-            grid.remove_line(j as i16);
+            grid.remove_line(j);
             draw_blank_line(j as u16);
         }
     }
@@ -480,14 +484,14 @@ fn check_line(p: i16, grid: &Grid) -> bool {
             return false;
         }
     }
-    return true;
+    true
 }
 
 /// Returns every completed line by the given tetrimino
 fn get_clear_lines(tetri: &Tetrimino, grid: &Grid) -> Vec<i16, 4> {
     let mut clear_lines_y = Vec::<i16, 4>::new();
     for pos in tetri.get_blocks_grid_pos() {
-        if check_line(pos.y, &grid) && !clear_lines_y.contains(&(pos.y)) {
+        if check_line(pos.y, grid) && !clear_lines_y.contains(&(pos.y)) {
             // get sorted index
             let mut new_index: usize = 0;
             for e in clear_lines_y.iter() {
@@ -500,7 +504,7 @@ fn get_clear_lines(tetri: &Tetrimino, grid: &Grid) -> Vec<i16, 4> {
         }
     }
     clear_lines_y.reverse();
-    return clear_lines_y;
+    clear_lines_y
 }
 
 /// Returns the number of points gained by clearing the given lines
@@ -529,7 +533,7 @@ fn add_points(cleared_lines: &Vec<i16, 4>, level: u16, points: u32) -> u32 {
     }
 
     draw_score((sum * (level as u32)) + points);
-    return (sum * (level as u32)) + points;
+    (sum * (level as u32)) + points
 }
 
 /// Returns true if the tetrimino can go to that direction.
@@ -538,25 +542,22 @@ fn can_move(future_tetri: &Tetrimino, direction: (i16, i16), grid: &Grid) -> boo
         if (pos.x + direction.0 < 0)
             || (pos.x + direction.0 > PLAYFIELD_WIDTH as i16 - 1)
             || (pos.y + direction.1 > PLAYFIELD_HEIGHT as i16 - 1)
-        {
-            return false;
-        } else if grid
-            .get_color_at(pos.x + direction.0, pos.y + direction.1)
-            .is_some()
+            || grid
+                .get_color_at(pos.x + direction.0, pos.y + direction.1)
+                .is_some()
         {
             return false;
         }
     }
-    return true;
+    true
 }
 
 /// Returns (line_number, level)
 fn add_lines(number: u16, level: u16, current_lines: u16, starting_level: u16) -> (u16, u16) {
-    let max_lines: u16;
-    if level == starting_level {
-        max_lines = starting_level * 10
+    let max_lines: u16 = if level == starting_level {
+        starting_level * 10
     } else {
-        max_lines = 10
+        10
     };
 
     let new_number = (current_lines + number) % max_lines;
@@ -566,7 +567,7 @@ fn add_lines(number: u16, level: u16, current_lines: u16, starting_level: u16) -
         draw_level(level + 1);
         return (new_number, level + 1);
     }
-    return (new_number, level);
+    (new_number, level)
 }
 
 fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> {
@@ -577,16 +578,16 @@ fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> 
         rotated_tetri.rotate_left();
     }
     if can_move(&rotated_tetri, (0, 0), grid) {
-        return Some(rotated_tetri);
+        Some(rotated_tetri)
     } else {
         let kicks = get_wall_kicks_data(tetri, right);
         for k in kicks {
-            if can_move(&rotated_tetri, k.clone(), grid) {
+            if can_move(&rotated_tetri, *k, grid) {
                 rotated_tetri.pos.x += k.0;
                 rotated_tetri.pos.y += k.1;
                 return Some(rotated_tetri);
             }
         }
-        return None;
+        None
     }
 }

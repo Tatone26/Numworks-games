@@ -20,19 +20,21 @@ You can find a lot more programs on numworks.com, where you can even submit your
 Feel free to look at the code and download it if you want, but it's quite messy.
 Remember that it is a calculator and not a game console, so anything graphical is quite challenging with the official software! I tried a lot of things before finding a good (enough for now) way to print images, and I can't speed up the refresh rate. It's quite frustrating, but it is also what makes programming on Numworks so interesting!
 
-I'm also using these projects to write some Rust, as I am already used to code in C.
+I'm also using these projects to learn some Rust, as I am already used to code in C. I guess I should code in C if I wanted to optimize more than that.
+
+PS : These games are only tested on N0110, and I try to keep everything up to date.
 
   **Instructions and controls are included in the games!**
 
 - Snake : My take on the classic game!
-- Puissance4 = Connect4 (I'm not bothering changing every file name): works as the python version, but better.
-- Solitaire : After managing the Python version, it was just a matter of making a good way to display the cards.
+- Puissance4 = Connect4 (I'm not bothering changing every file name): works just like the python version, but better.
+- Solitaire : After managing the Python version, it was just a matter of making a good way to display the cards. Transposing the logic to Rust was very easy.
 - Tetris : Yeah. Tetris! I *think* I followed every rule of the original game.
-- Flappy Bird : Working ! Could still be better, maybe with better sprites, but who cares.
+- Flappy Bird : Working ! Could still be better, maybe with better sprites, but I'm not an artist.
 
-- Numworks_utils contains every utility code I use : the numworks functions, the entire menu code, Tilemap tools and other functions.
+- Numworks_utils contains a lot of the utility code I use : the numworks default functions, the entire menu code, graphical tools and more.
 - Model is a basic repo you can use to start your game using my template.
-- Ignore ppm_decoder and engine for now, as it doesn't work at all. I'm trying to find a better way to manage sprites and draw images despite the bad refresh rate.
+- Nppm_decoder is a build utility I made to process the images at compile time. Faster drawing with it !
 
 
 There are still a lot of impossible things with the official software (like saving anything), so consider installing an other one like Omega if you want to do some really complex things.
