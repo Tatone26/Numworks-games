@@ -61,7 +61,7 @@ pub fn draw_centered_string(
         large,
         cfg,
         alt,
-    );
+    )
 }
 
 #[inline(always)]
@@ -79,10 +79,14 @@ pub fn draw_string_cfg(string: &str, pos: Point, large: bool, cfg: &ColorConfig,
 /// A random and most likely never used [Color] to use as transparency. e700ff, or (231, 0, 255)
 pub const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
 
-/// Draws a .ppm image from its bytes (read as u8 with include_bytes)
-/// can be scaled and can take care of transparency, but no scaling and no transparency is incomparably faster. Use carefully.
+/// Draws an image from its pixel data, given as an array of [Color].
+///
+/// Can be scaled and can take care of transparency, but no scaling and no transparency is incomparably faster. Use carefully.
+///
+/// Scaling is very slow, please consider using full size images if speed is needed !
 pub fn draw_image(image: &[Color], pos: Point, size: (u16, u16), scaling: u16, transparency: bool) {
-    if transparency || scaling > 1 {
+    if scaling > 1 {
+        // If scaling is > 1, there is no choice : we need to print one rect / pixel.
         let mut x_pos = 0;
         let mut y_pos = 0;
         for c in image {
@@ -105,6 +109,34 @@ pub fn draw_image(image: &[Color], pos: Point, size: (u16, u16), scaling: u16, t
                 y_pos += 1;
                 if y_pos >= size.1 {
                     break;
+                }
+            }
+        }
+    } else if transparency && scaling == 1 {
+        // not so fast option : we can send less rectangles by sending pixels line by line, splitting at transparent pixels.
+        for (line, c) in image.chunks(size.0 as usize).enumerate() {
+            // line by line
+            let mut x_pos = 0;
+            for chunk in c.split_inclusive(|d| d.rgb565 == TRANSPARENCY_COLOR.rgb565) {
+                // for each chunk, separated by transparent pixel, print it
+                if chunk.len() > 1 {
+                    push_rect(
+                        Rect {
+                            x: pos.x + x_pos,
+                            y: pos.y + line as u16,
+                            width: chunk.len() as u16
+                                - if chunk.last().unwrap().rgb565 == TRANSPARENCY_COLOR.rgb565 {
+                                    1
+                                } else {
+                                    0
+                                },
+                            height: 1,
+                        },
+                        chunk,
+                    );
+                    x_pos += chunk.len() as u16;
+                } else {
+                    x_pos += 1;
                 }
             }
         }

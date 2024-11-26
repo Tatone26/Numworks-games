@@ -1,6 +1,7 @@
 use heapless::Deque;
 use numworks_utils::{
     graphical::{fill_screen, tiling::Tileset},
+    include_bytes_align_as,
     utils::CENTER,
 };
 
@@ -26,7 +27,7 @@ const MENU_FIGURE_Y: u16 = 70;
 pub static TILEMAP: Tileset = Tileset {
     tile_size: CASE_SIZE,
     width: 6 * CASE_SIZE,
-    image: include_bytes!("./data/image.nppm"),
+    image: include_bytes_align_as!(Color, "./data/image.nppm"),
 };
 
 /// Draws a box (case) of the grid

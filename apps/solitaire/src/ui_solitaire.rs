@@ -5,29 +5,30 @@ use numworks_utils::{
         Color, Point, Rect,
     },
     graphical::{fill_screen, tiling::Tileset},
-    menu::MenuConfig,
-    utils::{wait_for_no_keydown, LARGE_CHAR_HEIGHT, LARGE_CHAR_WIDTH},
+    include_bytes_align_as,
+    utils::{randint, LARGE_CHAR_HEIGHT, LARGE_CHAR_WIDTH},
 };
 
-use crate::game_solitaire::{Card, CursorPos, Suit, Table};
+use crate::{
+    cards::{Card, Suit, NAMES_LIST},
+    game_solitaire::CursorPos,
+    table::{Stack, Table},
+};
 
 /// Images work really well with square tiles. You can still draw other images, but it is less good.
 static TILESET: Tileset = Tileset {
     tile_size: 35,
     width: 35 * 5,
-    image: include_bytes!("./data/image.nppm"),
+    image: include_bytes_align_as!(Color, "./data/image.nppm"),
 };
 const PIXELS: usize = { 35 * 35 } as usize;
-
-const NAMES_LIST: [&str; 13] = [
-    "A\0", "2\0", "3\0", "4\0", "5\0", "6\0", "7\0", "8\0", "9\0", "10\0", "J\0", "Q\0", "K\0",
-];
 
 pub const BACKGROUND_COLOR: Color = Color::from_rgb888(1, 115, 55);
 const CARD_HEIGHT: u16 = 56;
 const CARD_WIDTH: u16 = 35;
 const HIDDEN_CARD_TILE: u16 = 4;
 
+/// Draws a given [Card] at a given [Point], point being in absolute pixel value
 fn draw_card(card: &Card, pos: Point) {
     if card.visible {
         TILESET.draw_tile::<PIXELS>(pos, Point::new(card.suit as u16, 0), 1, false);
@@ -71,6 +72,7 @@ fn draw_card(card: &Card, pos: Point) {
     }
 }
 
+/// Returns the card absolute position from a given [CursorPos]
 fn get_pos_from_cursor_pos(cursor_pos: &CursorPos, table: &Table) -> Point {
     match cursor_pos {
         CursorPos::Tableau(i) => {
@@ -109,6 +111,7 @@ fn get_pos_from_cursor_pos(cursor_pos: &CursorPos, table: &Table) -> Point {
     }
 }
 
+/// Draw stuff given by the parameters : [CursorPos] for the position, clear to know if it needs to remove everything and selected to know if it is selected.
 pub fn draw_selection(
     cursor_pos: &CursorPos,
     clear: bool,
@@ -173,6 +176,7 @@ pub fn draw_selection(
     }
 }
 
+/// Draws an empty place, which is just an outline.
 fn draw_empty_place(pos: Point) {
     TILESET.draw_tile::<PIXELS>(pos, Point::new(0, 2), 1, true);
     TILESET.draw_tile::<PIXELS>(
@@ -183,25 +187,12 @@ fn draw_empty_place(pos: Point) {
     );
 }
 
-fn draw_empty_table() {
-    fill_screen(BACKGROUND_COLOR);
-    let table = Table::empty();
-    for i in 0..4 {
-        draw_selection(&CursorPos::Fondations(i), true, false, &table, 1);
-    }
-    for i in 0..2 {
-        draw_selection(&CursorPos::Stock(i), true, false, &table, 1);
-    }
-    for i in 0..7 {
-        draw_selection(&CursorPos::Tableau(i), true, false, &table, 1);
-    }
-}
-
-pub fn draw_tableau_stack(stack: &Vec<Card, 52>, number: u16) {
+/// Draws a given stack on the "tableau", at the given position.
+pub fn draw_tableau_stack(stack: &Stack, stack_number: u16) {
     display::wait_for_vblank();
     push_rect_uniform(
         Rect {
-            x: 20 + number * (CARD_WIDTH + 6),
+            x: 20 + stack_number * (CARD_WIDTH + 6),
             y: CARD_HEIGHT + 25,
             height: 200,
             width: CARD_WIDTH,
@@ -213,7 +204,7 @@ pub fn draw_tableau_stack(stack: &Vec<Card, 52>, number: u16) {
             draw_card(
                 c,
                 Point::new(
-                    20 + number * (CARD_WIDTH + 6),
+                    20 + stack_number * (CARD_WIDTH + 6),
                     CARD_HEIGHT
                         + 25
                         + (i as u16) * {
@@ -227,11 +218,15 @@ pub fn draw_tableau_stack(stack: &Vec<Card, 52>, number: u16) {
             );
         }
     } else {
-        draw_empty_place(Point::new(20 + number * (CARD_WIDTH + 6), CARD_HEIGHT + 25));
+        draw_empty_place(Point::new(
+            20 + stack_number * (CARD_WIDTH + 6),
+            CARD_HEIGHT + 25,
+        ));
     }
 }
 
-pub fn draw_fondations_stack(stack: &Vec<Card, 13>, number: u16) {
+/// Draws the stack at the top (the foundations), given a stack and its position.
+pub fn draw_foundations_stack(stack: &Vec<Card, 13>, number: u16) {
     if !stack.is_empty() {
         draw_card(
             stack.last().unwrap(),
@@ -242,7 +237,8 @@ pub fn draw_fondations_stack(stack: &Vec<Card, 13>, number: u16) {
     }
 }
 
-pub fn draw_stock(stack: &Vec<Card, 52>, stock_iter: usize) {
+/// Draws the stock, which is a stack with some cards shown and some not shown.
+pub fn draw_stock(stack: &Stack, stock_iter: usize) {
     display::wait_for_vblank();
     if !stack.is_empty() {
         if stock_iter >= stack.len() {
@@ -282,28 +278,25 @@ pub fn draw_stock(stack: &Vec<Card, 52>, stock_iter: usize) {
     }
 }
 
+/// Draws the entire table.
 pub fn draw_table(table: &Table) {
+    fill_screen(BACKGROUND_COLOR);
     for i in 0..7 {
         draw_tableau_stack(&table.tableau[i], i as u16);
     }
     for i in 0..4 {
-        draw_fondations_stack(&table.fondations[i], i as u16);
+        draw_foundations_stack(&table.fondations[i], i as u16);
     }
     draw_stock(&table.stock, table.stock_iter);
 }
 
-pub fn ui_setup(table: &Table) {
-    wait_for_no_keydown();
-    draw_empty_table();
-    draw_table(table);
-}
-
+/// The visual addon for the menu.
 pub fn menu_vis_addon() {
     let x_start = SCREEN_WIDTH / 2 - 2 * CARD_WIDTH - 7;
     draw_card(
         &Card {
             suit: Suit::Heart,
-            number: 0,
+            number: randint(0, 13) as u8,
             visible: true,
         },
         Point::new(x_start, 50),
@@ -311,7 +304,7 @@ pub fn menu_vis_addon() {
     draw_card(
         &Card {
             suit: Suit::Spade,
-            number: 10,
+            number: randint(0, 13) as u8,
             visible: true,
         },
         Point::new(x_start + CARD_WIDTH + 5, 50),
@@ -319,7 +312,7 @@ pub fn menu_vis_addon() {
     draw_card(
         &Card {
             suit: Suit::Diamond,
-            number: 11,
+            number: randint(0, 13) as u8,
             visible: true,
         },
         Point::new(x_start + (CARD_WIDTH + 5) * 2, 50),
@@ -327,17 +320,9 @@ pub fn menu_vis_addon() {
     draw_card(
         &Card {
             suit: Suit::Club,
-            number: 12,
+            number: randint(0, 13) as u8,
             visible: true,
         },
         Point::new(x_start + (CARD_WIDTH + 5) * 3, 50),
     );
 }
-
-pub const REPLAY_MENU_CONFIG: MenuConfig = MenuConfig {
-    choices: &["Resume\0", "Menu\0", "Exit\0"],
-    rect_margins: (20, 10),
-    dimensions: (SCREEN_WIDTH * 2 / 5, LARGE_CHAR_HEIGHT * 7),
-    offset: (0, 50),
-    back_key_return: 0,
-};

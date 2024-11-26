@@ -1,6 +1,7 @@
 use heapless::String;
 use numworks_utils::{
     graphical::{draw_image, draw_string_cfg, tiling::Tileset},
+    include_bytes_align_as,
     utils::{string_from_u32, CENTER},
 };
 
@@ -17,11 +18,9 @@ use crate::{
     utils::LARGE_CHAR_HEIGHT,
 };
 
-// static Tileset: &[u8; 3014] = include_bytes!("tiles.ppm");
-
 static TILESET: Tileset = Tileset {
     width: CASE_SIZE * 10,
-    image: include_bytes!("./data/image.nppm"),
+    image: include_bytes_align_as!(Color, "./data/image.nppm"),
     tile_size: CASE_SIZE,
 };
 

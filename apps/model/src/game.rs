@@ -1,6 +1,7 @@
 use heapless::Vec;
 use numworks_utils::{
     graphical::{draw_string_cfg, fill_screen, tiling::Tileset, ColorConfig},
+    include_bytes_align_as,
     menu::{
         settings::{Setting, SettingType},
         start_menu,
@@ -79,7 +80,7 @@ pub fn start() {
 static TILESET: Tileset = Tileset {
     tile_size: 55,
     width: 55,
-    image: include_bytes!("./data/image.nppm"),
+    image: include_bytes_align_as!(Color, "./data/image.nppm"),
 };
 const PIXELS: usize = { 55 * 55 } as usize;
 

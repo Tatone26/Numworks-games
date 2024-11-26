@@ -1,6 +1,6 @@
 use crate::{
-    eadk::{Color, Point},
-    graphical::{draw_image, TRANSPARENCY_COLOR},
+    eadk::{display::push_rect_ptr, Color, Point, Rect},
+    graphical::draw_image,
 };
 
 /// A simple struct representing a Tileset.
@@ -12,9 +12,9 @@ use crate::{
 ///
 ///     NOT DONE FOR NOW
 pub struct Tileset {
+    pub image: &'static [u8],
     pub tile_size: u16,
     pub width: u16,
-    pub image: &'static [u8],
 }
 
 impl Tileset {
@@ -26,14 +26,40 @@ impl Tileset {
         scaling: u16,
         transparency: bool,
     ) {
-        let image: [Color; PIXELS] = self.get_tile::<PIXELS>(tile);
-        draw_image(
-            &image,
-            pos,
-            (self.tile_size, self.tile_size),
-            scaling,
-            transparency,
-        );
+        // if no scaling and no transparency -> mega speed by giving directly the pointer on the pixels to the screen.
+        if scaling == 1 && !transparency {
+            debug_assert_eq!(
+                (self.image.as_ptr() as usize) % 2,
+                0,
+                "Image data pointer is not properly aligned! Please use "
+            );
+            unsafe {
+                push_rect_ptr(
+                    Rect {
+                        x: pos.x,
+                        y: pos.y,
+                        width: self.tile_size,
+                        height: self.tile_size,
+                    },
+                    self.image
+                        .as_ptr()
+                        .add(
+                            (2 * self.tile_size * (tile.y * self.width + tile.x * self.tile_size))
+                                as usize,
+                        )
+                        .cast::<Color>(),
+                );
+            }
+        } else {
+            // Else go by all the draw_image process, which is far slower and needs to load a tile in ram.
+            draw_image(
+                &self.get_tile::<PIXELS>(tile),
+                pos,
+                (self.tile_size, self.tile_size),
+                scaling,
+                transparency,
+            );
+        }
     }
 
     /// For really fast tiling : use scaling = 1 and transparency = false.
@@ -47,13 +73,11 @@ impl Tileset {
         transparency: bool,
         scaling: u16,
     ) {
-        let image: [Color; PIXELS] = self.get_tile::<PIXELS>(tile);
         for x in 0..dimensions.0 {
             for y in 0..dimensions.1 {
-                draw_image(
-                    &image,
+                self.draw_tile::<PIXELS>(
                     Point::new(x * self.tile_size + pos.x, y * self.tile_size + pos.y),
-                    (self.tile_size, self.tile_size),
+                    tile,
                     scaling,
                     transparency,
                 );
@@ -68,29 +92,16 @@ impl Tileset {
         &self,
         pos_in_tileset: Point, // as tiles
     ) -> [Color; PIXELS] {
-        let mut image: [Color; PIXELS] = [TRANSPARENCY_COLOR; PIXELS];
-        let mut x_pos = 0;
-        let mut y_pos = 0;
-        for pixel in image
-            .iter_mut()
-            .take((self.tile_size * self.tile_size) as usize)
-        {
-            let i = 2
-                * (pos_in_tileset.x * self.tile_size
-                    + x_pos
-                    + (y_pos + pos_in_tileset.y * self.tile_size) * self.width)
-                    as usize;
+        let mut image: [Color; PIXELS] = [Color::BLACK; PIXELS];
+        let offset = (2
+            * self.tile_size
+            * (pos_in_tileset.y * self.width + pos_in_tileset.x * self.tile_size))
+            as usize; // Offset represents the first pixel of this tile in the data.
+        for (d, pixel) in image.iter_mut().enumerate() {
             *pixel = Color {
-                rgb565: (self.image[i] as u16) << 8 | (self.image[i + 1] as u16),
+                rgb565: (self.image[offset + 2 * d + 1] as u16) << 8
+                    | (self.image[offset + 2 * d] as u16),
             };
-            x_pos += 1;
-            if x_pos >= self.tile_size {
-                x_pos = 0;
-                y_pos += 1;
-                if y_pos >= self.tile_size {
-                    break;
-                }
-            }
         }
         image
     }

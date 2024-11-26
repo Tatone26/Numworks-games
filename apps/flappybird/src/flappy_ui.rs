@@ -4,6 +4,7 @@ use numworks_utils::{
         Color, Point, Rect,
     },
     graphical::{draw_image, tiling::Tileset},
+    include_bytes_align_as,
     utils::{get_string_pixel_size, string_from_u16},
 };
 
@@ -13,8 +14,8 @@ pub const TILESET_TILE_SIZE: u16 = 20;
 /// Images work really well with square tiles. You can still draw other images, but it is less good.
 pub static TILESET: Tileset = Tileset {
     tile_size: TILESET_TILE_SIZE,
-    width: 4 * TILESET_TILE_SIZE + 1, // error in the ppm file
-    image: include_bytes!("./data/image.nppm"),
+    width: 4 * TILESET_TILE_SIZE,
+    image: include_bytes_align_as!(Color, "./data/image.nppm"),
 };
 pub const PIXELS: usize = { 20 * 20 } as usize;
 

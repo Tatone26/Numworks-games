@@ -1,10 +1,10 @@
 #![no_std]
 #![no_main]
 
-use numworks_utils::eadk;
-
+mod cards;
 mod game_solitaire;
-pub mod ui_solitaire;
+mod table;
+mod ui_solitaire;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]
