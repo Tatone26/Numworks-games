@@ -10,6 +10,7 @@ const TILESIZE: u16 = 55;
 fn main() {
     // Turn icon.png into icon.nwi
     println!("cargo:rerun-if-changed=src/data/icon.png");
+    println!("cargo:rerun-if-changed=src/data/image.ppm");
     let output = Command::new("nwlink")
         .args(["png-nwi", "src/data/icon.png", "target/icon.nwi"])
         .output()

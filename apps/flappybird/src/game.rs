@@ -2,25 +2,26 @@ use heapless::Vec;
 
 use numworks_utils::{
     eadk::{
-        display::{self, SCREEN_WIDTH},
+        display::{self, SCREEN_HEIGHT, SCREEN_WIDTH},
         key, keyboard, Color, Point,
     },
-    graphical::{draw_centered_string, fading, fill_screen, ColorConfig},
+    graphical::{draw_centered_string, fill_screen, ColorConfig},
     menu::{
         selection,
         settings::{Setting, SettingType},
         start_menu, MenuConfig,
     },
-    utils::LARGE_CHAR_HEIGHT,
+    numbers::floor,
+    utils::{CENTER, LARGE_CHAR_HEIGHT},
 };
 
 use crate::{
     bird::Player,
     flappy_ui::{
-        draw_bird, draw_constant_ui, draw_top_pipe, draw_top_pipes_pipes, draw_ui, move_cloud,
-        BACKGROUND, PIXELS, TILESET, TILESET_TILE_SIZE,
+        countdown, draw_bird, draw_constant_ui, draw_dead_bird, draw_ground, draw_ui, Cloud,
+        BACKGROUND, PIXELS, TILESET, TILESET_TILE_SIZE, UI_BACKGROUND,
     },
-    pipes::Pipes,
+    pipes::{OptiTiles, Pipes},
 };
 
 // This dictates the principal colors that will be used for menu etc
@@ -47,18 +48,18 @@ pub fn start() {
             value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Int(1), "Slow\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(2), "Normal\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(4), "Fast\0")) };
+                unsafe { v.push_unchecked((SettingType::Double(0.5), "Slow\0")) };
+                unsafe { v.push_unchecked((SettingType::Double(0.75), "Normal\0")) };
+                unsafe { v.push_unchecked((SettingType::Double(1.0), "Fast\0")) };
                 v
             },
         },
         &mut Setting {
             name: "Pipes density\0",
-            value: 2,
+            value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Int(1), "Easy\0")) };
+                unsafe { v.push_unchecked((SettingType::Int(1), "Sparse\0")) };
                 unsafe { v.push_unchecked((SettingType::Int(2), "Normal\0")) };
                 unsafe { v.push_unchecked((SettingType::Int(3), "Dense\0")) };
                 v
@@ -91,8 +92,8 @@ pub fn start() {
             value: 1,
             possible_values: {
                 let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Double(6.0), "Weak\0")) };
-                unsafe { v.push_unchecked((SettingType::Double(6.8), "Normal\0")) };
+                unsafe { v.push_unchecked((SettingType::Double(5.5), "Weak\0")) };
+                unsafe { v.push_unchecked((SettingType::Double(6.5), "Normal\0")) };
                 unsafe { v.push_unchecked((SettingType::Double(7.5), "Strong\0")) };
                 v
             },
@@ -121,12 +122,12 @@ pub fn start() {
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
                 let action = game(
-                    opt[0].get_param_value(),
-                    opt[1].get_param_value(),
-                    opt[2].get_param_value(),
-                    opt[3].get_param_value(),
-                    opt[4].get_param_value(),
-                    opt[5].get_param_value(),
+                    opt[0].get_setting_value(),
+                    opt[1].get_setting_value(),
+                    opt[2].get_setting_value(),
+                    opt[3].get_setting_value(),
+                    opt[4].get_setting_value(),
+                    opt[5].get_setting_value(),
                 ); // calling the game based on the parameters is better
                 if action == 2 {
                     // 2 means quitting
@@ -145,156 +146,214 @@ pub fn start() {
 /// number of pixels of the window border.
 pub const WINDOW_SIZE: u16 = 20;
 
-const MAX_PIPES_ON_SCREEN: usize = 3;
+const MAX_PIPES_ON_SCREEN: usize = 4;
 
 /// The entire game is here.
 pub fn game(
-    starting_speed: u16,
-    nb_pipes_u: u16,
+    starting_speed: f32,
+    density: u16,
     speed_increase: u16,
     killer_floor: bool,
     jump_power: f32,
     no_collisions: bool,
 ) -> u8 {
-    // Optimisation : storing the pipes in RAM !
-    let left_pipe_tile: [Color; PIXELS] = TILESET.get_tile::<PIXELS>(Point { x: 1, y: 0 });
-    let right_pipe_tile: [Color; PIXELS] = TILESET.get_tile::<PIXELS>(Point { x: 2, y: 0 });
-    let left_cloud_tile: [Color; PIXELS] = TILESET.get_tile::<PIXELS>(Point { x: 1, y: 3 });
-    let right_cloud_tile: [Color; PIXELS] = TILESET.get_tile::<PIXELS>(Point { x: 2, y: 3 });
+    let mut cloud = Cloud::new(
+        Point {
+            x: SCREEN_WIDTH - WINDOW_SIZE - TILESET_TILE_SIZE * 2,
+            y: WINDOW_SIZE + 5,
+        },
+        0.20,
+    );
 
-    fill_screen(BACKGROUND);
-    draw_constant_ui();
-
-    let nb_pipes = nb_pipes_u as usize;
-    let mut pipes_list: Vec<Pipes, MAX_PIPES_ON_SCREEN> = Vec::new();
-    for _ in 0..nb_pipes {
-        let _ = pipes_list.push(Pipes::new(starting_speed, 75));
-    }
-    pipes_list[0].draw_self(&left_pipe_tile, &right_pipe_tile);
-
-    let mut score: u16 = 0;
-    let mut bird = Player::new(jump_power);
-    bird.draw_self();
-
-    let mut can_increase_speed: bool = true; // if true, can check for speed increase (true as soon as a point is won)
-
-    let mut active_pipe: Vec<bool, MAX_PIPES_ON_SCREEN> = Vec::new();
-    let _ = active_pipe.push(true);
-    for _ in 1..nb_pipes {
-        let _ = active_pipe.push(false);
-    }
-    let mut counter: usize = 0;
-    let mut start: bool = false;
-
-    // The cloud serve a parallax purpose. I spend FAR TOO MUCH TIME on that but it's so nice to have
-    // one downside is that it might slow things down...
-    let mut cloud_pos: Point = Point {
-        x: SCREEN_WIDTH - WINDOW_SIZE - TILESET_TILE_SIZE * 2,
-        y: WINDOW_SIZE + 5,
+    // Optimisation : storing the transparent images in RAM. Those are loaded anyway, so may has well do it only once.
+    // The other tiles don't have to be loaded in RAM to be drawn by a single call.
+    let tiles = OptiTiles {
+        left_bottom_tile: TILESET.get_tile::<PIXELS>(Point { x: 0, y: 2 }),
+        right_bottom_tile: TILESET.get_tile::<PIXELS>(Point { x: 3, y: 2 }),
+        left_top_tile: TILESET.get_tile::<PIXELS>(Point { x: 0, y: 1 }),
+        right_top_tile: TILESET.get_tile::<PIXELS>(Point { x: 3, y: 1 }),
     };
 
-    loop {
-        display::wait_for_vblank();
+    let mut pipes_list: Vec<Pipes, MAX_PIPES_ON_SCREEN> = Vec::new();
+    for _ in 0..MAX_PIPES_ON_SCREEN {
+        let _ = pipes_list.push(Pipes::new(starting_speed, 75, &tiles));
+    }
+    pipes_list[0].active = true;
+    pipes_list[0].has_moved = true;
 
-        let pipes_turn = counter % nb_pipes;
+    let mut bird = Player::new(jump_power);
+
+    display::wait_for_vblank();
+    fill_screen(BACKGROUND);
+    cloud.draw_self();
+    for p in pipes_list.iter() {
+        p.draw_self(); // technically, only the first is necessary, and only the first will be called.
+    }
+    bird.draw_self();
+
+    draw_ground(0);
+
+    draw_constant_ui();
+    draw_ui(0);
+
+    let mut score: u16 = 0;
+    let mut can_increase_speed: bool = true; // if true, can check for speed increase (true as soon as a point is won)
+
+    let mut frame_counter: u16 = 0;
+    let mut start: bool = false;
+
+    let mut previous_pipe_active: bool = true; // used to know if a given pipe can start
+    let mut previous_pipe_x_pos: u16 = 0; // Used to know if a given pipe can start
+    let mut previous_pipe_decimal_offset: f32 = 0.0; // Used to align all pipes
+
+    let mut right_most_pipe: usize = 0;
+
+    countdown(Point {
+        x: CENTER.x - TILESET_TILE_SIZE,
+        y: CENTER.y - TILESET_TILE_SIZE * 2,
+    });
+
+    'gameloop: loop {
+        // By optimising the s*** out of my graphical methods, I was able to draw all 3 double pipes, the cloud, the floor and the bird every SINGLE frame !!
+        // I compute everything during the frame time, and I draw eveything during the vblank time (which is short so it's difficult)
+        // Need to make sure the game logic is fast enough and that I draw NOTHING unnecessary !!
         let scan = keyboard::scan();
-        let death = if start || counter > 20 || scan.key_down(key::OK) {
-            start = true;
-            bird.action_function(scan, killer_floor && (!no_collisions)) // if true : bird touched floor and killer_floor
-        } else {
-            false
-        };
 
-        // pipes turn, activation etc
-        if !death && active_pipe[pipes_turn] {
-            // if pipe active, do that
-            let add = pipes_list[pipes_turn].action_function(&left_pipe_tile, &right_pipe_tile);
-            if add != 0 {
-                active_pipe[pipes_turn] = false;
-                can_increase_speed = true;
-            }
-            score += add;
-
-            let current = pipes_turn;
-            counter = counter.wrapping_add(1);
-            if nb_pipes > 1
-                && !active_pipe[counter % nb_pipes]
-                && pipes_list[current].x_pos
-                    < SCREEN_WIDTH - SCREEN_WIDTH / nb_pipes as u16 - TILESET_TILE_SIZE * nb_pipes_u
-            {
-                active_pipe[counter % nb_pipes] = true;
-            } else if nb_pipes == 1 {
-                active_pipe[current] = true;
-            }
-        } else {
-            // else skip pipe
-            counter = counter.wrapping_add(1);
-        }
-
-        if counter % nb_pipes * 2 == 0 {
-            // cloud
-            move_cloud(
-                &mut cloud_pos,
-                counter as u16,
-                &left_cloud_tile,
-                &right_cloud_tile,
-            );
-            for i in 0..nb_pipes {
-                if active_pipe[i]
-                    && cloud_pos.x < pipes_list[i].x_pos + TILESET_TILE_SIZE * 2
-                    && cloud_pos.x + TILESET_TILE_SIZE * 2 > pipes_list[i].x_pos
-                {
-                    if pipes_list[i].interval.0 > WINDOW_SIZE + TILESET_TILE_SIZE * 2 + 5 {
-                        draw_top_pipes_pipes(
-                            pipes_list[i].x_pos,
-                            pipes_list[i].interval,
-                            &left_pipe_tile,
-                            &right_pipe_tile,
-                        );
-                    } else {
-                        draw_top_pipe(
-                            pipes_list[i].x_pos,
-                            pipes_list[i].interval,
-                            &left_pipe_tile,
-                            &right_pipe_tile,
-                        );
-                    }
-                    break;
+        // Pause
+        if scan.key_down(key::BACK) {
+            let action = flappy_pause(false);
+            if action != 0 {
+                return action;
+            } else {
+                display::wait_for_vblank();
+                fill_screen(BACKGROUND);
+                cloud.draw_self();
+                for p in pipes_list.iter() {
+                    p.draw_self();
                 }
+                bird.draw_self();
+
+                draw_ground(frame_counter);
+
+                draw_constant_ui();
+                draw_ui(0);
+                countdown(Point {
+                    x: CENTER.x - TILESET_TILE_SIZE,
+                    y: CENTER.y - TILESET_TILE_SIZE * 3,
+                });
+                continue;
             }
         }
-        draw_ui(score);
+
+        // Moving the bird (and checking the floor collision)
+        if start || frame_counter > 20 || scan.key_down(key::OK) {
+            start = true;
+            if bird.action_function(scan, killer_floor && (!no_collisions)) {
+                break;
+            }
+        }
+        // Moving every pipe
+        for pipe in pipes_list.iter_mut() {
+            // if pipe active :
+            if pipe.action() > 0 {
+                can_increase_speed = true;
+                score += 1;
+            }
+            // if pipe not active : try to activate it
+            if !pipe.active
+                && previous_pipe_active
+                && previous_pipe_x_pos
+                    < SCREEN_WIDTH
+                        - SCREEN_WIDTH / (density + 1)
+                        - TILESET_TILE_SIZE * (MAX_PIPES_ON_SCREEN as u16 + 1 - density)
+                        - TILESET_TILE_SIZE / 2
+            {
+                pipe.active = true;
+                pipe.move_pipe(previous_pipe_decimal_offset); // aligning all the pipes onto the same moving frame
+            }
+            // that's for the next pipe
+            previous_pipe_active = pipe.active;
+            previous_pipe_x_pos = pipe.x_pos;
+            previous_pipe_decimal_offset = pipe.true_pos - floor(pipe.true_pos);
+        }
+        cloud.action();
+
+        // collisions -> game over
+        for pipe in pipes_list.iter().filter(|p| p.active) {
+            if !no_collisions && bird_collide_with(&bird, pipe) {
+                break 'gameloop;
+            }
+        }
+
         // speed increase
-        if can_increase_speed && score % speed_increase == 0 {
-            for i in 0..nb_pipes {
+        if can_increase_speed && score != 0 && score % speed_increase == 0 {
+            for i in 0..MAX_PIPES_ON_SCREEN {
                 pipes_list[i].increase_speed();
             }
             can_increase_speed = false;
         }
 
-        // collisions
-        let mut collision = false;
-        for i in 0..nb_pipes {
-            if !no_collisions && bird_collide_with(&bird, &pipes_list[i]) {
-                collision = true;
-                break;
+        let next_index = (right_most_pipe + 1) % MAX_PIPES_ON_SCREEN;
+        if pipes_list[next_index].active
+            && pipes_list[next_index].x_pos > SCREEN_WIDTH - WINDOW_SIZE - TILESET_TILE_SIZE * 2
+        {
+            right_most_pipe = next_index;
+        }
+
+        // Drawing everything
+        display::wait_for_vblank();
+        cloud.clear_old_self();
+        cloud.draw_self();
+
+        // Drawing the pipes right to left
+        let mut current_pipe = right_most_pipe;
+        for _ in 0..MAX_PIPES_ON_SCREEN {
+            let pipe = &pipes_list[current_pipe]; // error
+            pipe.clear_old_self();
+            pipe.draw_self();
+            current_pipe = if current_pipe == 0 {
+                MAX_PIPES_ON_SCREEN - 1
+            } else {
+                current_pipe - 1
             }
         }
-        if death || collision {
-            // TODO : game over screen and menu
-            draw_centered_string("GAME OVER\0", 70, true, &COLOR_CONFIG, true);
-            let action = flappy_pause(death || collision);
-            return action;
+
+        draw_ground(frame_counter); // this too
+
+        draw_ui(score); // TODO : this is just too late in the drawing time. -> optimisation necessary
+        {
+            bird.clear_old_self();
+            bird.draw_self();
         }
+
+        frame_counter = frame_counter.wrapping_add(1);
     }
+    // Game over
+    bird.clear_old_self();
+    draw_dead_bird(Point {
+        x: bird.x_pos,
+        y: bird.y_pos,
+    });
+    draw_centered_string("GAME OVER\0", 70, true, &COLOR_CONFIG, true);
+    flappy_pause(true)
 }
 
+/// Numbers of pixels where there should be collisions but there aren't because the game would be a lot more difficult
 const NICE_COLLISION_MARGIN: u16 = 2;
 
 #[inline]
 fn bird_collide_with(bird: &Player, pipes: &Pipes) -> bool {
-    if bird.x_pos + TILESET_TILE_SIZE < pipes.x_pos.saturating_sub(5)
-        || bird.x_pos > pipes.x_pos + TILESET_TILE_SIZE * 2
+    if bird.x_pos + TILESET_TILE_SIZE
+        < pipes
+            .x_pos
+            .saturating_sub(5)
+            .saturating_add(NICE_COLLISION_MARGIN)
+        || bird.x_pos
+            > pipes
+                .x_pos
+                .saturating_add(3)
+                .saturating_sub(NICE_COLLISION_MARGIN)
+                + TILESET_TILE_SIZE * 2
     {
         false
     } else {
@@ -304,23 +363,26 @@ fn bird_collide_with(bird: &Player, pipes: &Pipes) -> bool {
 }
 
 fn flappy_pause(death: bool) -> u8 {
-    let action = selection(
-        &COLOR_CONFIG,
+    selection(
+        &ColorConfig {
+            text: Color::WHITE,
+            bckgrd: UI_BACKGROUND,
+            alt: COLOR_CONFIG.alt,
+        },
         &MenuConfig {
             choices: if death {
                 &["Play again\0", "Menu\0", "Exit\0"]
             } else {
                 &["Resume\0", "Menu\0", "Exit\0"]
             },
-            rect_margins: (20, 12),
-            dimensions: (SCREEN_WIDTH * 7 / 15, LARGE_CHAR_HEIGHT * 5),
-            offset: (0, if death { 50 } else { 0 }),
+            rect_margins: (20, 0),
+            dimensions: (SCREEN_WIDTH, LARGE_CHAR_HEIGHT + LARGE_CHAR_HEIGHT / 2),
+            offset: (
+                0,
+                SCREEN_HEIGHT as i16 / 2 - 2 * LARGE_CHAR_HEIGHT as i16 / 3,
+            ),
             back_key_return: if death { 2 } else { 1 },
         },
-        false,
-    );
-    if action != 0 {
-        fading(500);
-    }
-    action
+        true,
+    )
 }

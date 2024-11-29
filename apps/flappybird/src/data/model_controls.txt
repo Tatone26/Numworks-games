@@ -4,8 +4,11 @@
                 HOW TO PLAY
 
 
-        - Press <OK> to jump
-        - Don't touch the pipes or floor
+    - Press <OK> to jump
+    
+    - Don't touch the pipes or the floor
 
-    Warning : speed sometimes increases !
+    - Press <BACK> to pause
+
+    Warning : speed will slightly increase !
                                                                                      

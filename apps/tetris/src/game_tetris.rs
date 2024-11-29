@@ -77,7 +77,7 @@ pub fn start() {
         if start == 0 {
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                let action = game(opt[0].get_param_value(), opt[1].get_param_value()); // calling the game based on the parameters is better
+                let action = game(opt[0].get_setting_value(), opt[1].get_setting_value()); // calling the game based on the parameters is better
                 if action == 2 {
                     // 2 means quitting
                     return;

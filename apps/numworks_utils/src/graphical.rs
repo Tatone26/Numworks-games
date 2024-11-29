@@ -76,7 +76,7 @@ pub fn draw_string_cfg(string: &str, pos: Point, large: bool, cfg: &ColorConfig,
     )
 }
 
-/// A random and most likely never used [Color] to use as transparency. e700ff, or (231, 0, 255)
+/// A random and most likely never used [Color] to use as transparency. e700ff, or (231, 0, 255), which is 0xE01F in RGB565 format, the one used here.
 pub const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
 
 /// Draws an image from its pixel data, given as an array of [Color].
@@ -86,58 +86,67 @@ pub const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
 /// Scaling is very slow, please consider using full size images if speed is needed !
 pub fn draw_image(image: &[Color], pos: Point, size: (u16, u16), scaling: u16, transparency: bool) {
     if scaling > 1 {
-        // If scaling is > 1, there is no choice : we need to print one rect / pixel.
-        let mut x_pos = 0;
-        let mut y_pos = 0;
+        // If scaling is > 1, there is no choice : we need to print one rect / pixel. Which is very slow.
+        let max_x = pos.x + size.0 * scaling;
+        let max_y = pos.y + size.1 * scaling;
+        let mut x_pos = pos.x;
+        let mut y_pos = pos.y;
         for c in image {
-            let y_temp: u16 = pos.y + y_pos * scaling;
-            if y_temp < SCREEN_HEIGHT && (!transparency || c.rgb565 != TRANSPARENCY_COLOR.rgb565) {
+            if !transparency || c.rgb565 != TRANSPARENCY_COLOR.rgb565 {
                 push_rect_uniform(
                     Rect {
-                        x: pos.x + x_pos * scaling,
-                        y: y_temp,
+                        x: x_pos,
+                        y: y_pos,
                         width: scaling,
                         height: scaling,
                     },
                     *c,
                 );
             }
-
-            x_pos += 1;
-            if x_pos >= size.0 {
-                x_pos = 0;
-                y_pos += 1;
-                if y_pos >= size.1 {
+            x_pos += scaling;
+            if x_pos >= max_x {
+                x_pos = pos.x;
+                y_pos += scaling;
+                if y_pos >= max_y || y_pos >= SCREEN_HEIGHT {
                     break;
                 }
             }
         }
-    } else if transparency && scaling == 1 {
-        // not so fast option : we can send less rectangles by sending pixels line by line, splitting at transparent pixels.
-        for (line, c) in image.chunks(size.0 as usize).enumerate() {
-            // line by line
-            let mut x_pos = 0;
-            for chunk in c.split_inclusive(|d| d.rgb565 == TRANSPARENCY_COLOR.rgb565) {
-                // for each chunk, separated by transparent pixel, print it
-                if chunk.len() > 1 {
-                    push_rect(
-                        Rect {
-                            x: pos.x + x_pos,
-                            y: pos.y + line as u16,
-                            width: chunk.len() as u16
-                                - if chunk.last().unwrap().rgb565 == TRANSPARENCY_COLOR.rgb565 {
-                                    1
-                                } else {
-                                    0
-                                },
-                            height: 1,
-                        },
-                        chunk,
-                    );
-                    x_pos += chunk.len() as u16;
-                } else {
-                    x_pos += 1;
+    } else if transparency {
+        // not so fast option : we can send less rectangles by sending pixels line by line, by chunks separated on transparent pixels
+        for (line, row) in image.chunks(size.0 as usize).enumerate() {
+            let mut start_idx = None; // Start of the current opaque run, indexed in the row.
+            for (col, &pixel) in row.iter().enumerate() {
+                if pixel.rgb565 == TRANSPARENCY_COLOR.rgb565 {
+                    if let Some(start) = start_idx {
+                        // Draw the current opaque span
+                        push_rect(
+                            Rect {
+                                x: pos.x + start,
+                                y: pos.y + line as u16,
+                                width: col as u16 - start,
+                                height: 1,
+                            },
+                            &row[start as usize..col],
+                        );
+                        start_idx = None;
+                    }
+                } else if start_idx.is_none() {
+                    start_idx = Some(col as u16);
                 }
+            }
+
+            // If the row ends with an opaque span, draw it
+            if let Some(start) = start_idx {
+                push_rect(
+                    Rect {
+                        x: pos.x + start,
+                        y: pos.y + line as u16,
+                        width: size.0 - start,
+                        height: 1,
+                    },
+                    &row[start as usize..],
+                );
             }
         }
     } else {

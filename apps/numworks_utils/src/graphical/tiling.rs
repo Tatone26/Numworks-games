@@ -62,6 +62,49 @@ impl Tileset {
         }
     }
 
+    /// I needed this function to optimise a game, but put it here if I ever need it again.
+    ///
+    /// It allows tiling with only half of a tile, up or down, without scaling or transparency.
+    ///
+    /// Can be used to draw lines like some ground, and I reversed it because the rectangles on the right need to be drawn first (because of how the screen is refreshed)
+    ///
+    /// Will probably end up refactored with a draw_half_tile function.
+    pub fn reverse_half_tiling(
+        &self,
+        pos: Point,
+        dimensions: (u16, u16),
+        tile: Point,
+        bottom: bool,
+    ) {
+        unsafe {
+            let tile_ptr = self
+                .image
+                .as_ptr()
+                .add(
+                    (2 * self.tile_size
+                        * ((tile.y + if bottom { self.tile_size / 2 } else { 0 }) * self.width
+                            + tile.x * self.tile_size)) as usize,
+                )
+                .cast::<Color>();
+            for x in 0..dimensions.0 {
+                let x_pos = x * self.tile_size + pos.x;
+                for y in (pos.y..(dimensions.1 * self.tile_size + pos.y))
+                    .step_by(self.tile_size as usize)
+                {
+                    push_rect_ptr(
+                        Rect {
+                            x: x_pos,
+                            y,
+                            width: self.tile_size,
+                            height: self.tile_size / 2,
+                        },
+                        tile_ptr,
+                    );
+                }
+            }
+        }
+    }
+
     /// For really fast tiling : use scaling = 1 and transparency = false.
     /// In other case, every pixel will be drawn after the other, with a dedicated Rect (= far slower than a single Rect)
     pub fn tiling<const PIXELS: usize>(
@@ -73,14 +116,46 @@ impl Tileset {
         transparency: bool,
         scaling: u16,
     ) {
-        for x in 0..dimensions.0 {
-            for y in 0..dimensions.1 {
-                self.draw_tile::<PIXELS>(
-                    Point::new(x * self.tile_size + pos.x, y * self.tile_size + pos.y),
-                    tile,
-                    scaling,
-                    transparency,
-                );
+        if !transparency && scaling == 1 {
+            unsafe {
+                let tile_ptr = self
+                    .image
+                    .as_ptr()
+                    .add(
+                        (2 * self.tile_size * (tile.y * self.width + tile.x * self.tile_size))
+                            as usize,
+                    )
+                    .cast::<Color>();
+                for x in 0..dimensions.0 {
+                    let x_pos = x * self.tile_size + pos.x;
+                    for y in (pos.y..(dimensions.1 * self.tile_size + pos.y))
+                        .step_by(self.tile_size as usize)
+                    {
+                        push_rect_ptr(
+                            Rect {
+                                x: x_pos,
+                                y,
+                                width: self.tile_size,
+                                height: self.tile_size,
+                            },
+                            tile_ptr,
+                        );
+                    }
+                }
+            }
+        } else {
+            let tile: [Color; PIXELS] = self.get_tile(tile);
+            for x in 0..dimensions.0 {
+                let x_pos = x * self.tile_size + pos.x;
+                for y in 0..dimensions.1 {
+                    draw_image(
+                        &tile,
+                        Point::new(x_pos, y * self.tile_size + pos.y),
+                        (self.tile_size, self.tile_size),
+                        scaling,
+                        transparency,
+                    );
+                }
             }
         }
     }

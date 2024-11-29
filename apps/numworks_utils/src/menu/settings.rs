@@ -61,7 +61,7 @@ impl Setting {
 
     #[inline(always)]
     /// Returns the true value contained in the option
-    pub fn get_param_value<T: FromValue>(&self) -> T {
+    pub fn get_setting_value<T: FromValue>(&self) -> T {
         T::from_value(&self.possible_values[self.value].0)
     }
 }

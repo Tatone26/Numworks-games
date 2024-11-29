@@ -114,7 +114,7 @@ pub fn start() {
             include_str!("./data/snake_controls.txt"),
         );
         if start == 0 {
-            match opt[1].get_param_value() {
+            match opt[1].get_setting_value() {
                 1 => unsafe {
                     MAX_HEIGHT = 11;
                     MAX_WIDTH = 16;
@@ -136,10 +136,10 @@ pub fn start() {
             }
             loop {
                 let action = game(
-                    325 - opt[0].get_param_value::<u16>() * 75,
-                    opt[2].get_param_value(),
-                    opt[3].get_param_value(),
-                    opt[4].get_param_value(),
+                    325 - opt[0].get_setting_value::<u16>() * 75,
+                    opt[2].get_setting_value(),
+                    opt[3].get_setting_value(),
+                    opt[4].get_setting_value(),
                 );
                 if action == 2 {
                     return;

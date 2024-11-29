@@ -1,43 +1,48 @@
 # Numworks Games
 Some simple games for numworks calculator, to run in python or as applications !
-These games are made for fun, when I have a little time and want something simple to program. Don't expect anything incredible, but I'm a bit of a perfectionist so there shoudn't be any (major) bugs.
+I make these game for fun and to learn Rust and give myself a challenge by programming on a very limited device.
+
+Most of the games here should work as perfectly as I could make them but don't expect anything crazy !
 
 ## Python Games
 
   **Everything needs the menu.py script downloaded as well.**
 
-- Snake : An incredible classic, works and a lot of fun if you are motivated. The default settings are the hardest one, try to beat 20 or so points! *See the Apps for a better one!*
-- Connect4 : Simple but efficient and fun to play with friends. You can even play with strange rules or at 3 players! *See the Apps for a better one!*
-- Chess : Not finished (and will probably not be), but still playable. Many rules are not implemented.
-- 2048 : Works and as fun as the original.
-- Solitaire : My proudest achievement. A Classic Solitaire fully functional! *See the Apps for a better one!*
+- Snake : An incredible classic, a lot of fun if you are motivated. The default settings are the hardest one, try to beat 20 or so points! **See the Apps for a better one!**
+- Connect4 : Simple but efficient and fun to play with friends. You can even play with strange rules or at 3 players! **See the Apps for a better one!**
+- Chess : Not finished, but still technically playable. Almost no rules are implemented but basic movement. 
+- 2048 : Works but pretty bad looking compared to the original.
+- Solitaire : A fully functional Classic Solitaire! **See the Apps for a better one!**
+- Battleship : My first game, which I made even before the introduction of the timing module in python. Not a really good one. 
 
 Thanks to [ZetaMap](https://github.com/ZetaMap/ZetaMap), you can run these python scripts on your pc with the Kandinksy and the Ion-Numworks modules installed to test them.
-You can find a lot more programs on numworks.com, where you can even submit your own.
+You can find a lot more programs on numworks.com, where anyone can submit their own.
 
 ## Applications
 
-Feel free to look at the code and download it if you want, but it's quite messy.
-Remember that it is a calculator and not a game console, so anything graphical is quite challenging with the official software! I tried a lot of things before finding a good (enough for now) way to print images, and I can't speed up the refresh rate. It's quite frustrating, but it is also what makes programming on Numworks so interesting!
+*Feel free to download and copy the code it if you want, but it's quite messy as I work alone.*
 
-I'm also using these projects to learn some Rust, as I am already used to code in C. I guess I should code in C if I wanted to optimize more than that.
+Remember that it is a calculator so it is **NOT** a game console at all !
 
-PS : These games are only tested on N0110, and I try to keep everything up to date.
+I'm also using these projects to learn some Rust, as I am already used to code in C. The code I write is probably not idiomatic at all and anyone good in Rust shouldn't want to read that.
 
-  **Instructions and controls are included in the games!**
+PS : These games are tested on a real N0110 and the latest version of the Epsilon software.
 
-- Snake : My take on the classic game!
-- Puissance4 = Connect4 (I'm not bothering changing every file name): works just like the python version, but better.
-- Solitaire : After managing the Python version, it was just a matter of making a good way to display the cards. Transposing the logic to Rust was very easy.
-- Tetris : Yeah. Tetris! I *think* I followed every rule of the original game.
-- Flappy Bird : Working ! Could still be better, maybe with better sprites, but I'm not an artist.
+  **Instructions and controls are included in the games themselves!**
 
-- Numworks_utils contains a lot of the utility code I use : the numworks default functions, the entire menu code, graphical tools and more.
-- Model is a basic repo you can use to start your game using my template.
-- Nppm_decoder is a build utility I made to process the images at compile time. Faster drawing with it !
+- [Snake](./apps/snake/) : My take on the classic game!
+- [Puissance4](./apps/puissance4/) (Connect 4): You can play against your friend or a basic but strong AI, and even try some 3 players games !
+- [Solitaire](./apps/solitaire/) : A Classic Solitaire, with classic rules.
+- [Tetris](./apps/tetris/) : Yeah. Tetris! I *think* I followed every rule of the original game.
+- [Flappy Bird](./apps/flappybird/) : Everybody know Flappy Bird. As of today, it is by far the most **technically advanced game** I made. (and the one I worked the most on)
+
+- [Numworks_utils](./apps/numworks_utils/) contains a lot of the utility code I use : the numworks default functions, the entire menu code, graphical tools and more.
+- [Model](./apps/model/) is a basic repo you can copy to start your game using my template.
+- [Nppm_decoder](./apps/nppm_decoder/) is a build utility I made to process the images at compile time. Necessary to use the *tiling* module.
 
 
-There are still a lot of impossible things with the official software (like saving anything), so consider installing an other one like Omega if you want to do some really complex things.
+There are still a lot of impossible things with the official software (like saving data), so consider installing an other one like Omega if you want to do some really complex things.
+
 If you want to create some apps that run on Epsilon, see the [Rust-based template](https://github.com/numworks/epsilon-sample-app-rust), [C++](https://github.com/numworks/epsilon-sample-app-cpp) and [C](https://github.com/numworks/epsilon-sample-app-c).
 
 ### Installation instructions :
@@ -46,3 +51,15 @@ If you want to create some apps that run on Epsilon, see the [Rust-based templat
   - go to my.numworks.com/apps (on chromium)
   - follow the instructions on the website, and put the file(s) you downloaded.
   - click DOWNLOAD and you're good to go !
+
+
+### Some technical details of the Numworks calculator
+#### Or what make these games more difficult to make than you think
+
+As I'm not an expert at all, I won't talk about the *truly* technical stuff. You can start [here](https://www.numworks.com/engineering/software/#read-our-coding-guidelines) if you want more details.
+
+- The RAM is only 256kb, and the stack is only 32kb. I know you can use around 125kb + 32kb of this RAM in the applications. It is really small but by being careful, it does not cause a lot of problems.
+- There is no heap and no std, so no malloc to use. This changes a lot of things, but the **heapless crate** can solve most problems. I still had to rewrite some very basic functions, as I didn't want to import another crate.
+- The screen is 320x240 pixels and uses RGB565 (16 bits) colors. That means you need 2 bytes / pixel when drawing anything, which is a lot in this context.
+- The refresh rate is not bad (45Hz) **BUT** it works from the top-left to the bottom-right. This means that rectangles drawn too late in the frame can look *really* bad in the bottom-right corner. It seems to be a good pratice to draw from right to left if possible.
+- The VBlank time is pretty small too, so it is next to impossible to draw the entire screen. It is definitely able too, but I couldn't find how with the tools we have. 

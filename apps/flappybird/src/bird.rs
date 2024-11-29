@@ -1,10 +1,13 @@
-use numworks_utils::eadk::{
-    display::{SCREEN_HEIGHT, SCREEN_WIDTH},
-    key, Point, State,
+use numworks_utils::{
+    eadk::{
+        display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
+        key, Point, Rect, State,
+    },
+    utils::CENTER,
 };
 
 use crate::{
-    flappy_ui::{clear_tile, draw_bird, TILESET_TILE_SIZE},
+    flappy_ui::{draw_bird, BACKGROUND, TILESET_TILE_SIZE},
     game::WINDOW_SIZE,
 };
 
@@ -20,6 +23,8 @@ pub struct Player {
     jump_power: f32,
     pub y_pos: u16,
     pub x_pos: u16,
+    old_x_pos: u16,
+    old_y_pos: u16,
 }
 
 impl Player {
@@ -29,8 +34,10 @@ impl Player {
             animation_frame: 0,
             y_speed: 0.0,
             jump_power,
-            y_pos: SCREEN_HEIGHT / 2,
+            y_pos: CENTER.y,
             x_pos: X_BIRD_POS,
+            old_x_pos: X_BIRD_POS,
+            old_y_pos: CENTER.y,
         }
     }
 
@@ -46,7 +53,8 @@ impl Player {
         } else if !keyboard_state.key_down(key::OK) {
             self.jump_pressed = false;
         }
-        self.clear_self();
+        self.old_x_pos = self.x_pos;
+        self.old_y_pos = self.y_pos;
         let new_pos = self.y_pos as i16 + self.y_speed as i16;
         if new_pos <= WINDOW_SIZE as i16 {
             self.y_speed += GRAVITY; // head bump
@@ -55,21 +63,25 @@ impl Player {
             self.y_speed = 0.1; // foot bump
             self.y_pos = SCREEN_HEIGHT - WINDOW_SIZE - TILESET_TILE_SIZE;
             if killer_floor {
-                self.draw_self();
                 return true;
             }
         } else {
             self.y_pos = new_pos as u16;
         }
-        self.draw_self();
         false
     }
 
-    fn clear_self(&self) {
-        clear_tile(Point {
-            x: self.x_pos,
-            y: self.y_pos,
-        })
+    #[inline]
+    pub fn clear_old_self(&self) {
+        push_rect_uniform(
+            Rect {
+                x: self.old_x_pos,
+                y: self.old_y_pos,
+                width: TILESET_TILE_SIZE,
+                height: TILESET_TILE_SIZE,
+            },
+            BACKGROUND,
+        );
     }
 
     pub fn draw_self(&mut self) {

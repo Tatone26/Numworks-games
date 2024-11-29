@@ -16,6 +16,7 @@ fn main() {
         String::from_utf8_lossy(&output.stderr)
     );
 
+    println!("cargo:rerun-if-changed=src/data/image.ppm");
     // Turn image.ppm into image.nppm
     nppm_decoder::decoder::extract_data_from_file(
         "src/data/image.ppm",

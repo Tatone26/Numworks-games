@@ -94,10 +94,10 @@ pub fn start() {
         ); // The menu does everything itself !
         if start == 0 {
             unsafe {
-                PLAYERS = opt[1].get_param_value::<u16>() as u8; // vis_addon update
+                PLAYERS = opt[1].get_setting_value::<u16>() as u8; // vis_addon update
             }
             loop {
-                let color_config: ColorConfig = if opt[2].get_param_value::<bool>() {
+                let color_config: ColorConfig = if opt[2].get_setting_value::<bool>() {
                     ColorConfig {
                         text: COLOR_CONFIG.bckgrd,
                         bckgrd: COLOR_CONFIG.text,
@@ -108,9 +108,9 @@ pub fn start() {
                 };
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
                 let action = game(
-                    opt[1].get_param_value::<u16>() as u8,
-                    opt[0].get_param_value::<bool>(),
-                    opt[3].get_param_value::<u16>() as u8,
+                    opt[1].get_setting_value::<u16>() as u8,
+                    opt[0].get_setting_value::<bool>(),
+                    opt[3].get_setting_value::<u16>() as u8,
                     &color_config,
                 ); // calling the game based on the parameters is better
                 if action == 2 {
@@ -185,7 +185,7 @@ pub fn game(nb_players: u8, solo: bool, ia_strength: u8, c: &ColorConfig) -> u8 
         choices: &["Replay\0", "Menu\0", "Exit\0"],
         rect_margins: (20, 0),
         dimensions: (SCREEN_WIDTH, LARGE_CHAR_HEIGHT),
-        offset: (0, SCREEN_HEIGHT / 2 - LARGE_CHAR_HEIGHT),
+        offset: (0, (SCREEN_HEIGHT / 2 - LARGE_CHAR_HEIGHT) as i16),
         back_key_return: 1,
     };
     menu::selection(c, &menu_config, true)

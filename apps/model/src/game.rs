@@ -1,12 +1,13 @@
 use heapless::Vec;
 use numworks_utils::{
-    graphical::{draw_string_cfg, fill_screen, tiling::Tileset, ColorConfig},
+    eadk::{display::wait_for_vblank, timing},
+    graphical::{draw_centered_string, draw_string_cfg, fill_screen, tiling::Tileset, ColorConfig},
     include_bytes_align_as,
     menu::{
         settings::{Setting, SettingType},
         start_menu,
     },
-    utils::wait_for_no_keydown,
+    utils::{string_from_u16, string_from_u32, wait_for_no_keydown, CENTER},
 };
 
 use crate::eadk::{
@@ -48,7 +49,7 @@ pub fn start() {
     }];
     loop {
         let start = start_menu(
-            "SNAKE 2.0\0",
+            "TEST\0",
             &mut opt,
             &COLOR_CONFIG,
             vis_addon,
@@ -57,11 +58,11 @@ pub fn start() {
         // The menu does everything itself !
         if start == 0 {
             unsafe {
-                EXEMPLE = opt[0].get_param_value(); // You could use mutable statics, but it is not very good
+                EXEMPLE = opt[0].get_setting_value(); // You could use mutable statics, but you shouldn't
             }
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                let action = game(opt[0].get_param_value()); // calling the game based on the parameters is better
+                let action = game(opt[0].get_setting_value()); // calling the game based on the parameters is better
                 if action == 2 {
                     // 2 means quitting
                     return;
@@ -88,6 +89,7 @@ const PIXELS: usize = { 55 * 55 } as usize;
 pub fn game(_exemple: bool) -> u8 {
     {
         fill_screen(Color::WHITE);
+        measure_refresh_rate();
         draw_string_cfg(
             "Push <OK> for some magic ! <Back> to quit back to menu.\0",
             Point::new(0, 0),
@@ -110,4 +112,43 @@ pub fn game(_exemple: bool) -> u8 {
     }
     fill_screen(Color::GREEN);
     1
+}
+
+fn measure_refresh_rate() {
+    draw_string_cfg(
+        "Measuring refresh rate mean...\0",
+        Point { x: 50, y: 50 },
+        false,
+        &COLOR_CONFIG,
+        true,
+    );
+    let mut mean = 0;
+    let mut last_timing = timing::millis();
+    for i in 0..500_u64 {
+        wait_for_vblank();
+        let t = timing::millis();
+        draw_centered_string(
+            &string_from_u16(i as u16),
+            CENTER.y,
+            false,
+            &COLOR_CONFIG,
+            false,
+        );
+        mean = (mean * i + (t - last_timing)) / (i + 1);
+        last_timing = t;
+    }
+    draw_string_cfg(
+        "Result found (ms/frame): \0",
+        Point { x: 50, y: 160 },
+        true,
+        &COLOR_CONFIG,
+        false,
+    );
+    draw_centered_string(
+        &string_from_u32(mean as u32),
+        200,
+        true,
+        &COLOR_CONFIG,
+        true,
+    );
 }

@@ -29,8 +29,8 @@ pub struct MenuConfig {
     pub rect_margins: (u16, u16),
     /// Width and Height of the entire menu (not too small or text will glitch out !)
     pub dimensions: (u16, u16),
-    /// Offset of the entire menu, from the (0, 0) point (top-left)
-    pub offset: (u16, u16),
+    /// Offset of the entire menu, from the center point
+    pub offset: (i16, i16),
     /// The return value bound to the BACK key
     pub back_key_return: u8,
 }
@@ -61,7 +61,7 @@ pub fn start_menu(
                 choices: &["Play\0", "Settings\0", "How to Play\0", "Exit\0"],
                 rect_margins: (10, 10),
                 dimensions: (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
-                offset: (0, SCREEN_HEIGHT / 5),
+                offset: (0, (SCREEN_HEIGHT / 5) as i16),
                 back_key_return: 3,
             },
             false,
@@ -78,7 +78,7 @@ pub fn start_menu(
 }
 
 /// Creates a fully fonctional pause menu, mostly an exemple
-pub fn pause_menu(cfg: &ColorConfig, y_offset: u16) -> u8 {
+pub fn pause_menu(cfg: &ColorConfig, y_offset: i16) -> u8 {
     selection(
         cfg,
         &MenuConfig {
@@ -103,8 +103,8 @@ pub fn selection(color: &ColorConfig, config: &MenuConfig, horizontal: bool) -> 
     display::wait_for_vblank();
     display::push_rect_uniform(
         Rect {
-            x: (SCREEN_WIDTH - config.dimensions.0) / 2 + config.offset.0,
-            y: (SCREEN_HEIGHT - config.dimensions.1) / 2 + config.offset.1,
+            x: (((SCREEN_WIDTH - config.dimensions.0) / 2) as i16 + config.offset.0) as u16,
+            y: (((SCREEN_HEIGHT - config.dimensions.1) / 2) as i16 + config.offset.1) as u16,
             width: config.dimensions.0,
             height: config.dimensions.1,
         },
@@ -191,14 +191,15 @@ fn draw_selection_string(
     let text: &str = config.choices[cursor_pos as usize];
     // very complicated calculation for the y position when the menu is vertical, but it works lol
     let y_pos: u16 = if !horizontal {
-        CENTER.y + config.offset.1 - config.dimensions.1 / 2
+        (CENTER.y - config.dimensions.1 / 2
             + config.rect_margins.1
             + cursor_pos as u16
                 * (config.dimensions.1 - config.rect_margins.1 * 2 - LARGE_CHAR_HEIGHT)
-                / (config.choices.len() as u16 - 1)
+                / (config.choices.len() as u16 - 1)) as i16
+            + config.offset.1
     } else {
-        CENTER.y + config.offset.1 - LARGE_CHAR_HEIGHT / 2
-    };
+        (CENTER.y - LARGE_CHAR_HEIGHT / 2) as i16 + config.offset.1
+    } as u16;
 
     // complicated for the x position if menu is horizontal
     let x_coordos: u16 = if horizontal {
@@ -222,7 +223,7 @@ fn draw_selection_string(
                 - get_string_pixel_size(config.choices[cursor_pos as usize], true) / 2
         }
     } else {
-        get_centered_text_x_coordo(text, true) + config.offset.0
+        (get_centered_text_x_coordo(text, true) as i16 + config.offset.0) as u16
     };
 
     draw_string_cfg(text, Point::new(x_coordos, y_pos), true, color, selected); // text
