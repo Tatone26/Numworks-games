@@ -276,18 +276,18 @@ pub mod timing {
     }
 }
 
-/// Does not seem to work for now
+/// Does not seem to work for now, at least with API = 1.
 pub mod battery {
-
+    /// not working
     pub fn battery_charging() -> bool {
         unsafe { eadk_battery_is_charging() }
     }
-
+    /// not working
     #[must_use]
     pub fn battery_voltage() -> f32 {
         unsafe { eadk_battery_voltage() }
     }
-
+    /// not working
     #[must_use]
     pub fn battery_level() -> u8 {
         unsafe { eadk_battery_level() }
@@ -308,7 +308,7 @@ pub fn random() -> u32 {
 extern "C" {
     fn eadk_random() -> u32;
 }
-
+/// Doesn't seem to be working, at least with API = 1, if that changes anything.
 pub fn usb_is_plugged() -> bool {
     unsafe { eadk_usb_is_plugged() }
 }

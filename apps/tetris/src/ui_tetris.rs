@@ -127,7 +127,8 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
 pub fn draw_score(score: u32) {
     let mut score_txt: String<7> = String::<7>::new();
     if score < 999_999 {
-        let score_str: String<11> = string_from_u32(score);
+        let mut score_str: String<11> = string_from_u32(score);
+        score_str.pop();
         for _ in 0..(6 - score_str.chars().count()) {
             score_txt.push('0').unwrap();
         }

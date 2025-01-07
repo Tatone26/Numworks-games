@@ -10,10 +10,8 @@ Most of the games here should work as perfectly as I could make them but don't e
 
 - Snake : An incredible classic, a lot of fun if you are motivated. The default settings are the hardest one, try to beat 20 or so points! **See the Apps for a better one!**
 - Connect4 : Simple but efficient and fun to play with friends. You can even play with strange rules or at 3 players! **See the Apps for a better one!**
-- Chess : Not finished, but still technically playable. Almost no rules are implemented but basic movement. 
 - 2048 : Works but pretty bad looking compared to the original.
 - Solitaire : A fully functional Classic Solitaire! **See the Apps for a better one!**
-- Battleship : My first game, which I made even before the introduction of the timing module in python. Not a really good one. 
 
 Thanks to [ZetaMap](https://github.com/ZetaMap/ZetaMap), you can run these python scripts on your pc with the Kandinksy and the Ion-Numworks modules installed to test them.
 You can find a lot more programs on numworks.com, where anyone can submit their own.
