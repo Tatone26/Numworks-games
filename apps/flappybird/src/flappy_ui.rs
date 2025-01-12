@@ -6,7 +6,7 @@ use numworks_utils::{
     graphical::{draw_image, tiling::Tileset},
     include_bytes_align_as,
     numbers::ceil,
-    utils::{string_from_u16, LARGE_CHAR_WIDTH},
+    utils::{get_string_pixel_size, string_from_u16},
 };
 
 use crate::game::WINDOW_SIZE;
@@ -100,7 +100,7 @@ impl Cloud {
     }
 }
 
-pub fn draw_constant_ui() {
+pub fn draw_constant_ui(high_score: u16) {
     push_rect_uniform(
         Rect {
             x: 0,
@@ -129,8 +129,32 @@ pub fn draw_constant_ui() {
         UI_BACKGROUND,
     );
     draw_string(
-        "Score : \0",
+        "Score: \0",
         Point { x: 5, y: 1 },
+        true,
+        Color::WHITE,
+        UI_BACKGROUND,
+    );
+    let s = string_from_u16(high_score);
+    draw_string(
+        "Best: \0",
+        Point {
+            x: SCREEN_WIDTH
+                - 5
+                - get_string_pixel_size("Best: \0", true)
+                - get_string_pixel_size(&s, true),
+            y: 1,
+        },
+        true,
+        Color::WHITE,
+        UI_BACKGROUND,
+    );
+    draw_string(
+        &string_from_u16(high_score),
+        Point {
+            x: SCREEN_WIDTH - get_string_pixel_size(&s, true) - 5,
+            y: 1,
+        },
         true,
         Color::WHITE,
         UI_BACKGROUND,
@@ -166,13 +190,13 @@ pub fn draw_ui(score: u16) {
     draw_string(
         &string_from_u16(score),
         Point {
-            x: 5 + LARGE_CHAR_WIDTH * 8,
+            x: 5 + get_string_pixel_size("Score: \0", true),
             y: 1,
         },
         true,
         Color::WHITE,
         UI_BACKGROUND,
-    )
+    );
 }
 
 /// No scaling and no transparency -> fast, no need to store in RAM.

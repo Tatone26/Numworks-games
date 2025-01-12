@@ -1,13 +1,7 @@
-use core::u8;
-
 use heapless::Vec;
 use numworks_utils::{
     graphical::{draw_centered_string, ColorConfig},
-    menu::{
-        self,
-        settings::{Setting, SettingType},
-        start_menu,
-    },
+    menu::{self, settings::Setting, start_menu, MenuConfig},
 };
 
 use crate::{
@@ -16,7 +10,6 @@ use crate::{
         key, keyboard, timing, Color,
     },
     ia_p4::{find_best_move, look_for_aligned_coins},
-    menu::MenuConfig,
     ui_p4::{clear_selection_coin, draw_coin, draw_grid, draw_selection_coin, victory},
     utils::{wait_for_no_keydown, LARGE_CHAR_HEIGHT},
 };
@@ -44,44 +37,35 @@ pub fn start() {
     let mut opt: [&mut Setting; 4] = [
         &mut Setting {
             name: "Solo Game\0",
-            value: 0,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
-                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
-                v
-            },
+            choice: 0,
+            values: Vec::from_slice(&[0, 1]).unwrap(),
+            texts: Vec::from_slice(&["No\0", "Yes\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
             name: "Players\0",
-            value: 0,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Int(2), "2\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(3), "3\0")) };
-                v
-            },
+            choice: 0,
+            values: Vec::from_slice(&[2, 3]).unwrap(),
+            texts: Vec::from_slice(&["2\0", "3\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
             name: "Dark mode\0",
-            value: 1,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
-                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
-                v
-            },
+            choice: 1,
+            values: Vec::from_slice(&[1, 0]).unwrap(),
+            texts: Vec::from_slice(&["Yes\0", "No\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
             name: "IA Strength\0",
-            value: 1,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Int(4), "Weak\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(6), "Normal\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(8), "Strong\0")) };
-                v
-            },
+            choice: 1,
+            values: Vec::from_slice(&[4, 6, 8]).unwrap(),
+            texts: Vec::from_slice(&["Weak\0", "Normal\0", "Strong\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
     ];
     loop {
@@ -91,13 +75,14 @@ pub fn start() {
             &COLOR_CONFIG,
             vis_addon,
             include_str!("./data/p4_controls.txt"),
+            "connectfour",
         ); // The menu does everything itself !
         if start == 0 {
             unsafe {
-                PLAYERS = opt[1].get_setting_value::<u16>() as u8; // vis_addon update
+                PLAYERS = opt[1].get_setting_value() as u8; // vis_addon update
             }
             loop {
-                let color_config: ColorConfig = if opt[2].get_setting_value::<bool>() {
+                let color_config: ColorConfig = if opt[2].get_setting_value() != 0 {
                     ColorConfig {
                         text: COLOR_CONFIG.bckgrd,
                         bckgrd: COLOR_CONFIG.text,
@@ -108,9 +93,9 @@ pub fn start() {
                 };
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
                 let action = game(
-                    opt[1].get_setting_value::<u16>() as u8,
-                    opt[0].get_setting_value::<bool>(),
-                    opt[3].get_setting_value::<u16>() as u8,
+                    opt[1].get_setting_value() as u8,
+                    opt[0].get_setting_value() != 0,
+                    opt[3].get_setting_value() as u8,
                     &color_config,
                 ); // calling the game based on the parameters is better
                 if action == 2 {

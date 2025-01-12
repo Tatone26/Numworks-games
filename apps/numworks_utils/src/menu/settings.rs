@@ -6,99 +6,102 @@ use crate::{
         key, keyboard, timing, Point, Rect,
     },
     graphical::{draw_centered_string, draw_string_cfg, fill_screen, ColorConfig},
-    utils::{get_string_pixel_size, wait_for_no_keydown, LARGE_CHAR_HEIGHT, SMALL_CHAR_HEIGHT},
+    storage::{read_file, write_data, MAX_STORAGE_VALUES},
+    utils::{
+        get_string_pixel_size, string_from_u32, wait_for_no_keydown, LARGE_CHAR_HEIGHT,
+        SMALL_CHAR_HEIGHT,
+    },
 };
 
 use super::{REPETITION_SPEED, SPACE_BETWEEN_LINES};
 
 // The maximum number of different values an option can take.
-pub const MAX_SETTINGS_VALUES: usize = 10;
+pub const MAX_SETTINGS_VALUES: usize = MAX_STORAGE_VALUES;
 
 /// Where in the x coordinate will the names of the [option][Setting] be placed
 const XPOS_NAMES: u16 = 30;
 /// Where in the x coordinate will the values ([option][Setting].value.1) be placed
 const XPOS_VALUES: u16 = 170;
 
-/// Used to represent the type of the option, instead of plain datatypes as Bool or Int
-/// Without it, impossible to use multiple data types in options
-#[derive(Debug)]
-pub enum SettingType {
-    Bool(bool),
-    Int(u16),
-    Double(f32),
-}
 /// An Option of T type, with COUNT possible values
+/// Old values are represented as u32.
 #[derive(Debug)]
 pub struct Setting {
     pub name: &'static str,
-    pub value: usize,
-    pub possible_values: Vec<(SettingType, &'static str), MAX_SETTINGS_VALUES>,
+    pub choice: usize, // the selected position in the arrays
+    pub values: Vec<u32, MAX_SETTINGS_VALUES>,
+    pub texts: Vec<&'static str, MAX_SETTINGS_VALUES>,
+    pub user_modifiable: bool,
+    pub fixed_values: bool,
+    // If true : will iterate through the values defined in the vec. If false : will use a number-choosing widget with values[1] and values[2] as the boundaries. (TODO)
+    // false will probably mostly be used to store data like high scores.
 }
 
 impl Setting {
     /// Set the value to the next one, 0 if needed
     fn increment_value(&mut self) {
-        if self.value == self.possible_values.len() - 1 {
-            self.value = 0
+        if self.choice == self.values.len() - 1 {
+            self.choice = 0
         } else {
-            self.value += 1
+            self.choice += 1
         }
     }
 
     fn decrement_value(&mut self) {
-        if self.value == 0 {
-            self.value = self.possible_values.len() - 1
+        if self.choice == 0 {
+            self.choice = self.values.len() - 1
         } else {
-            self.value -= 1
+            self.choice -= 1
+        }
+    }
+
+    pub fn set_value(&mut self, value: u32) {
+        if self.fixed_values {
+            self.choice = value as usize;
+        } else {
+            self.values[self.choice] = value;
         }
     }
 
     #[inline(always)]
-    /// Returns the "value" the option is currently set to
-    fn get_value(&self) -> &(SettingType, &'static str) {
-        &self.possible_values[self.value]
+    fn get_text(&self) -> &'static str {
+        self.texts[self.choice]
     }
 
-    #[inline(always)]
-    /// Returns the true value contained in the option
-    pub fn get_setting_value<T: FromValue>(&self) -> T {
-        T::from_value(&self.possible_values[self.value].0)
+    pub fn get_setting_value(&self) -> u32 {
+        self.values[self.choice]
     }
 }
 
-pub trait FromValue {
-    fn from_value(value: &SettingType) -> Self;
-}
-
-impl FromValue for bool {
-    fn from_value(value: &SettingType) -> Self {
-        match value {
-            SettingType::Bool(b) => *b,
-            _ => panic!(),
+pub(super) fn set_values_from_file(list: &mut [&mut Setting], filename: &str) {
+    let v = read_file(filename);
+    if v.is_empty() {
+        return;
+    }
+    for (x, y) in list.iter_mut().zip(v.iter()) {
+        if x.fixed_values {
+            x.choice = *y as usize;
+        } else {
+            x.choice = 0;
+            *x.values.get_mut(0).unwrap() = *y;
         }
     }
 }
-impl FromValue for u16 {
-    fn from_value(value: &SettingType) -> Self {
-        match value {
-            SettingType::Int(b) => *b,
-            _ => panic!(),
-        }
-    }
-}
-impl FromValue for f32 {
-    fn from_value(value: &SettingType) -> Self {
-        match value {
-            SettingType::Double(b) => *b,
-            _ => panic!(),
+
+pub fn write_values_to_file(list: &mut [&mut Setting], filename: &str) {
+    for (i, v) in list.iter().enumerate() {
+        if v.fixed_values {
+            write_data(filename, Some(i as u32), v.choice as u32);
+        } else {
+            write_data(filename, Some(i as u32), v.values[0]);
         }
     }
 }
 
 /// Create a fully fonctional settings menu, which changes directly the [options][Setting] values. (no settings return)
 /// For now, only allows a limited number of settings because making multiple pages is too complicated and I don't have time for that
-pub(crate) fn settings(list: &mut [&mut Setting], cfg: &ColorConfig) {
-    let items_number: u16 = list.len() as u16;
+pub(crate) fn settings(list: &mut [&mut Setting], cfg: &ColorConfig, filename: &str) {
+    let items_number: u16 = list.iter().filter(|p| p.user_modifiable).count() as u16;
     let first_y: u16 = match (SCREEN_HEIGHT + LARGE_CHAR_HEIGHT)
         .checked_sub((LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * items_number)
     {
@@ -109,7 +112,7 @@ pub(crate) fn settings(list: &mut [&mut Setting], cfg: &ColorConfig) {
     display::wait_for_vblank();
     fill_screen(cfg.bckgrd);
     draw_centered_string(
-        "OPTIONS\0",
+        "SETTINGS\0",
         if items_number < 6 {
             20u16
         } else {
@@ -131,7 +134,7 @@ pub(crate) fn settings(list: &mut [&mut Setting], cfg: &ColorConfig) {
         false,
     );
     // printing the options
-    for item in list.iter().enumerate() {
+    for item in list.iter().filter(|p| p.user_modifiable).enumerate() {
         let (i, x) = item;
         let y_pos: u16 = first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * (i as u16);
         let large: bool =
@@ -151,9 +154,10 @@ pub(crate) fn settings(list: &mut [&mut Setting], cfg: &ColorConfig) {
             cfg.text,
             cfg.bckgrd,
         );
-        draw_setting_selection(x.get_value().1, y_pos, i == 0, cfg)
+        draw_setting_selection(x, y_pos, i == 0, cfg)
     }
     setting_selection(list, cfg, first_y);
+    write_values_to_file(list, filename);
 }
 
 /// Takes care of all the difficult stuff, like moving the cursor and modifying the text.
@@ -175,9 +179,13 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16)
         {
             display::wait_for_vblank();
 
-            let current_selection: &Setting = list[cursor_pos as usize];
+            let current_selection: &Setting = list
+                .iter()
+                .filter(|p| p.user_modifiable)
+                .nth(cursor_pos as usize)
+                .unwrap();
             draw_setting_selection(
-                current_selection.get_value().1,
+                current_selection,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
                 false,
                 cfg,
@@ -187,11 +195,11 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16)
                 if cursor_pos > 0 {
                     cursor_pos -= 1;
                 } else {
-                    cursor_pos = (list.len() as u16) - 1;
+                    cursor_pos = (list.iter().filter(|p| p.user_modifiable).count() as u16) - 1;
                 }
                 last_action_key = key::UP;
             } else if keyboard_scan.key_down(key::DOWN) {
-                if cursor_pos < list.len() as u16 - 1 {
+                if cursor_pos < list.iter().filter(|p| p.user_modifiable).count() as u16 - 1 {
                     cursor_pos += 1;
                 } else {
                     cursor_pos = 0;
@@ -199,9 +207,13 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16)
                 last_action_key = key::DOWN;
             }
 
-            let new_selection: &Setting = list[cursor_pos as usize];
+            let new_selection: &Setting = list
+                .iter()
+                .filter(|p| p.user_modifiable)
+                .nth(cursor_pos as usize)
+                .unwrap();
             draw_setting_selection(
-                new_selection.get_value().1,
+                new_selection,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
                 true,
                 cfg,
@@ -224,7 +236,11 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16)
                 cfg.bckgrd,
             );
 
-            let selection: &mut Setting = list[cursor_pos as usize];
+            let selection: &mut Setting = list
+                .iter_mut()
+                .filter(|p| p.user_modifiable)
+                .nth(cursor_pos as usize)
+                .unwrap();
 
             if keyboard_scan.key_down(key::OK) || keyboard_scan.key_down(key::RIGHT) {
                 selection.increment_value();
@@ -238,7 +254,7 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16)
                 last_action_key = key::LEFT
             }
             draw_setting_selection(
-                selection.get_value().1,
+                selection,
                 first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
                 true,
                 cfg,
@@ -252,8 +268,12 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16)
 }
 
 /// Draws the line corresponding to the given setting value
-/// Like draw_selection_string but simpler
-fn draw_setting_selection(text: &str, ypos: u16, selected: bool, cfg: &ColorConfig) {
+fn draw_setting_selection(set: &Setting, ypos: u16, selected: bool, cfg: &ColorConfig) {
+    let text = if set.fixed_values {
+        set.get_text()
+    } else {
+        &string_from_u32(set.get_setting_value())
+    };
     let large: bool = get_string_pixel_size(text, true) < SCREEN_WIDTH - XPOS_VALUES;
     draw_string_cfg(
         text,

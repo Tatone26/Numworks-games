@@ -1,5 +1,3 @@
-use core::i16;
-
 use crate::game_p4::{check, place_coin_nodraw, MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE};
 use heapless::Vec;
 use numworks_utils::utils::randint;

@@ -4,7 +4,7 @@ use numworks_utils::{
     graphical::{draw_centered_string, draw_string_cfg, fill_screen, tiling::Tileset, ColorConfig},
     include_bytes_align_as,
     menu::{
-        settings::{Setting, SettingType},
+        settings::{write_values_to_file, Setting},
         start_menu,
     },
     utils::{string_from_u16, string_from_u32, wait_for_no_keydown, CENTER},
@@ -37,16 +37,24 @@ fn vis_addon() {
 }
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut Setting; 1] = [&mut Setting {
-        name: "Option !\0",
-        value: 0,
-        possible_values: {
-            let mut v: Vec<(SettingType, &str), 10> = Vec::new();
-            unsafe { v.push_unchecked((SettingType::Bool(true), "True\0")) };
-            unsafe { v.push_unchecked((SettingType::Bool(false), "False\0")) };
-            v
+    let mut opt: [&mut Setting; 2] = [
+        &mut Setting {
+            name: "Modifiable option !\0",
+            choice: 0,
+            values: Vec::from_slice(&[1, 0]).unwrap(),
+            texts: Vec::from_slice(&["True\0", "False\0"]).unwrap(),
+            fixed_values: true,
+            user_modifiable: true,
         },
-    }];
+        &mut Setting {
+            name: "High-score option !\0",
+            choice: 0,                              // forced
+            values: Vec::from_slice(&[0]).unwrap(), // default value
+            texts: Vec::new(),
+            fixed_values: false,    // allows using any value
+            user_modifiable: false, // will not appear in "setting" page
+        },
+    ];
     loop {
         let start = start_menu(
             "TEST\0",
@@ -54,15 +62,23 @@ pub fn start() {
             &COLOR_CONFIG,
             vis_addon,
             include_str!("./data/model_controls.txt"),
+            "model", // filename to store settings
         );
         // The menu does everything itself !
         if start == 0 {
             unsafe {
-                EXEMPLE = opt[0].get_setting_value(); // You could use mutable statics, but you shouldn't
+                EXEMPLE = opt[0].get_setting_value() != 0; // You could use mutable statics, but you shouldn't
             }
+            // exemple of a way to have a stored value modified by the game (like a high_score)
+            let mut high_score: u32 = opt[1].get_setting_value();
             loop {
                 // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                let action = game(opt[0].get_setting_value()); // calling the game based on the parameters is better
+                // calling the game based on the parameters is better
+                let action = game(opt[0].get_setting_value() != 0, &mut high_score);
+                // necessary to store the high_score (or other similar data):
+                opt[1].set_value(high_score);
+                write_values_to_file(&mut opt, "model");
+                // this shoudln't change
                 if action == 2 {
                     // 2 means quitting
                     return;
@@ -86,9 +102,17 @@ static TILESET: Tileset = Tileset {
 const PIXELS: usize = { 55 * 55 } as usize;
 
 /// The entire game is here.
-pub fn game(_exemple: bool) -> u8 {
+pub fn game(_exemple: bool, high_score: &mut u32) -> u8 {
     {
         fill_screen(Color::WHITE);
+        *high_score += 1; // will be stored in the file with the parameters !
+        draw_string_cfg(
+            &string_from_u32(*high_score),
+            Point { x: 0, y: 50 },
+            false,
+            &COLOR_CONFIG,
+            false,
+        );
         measure_refresh_rate();
         draw_string_cfg(
             "Push <OK> for some magic ! <Back> to quit back to menu.\0",

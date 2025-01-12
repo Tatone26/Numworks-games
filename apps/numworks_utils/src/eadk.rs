@@ -1,8 +1,8 @@
 use core::f32::consts::PI;
 
-/// This file represents all the function we can call in the Epsilon ecosystem.
-/// This is the libc of the Numworks.
-/// There are also some quality of life functions directly linked to the structures defined here, kindly given by the Numworks team.
+// This file represents all the function we can call in the Epsilon ecosystem.
+// This is the like the libc or syscalls of the Numworks calculator.
+// There are also some quality of life functions directly linked to the structures defined here, kindly given by the Numworks team.
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -35,7 +35,7 @@ impl Color {
     pub fn from_hsv(hue: f32, saturation: f32, value: f32) -> Self {
         let f = |n: f32| {
             let k: f32 = (n + hue / PI * 3.) % 6.;
-            value * (1. - saturation * k.min(4. - k).min(1.).max(0.))
+            value * (1. - saturation * k.min(4. - k).clamp(0., 1.))
         };
         Color::from_rgb888(
             (f(5.) * 255.) as u8,
@@ -48,7 +48,7 @@ impl Color {
     pub fn from_hv(hue: f32, value: f32) -> Self {
         let f = |n: f32| {
             let k: f32 = (n + hue / PI * 3.) % 6.;
-            value * (1. - k.min(4. - k).min(1.).max(0.))
+            value * (1. - k.min(4. - k).clamp(0., 1.))
         };
         Color::from_rgb888(
             (f(5.) * 255.) as u8,

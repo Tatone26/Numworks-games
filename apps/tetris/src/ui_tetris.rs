@@ -11,8 +11,8 @@ use crate::{
         Color, Point, Rect,
     },
     game_tetris::{
-        BACKGROUND_DARK_GRAY, BACKGROUND_GRAY, CASE_SIZE, COLOR_CONFIG, HIGH_SCORE,
-        PLAYFIELD_HEIGHT, PLAYFIELD_WIDTH,
+        BACKGROUND_DARK_GRAY, BACKGROUND_GRAY, CASE_SIZE, COLOR_CONFIG, PLAYFIELD_HEIGHT,
+        PLAYFIELD_WIDTH,
     },
     tetriminos::Tetrimino,
     utils::LARGE_CHAR_HEIGHT,
@@ -57,7 +57,7 @@ fn draw_ui_base(title: &'static str, pos: Point, w: u16, h: u16) {
 /// This draws every UI elements that will never change (rects, titles...)
 /// Needs to be upgraded so it doesn't take almost TWO HUNDREDS lines.
 /// Upgrade : function that draws one UI rect given position, size and title.
-pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
+pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32, high_score: u32) {
     let start_x = CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE;
     let start_y = CASE_SIZE * 2;
     wait_for_vblank();
@@ -95,13 +95,7 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
     draw_ui_base("HOLD\0", Point::new(2, 14), 6, 8);
 
     wait_for_vblank();
-    draw_string_cfg(
-        HIGH_SCORE,
-        Point::new(CASE_SIZE * 24, CASE_SIZE * 2 + LARGE_CHAR_HEIGHT),
-        true,
-        &COLOR_CONFIG,
-        false,
-    );
+    draw_score(high_score, true);
     draw_string_cfg(
         " SCORE\0",
         Point::new(CASE_SIZE * 24, CASE_SIZE * 3 + LARGE_CHAR_HEIGHT * 2),
@@ -109,7 +103,7 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
         &COLOR_CONFIG,
         false,
     );
-    draw_score(score);
+    draw_score(score, false);
     draw_level(level);
     draw_string_cfg(
         "  LINE\0",
@@ -124,7 +118,7 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32) {
     draw_lines_number(level_lines);
 }
 
-pub fn draw_score(score: u32) {
+pub fn draw_score(score: u32, high_score: bool) {
     let mut score_txt: String<7> = String::<7>::new();
     if score < 999_999 {
         let mut score_str: String<11> = string_from_u32(score);
@@ -137,13 +131,23 @@ pub fn draw_score(score: u32) {
     } else {
         score_txt.push_str("999999\0").unwrap();
     }
-    draw_string_cfg(
-        score_txt.as_str(),
-        Point::new(CASE_SIZE * 24, CASE_SIZE * 3 + LARGE_CHAR_HEIGHT * 3),
-        true,
-        &COLOR_CONFIG,
-        false,
-    );
+    if !high_score {
+        draw_string_cfg(
+            score_txt.as_str(),
+            Point::new(CASE_SIZE * 24, CASE_SIZE * 3 + LARGE_CHAR_HEIGHT * 3),
+            true,
+            &COLOR_CONFIG,
+            false,
+        );
+    } else {
+        draw_string_cfg(
+            score_txt.as_str(),
+            Point::new(CASE_SIZE * 24, CASE_SIZE * 3 + LARGE_CHAR_HEIGHT / 2),
+            true,
+            &COLOR_CONFIG,
+            false,
+        );
+    }
 }
 
 pub fn draw_level(level: u16) {

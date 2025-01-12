@@ -8,7 +8,7 @@ use numworks_utils::{
     graphical::{draw_centered_string, fill_screen, ColorConfig},
     menu::{
         selection,
-        settings::{Setting, SettingType},
+        settings::{write_values_to_file, Setting},
         start_menu, MenuConfig,
     },
     numbers::floor,
@@ -42,100 +42,105 @@ fn vis_addon() {
 }
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut Setting; 6] = [
+    let mut opt: [&mut Setting; 7] = [
         &mut Setting {
             name: "Starting speed\0",
-            value: 1,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Double(0.5), "Slow\0")) };
-                unsafe { v.push_unchecked((SettingType::Double(0.75), "Normal\0")) };
-                unsafe { v.push_unchecked((SettingType::Double(1.0), "Fast\0")) };
-                v
-            },
+            choice: 1, // 0.5, 0.75, 1.0
+            values: Vec::from_slice(&[0.5_f32.to_bits(), 0.75_f32.to_bits(), 1.0_f32.to_bits()])
+                .unwrap(),
+            texts: Vec::from_slice(&["Slow\0", "Normal\0", "Fast\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
             name: "Pipes density\0",
-            value: 1,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Int(1), "Sparse\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(2), "Normal\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(3), "Dense\0")) };
-                v
-            },
+            choice: 1,
+            values: Vec::from_slice(&[1, 2, 3]).unwrap(),
+            texts: Vec::from_slice(&["Sparse\0", "Normal\0", "Dense\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
             name: "Speed increase\0",
-            value: 2,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Int(1000), "Never\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(10), "Every 10 pts\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(5), "Every 5 pts\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(1), "Every point\0")) };
-                v
-            },
+            choice: 2,
+            values: Vec::from_slice(&[1000, 10, 5, 1]).unwrap(),
+            texts: Vec::from_slice(&[
+                "Never\0",
+                "Every 10 pts\0",
+                "Every 5 pts\0",
+                "Every point\0",
+            ])
+            .unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
             name: "Die on floor\0",
-            value: 1,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
-                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
-                v
-            },
+            choice: 1,
+            values: Vec::from_slice(&[0, 1]).unwrap(),
+            texts: Vec::from_slice(&["No\0", "Yes\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
             name: "Jump strength\0",
-            value: 1,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Double(5.5), "Weak\0")) };
-                unsafe { v.push_unchecked((SettingType::Double(6.5), "Normal\0")) };
-                unsafe { v.push_unchecked((SettingType::Double(7.5), "Strong\0")) };
-                v
-            },
+            choice: 1,
+            values: Vec::from_slice(&[5.5_f32.to_bits(), 6.5_f32.to_bits(), 7.5_f32.to_bits()])
+                .unwrap(),
+            texts: Vec::from_slice(&["Weak\0", "Normal\0", "Strong\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
             name: "No collisions\0",
-            value: 0,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
-                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes (CHEAT)\0")) };
-                v
-            },
+            choice: 0,
+            values: Vec::from_slice(&[0, 1]).unwrap(),
+            texts: Vec::from_slice(&["No\0", "Yes (CHEAT)\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
+        },
+        &mut Setting {
+            name: "High Score\0",
+            choice: 0,
+            values: Vec::from_slice(&[0]).unwrap(),
+            texts: Vec::new(),
+            user_modifiable: false,
+            fixed_values: false,
         },
     ];
     loop {
+        // This call is REALLY powerful as it does everything
         let start = start_menu(
             "FLAPPY BIRD\0",
             &mut opt,
             &COLOR_CONFIG,
             vis_addon,
             include_str!("./data/model_controls.txt"),
+            "flappybird",
         );
-        // The menu does everything itself !
         if start == 0 {
             loop {
-                // a loop where the game is played again and again, which means it should be 100% contained after the menu
+                let mut high_score = opt[6].get_setting_value();
                 let action = game(
-                    opt[0].get_setting_value(),
-                    opt[1].get_setting_value(),
-                    opt[2].get_setting_value(),
-                    opt[3].get_setting_value(),
-                    opt[4].get_setting_value(),
-                    opt[5].get_setting_value(),
-                ); // calling the game based on the parameters is better
+                    f32::from_bits(opt[0].get_setting_value()),
+                    opt[1].get_setting_value() as u16,
+                    opt[2].get_setting_value() as u16,
+                    opt[3].get_setting_value() != 0,
+                    f32::from_bits(opt[4].get_setting_value()),
+                    opt[5].get_setting_value() != 0,
+                    &mut high_score,
+                );
+                // since there is a high score-like value, this is needed
+                opt[6].set_value(high_score);
+                write_values_to_file(&mut opt, "flappybird");
+
                 if action == 2 {
                     // 2 means quitting
                     return;
                 } else if action == 1 {
                     // 1 means back to menu
                     break;
-                } // if action == 0 : rejouer
+                } // if action == 0 : play again
             }
         } else {
             return;
@@ -156,6 +161,7 @@ pub fn game(
     killer_floor: bool,
     jump_power: f32,
     no_collisions: bool,
+    high_score: &mut u32,
 ) -> u8 {
     let mut cloud = Cloud::new(
         Point {
@@ -193,7 +199,7 @@ pub fn game(
 
     draw_ground(0);
 
-    draw_constant_ui();
+    draw_constant_ui(*high_score as u16);
     draw_ui(0);
 
     let mut score: u16 = 0;
@@ -235,8 +241,8 @@ pub fn game(
 
                 draw_ground(frame_counter);
 
-                draw_constant_ui();
-                draw_ui(0);
+                draw_constant_ui(*high_score as u16);
+                draw_ui(score);
                 countdown(Point {
                     x: CENTER.x - TILESET_TILE_SIZE,
                     y: CENTER.y - TILESET_TILE_SIZE * 3,
@@ -320,7 +326,7 @@ pub fn game(
 
         draw_ground(frame_counter); // this too
 
-        draw_ui(score); // TODO : this is just too late in the drawing time. -> optimisation necessary
+        draw_ui(score); // just at the limit of the frame vblank time...
         {
             bird.clear_old_self();
             bird.draw_self();
@@ -335,6 +341,16 @@ pub fn game(
         y: bird.y_pos,
     });
     draw_centered_string("GAME OVER\0", 70, true, &COLOR_CONFIG, true);
+    if score > *high_score as u16 {
+        draw_centered_string(
+            "NEW HIGH SCORE!\0",
+            70 + LARGE_CHAR_HEIGHT + 2,
+            true,
+            &COLOR_CONFIG,
+            true,
+        );
+        *high_score = score as u32;
+    }
     flappy_pause(true)
 }
 

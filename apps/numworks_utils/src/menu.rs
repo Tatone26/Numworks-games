@@ -1,10 +1,11 @@
 pub mod settings;
 
-use settings::Setting;
+use settings::{set_values_from_file, Setting};
 
 use crate::eadk::display::{push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::eadk::{display, key, keyboard, timing, Point, Rect};
 use crate::graphical::{draw_centered_string, draw_string_cfg, fading, fill_screen, ColorConfig};
+use crate::storage::open_file;
 use crate::utils::{
     get_centered_text_x_coordo, get_string_pixel_size, wait_for_no_keydown, CENTER,
     LARGE_CHAR_HEIGHT, SMALL_CHAR_HEIGHT,
@@ -46,7 +47,11 @@ pub fn start_menu(
     cfg: &ColorConfig,
     vis_addon: fn(),
     controls_text: &str,
+    filename: &str,
 ) -> u8 {
+    open_file(filename);
+    set_values_from_file(opt, filename);
+
     // the loop is to be able to go back to the main menu after doing settings or controls
     loop {
         // visual stuff (background, vis_addon, title)
@@ -67,7 +72,7 @@ pub fn start_menu(
             false,
         );
         if action == 1 {
-            settings::settings(opt, cfg);
+            settings::settings(opt, cfg, filename);
         } else if action == 2 {
             controls(controls_text, cfg);
         } else {

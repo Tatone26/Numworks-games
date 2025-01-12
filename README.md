@@ -18,18 +18,22 @@ You can find a lot more programs on numworks.com, where anyone can submit their 
 
 ## Applications
 
+**NEW : Data can now be saved, so games now store High Scores and settings.**
+
+> Be warned : resetting the console will remove any app and all the data too. 
+
 *Feel free to download and copy the code it if you want, but it's quite messy as I work alone.*
 
 Remember that it is a calculator so it is **NOT** a game console at all !
 
-I'm also using these projects to learn some Rust, as I am already used to code in C. The code I write is probably not idiomatic at all and anyone good in Rust shouldn't want to read that.
+I'm also using these projects to learn some Rust, as I am already used to code in C. Read it at your own eye's risk !
 
 PS : These games are tested on a real N0110 and the latest version of the Epsilon software.
 
   **Instructions and controls are included in the games themselves!**
 
 - [Snake](./apps/snake/) : My take on the classic game!
-- [Puissance4](./apps/puissance4/) (Connect 4): You can play against your friend or a basic but strong AI, and even try some 3 players games !
+- [Connect Four](./apps/puissance4/): You can play against your friend or a basic but strong AI, and even try some 3 players games !
 - [Solitaire](./apps/solitaire/) : A Classic Solitaire, with classic rules.
 - [Tetris](./apps/tetris/) : Yeah. Tetris! I *think* I followed every rule of the original game.
 - [Flappy Bird](./apps/flappybird/) : Everybody know Flappy Bird. As of today, it is by far the most **technically advanced game** I made. (and the one I worked the most on)
@@ -38,10 +42,9 @@ PS : These games are tested on a real N0110 and the latest version of the Epsilo
 - [Model](./apps/model/) is a basic repo you can copy to start your game using my template.
 - [Nppm_decoder](./apps/nppm_decoder/) is a build utility I made to process the images at compile time. Necessary to use the *tiling* module.
 
+The official software comes with a lot of limitations, but that's what makes it interesting too !
 
-There are still a lot of impossible things with the official software (like saving data), so consider installing an other one like Omega if you want to do some really complex things.
-
-If you want to create some apps that run on Epsilon, see the [Rust-based template](https://github.com/numworks/epsilon-sample-app-rust), [C++](https://github.com/numworks/epsilon-sample-app-cpp) and [C](https://github.com/numworks/epsilon-sample-app-c).
+If you want to create some apps that run on Epsilon, see the official [Rust-based template](https://github.com/numworks/epsilon-sample-app-rust), [C++](https://github.com/numworks/epsilon-sample-app-cpp) and [C](https://github.com/numworks/epsilon-sample-app-c).
 
 ### Installation instructions :
   - go to the "apps" folder
@@ -60,4 +63,11 @@ As I'm not an expert at all, I won't talk about the *truly* technical stuff. You
 - There is no heap and no std, so no malloc to use. This changes a lot of things, but the **heapless crate** can solve most problems. I still had to rewrite some very basic functions, as I didn't want to import another crate.
 - The screen is 320x240 pixels and uses RGB565 (16 bits) colors. That means you need 2 bytes / pixel when drawing anything, which is a lot in this context.
 - The refresh rate is not bad (45Hz) **BUT** it works from the top-left to the bottom-right. This means that rectangles drawn too late in the frame can look *really* bad in the bottom-right corner. It seems to be a good pratice to draw from right to left if possible.
-- The VBlank time is pretty small too, so it is next to impossible to draw the entire screen. It is definitely able too, but I couldn't find how with the tools we have. 
+- The VBlank time is pretty small too, so it is next to impossible to draw the entire screen. It is definitely able too, but I couldn't find how with the tools we have.
+
+
+### TODOS
+
+- [ ] "Admin" editor to manually set highscore after a reset (which means creating a number input widget D: )
+- [ ] NEW GAMES
+- [ ] A better "string_size_in_pixels" function (why is the font not monospace...)

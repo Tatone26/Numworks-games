@@ -3,10 +3,10 @@ use numworks_utils::{
     graphical::{draw_centered_string, ColorConfig},
     menu::{
         pause_menu, selection,
-        settings::{Setting, SettingType},
+        settings::{write_values_to_file, Setting},
         start_menu, MenuConfig,
     },
-    utils::randint,
+    utils::{randint, LARGE_CHAR_HEIGHT},
 };
 
 use crate::{
@@ -40,29 +40,33 @@ fn vis_addon() {
 }
 /// Menu, Options and Game start/*  */
 pub fn start() {
-    let mut opt: [&mut Setting; 2] = [
+    let mut opt: [&mut Setting; 3] = [
         &mut Setting {
             name: "Ghost Piece\0",
-            value: 0,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
-                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
-                v
-            },
+            choice: 0,
+            values: Vec::from_slice(&[1, 0]).unwrap(),
+            texts: Vec::from_slice(&["Yes\0", "No\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
             name: "Starting Level\0",
-            value: 0,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Int(1), "1\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(3), "3\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(5), "5\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(7), "7\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(9), "9\0")) };
-                v
-            },
+            choice: 0,
+            values: Vec::from_slice(&[1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap(),
+            texts: Vec::from_slice(&[
+                "1\0", "2\0", "3\0", "4\0", "5\0", "6\0", "7\0", "8\0", "9\0",
+            ])
+            .unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
+        },
+        &mut Setting {
+            name: "High Score\0",
+            choice: 0,
+            values: Vec::from_slice(&[0]).unwrap(),
+            texts: Vec::new(),
+            user_modifiable: false,
+            fixed_values: false,
         },
     ];
     loop {
@@ -72,12 +76,18 @@ pub fn start() {
             &COLOR_CONFIG,
             vis_addon,
             include_str!("./data/tetris_controls.txt"),
+            "tetris",
         );
-        // The menu does everything itself !
         if start == 0 {
             loop {
-                // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                let action = game(opt[0].get_setting_value(), opt[1].get_setting_value()); // calling the game based on the parameters is better
+                let mut high_score = opt[2].get_setting_value();
+                let action = game(
+                    opt[0].get_setting_value() != 0,
+                    opt[1].get_setting_value() as u16,
+                    &mut high_score,
+                );
+                opt[2].set_value(high_score);
+                write_values_to_file(&mut opt, "tetris");
                 if action == 2 {
                     // 2 means quitting
                     return;
@@ -146,7 +156,6 @@ static FALL_SPEED_DATA: [f32; 19] = [
     0.59, 0.92, 1.46, 2.36, 3.91, 6.61, 11.43, 20.0,
 ];
 
-pub const HIGH_SCORE: &str = "077360\0"; // Need to be 6 char long !
 pub const CASE_SIZE: u16 = 10;
 pub const PLAYFIELD_HEIGHT: u16 = 20;
 pub const PLAYFIELD_WIDTH: u16 = 10;
@@ -224,7 +233,7 @@ impl Blockers {
 }
 
 /// The entire game is here.
-pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
+pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 {
     // Is it possible to not have all those variables ? Maybe some struct ?
     let mut timings = Timings {
         fall: timing::millis(),
@@ -256,7 +265,7 @@ pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
 
     let mut auto_repeat_move: bool = false;
 
-    draw_stable_ui(level, level_lines, score);
+    draw_stable_ui(level, level_lines, score, *high_score);
 
     draw_tetrimino(&current_tetri, false);
     draw_ghost_tetri(&current_tetri, &grid, false, ghost_piece);
@@ -371,6 +380,16 @@ pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
                 }
                 if death {
                     draw_centered_string(" GAME OVER \0", 10, true, &COLOR_CONFIG, true);
+                    if score > *high_score {
+                        *high_score = score;
+                        draw_centered_string(
+                            " NEW HIGH SCORE! \0",
+                            10 + LARGE_CHAR_HEIGHT + 2,
+                            true,
+                            &COLOR_CONFIG,
+                            true,
+                        );
+                    }
                     let action = selection(&COLOR_CONFIG, &DEATH_MENU, false);
                     break 'gameloop action;
                 }
@@ -421,7 +440,7 @@ pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
                 return action;
             } else {
                 wait_for_vblank();
-                draw_stable_ui(level, level_lines, score);
+                draw_stable_ui(level, level_lines, score, *high_score);
                 wait_for_vblank();
                 for x in 0..PLAYFIELD_WIDTH {
                     for y in 0..PLAYFIELD_HEIGHT {
@@ -441,7 +460,6 @@ pub fn game(ghost_piece: bool, starting_level: u16) -> u8 {
             }
         }
         display::wait_for_vblank();
-        // EST-CE UNE BONNE IDEE ?
     }
 }
 
@@ -532,7 +550,7 @@ fn add_points(cleared_lines: &Vec<i16, 4>, level: u16, points: u32) -> u32 {
         }
     }
 
-    draw_score((sum * (level as u32)) + points);
+    draw_score((sum * (level as u32)) + points, false);
     (sum * (level as u32)) + points
 }
 

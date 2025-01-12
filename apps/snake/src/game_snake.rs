@@ -17,7 +17,7 @@ use numworks_utils::{
     graphical::{draw_centered_string, fading, ColorConfig},
     menu::{
         selection,
-        settings::{Setting, SettingType},
+        settings::{write_values_to_file, Setting},
         start_menu, MenuConfig,
     },
     utils::string_from_u16,
@@ -51,58 +51,54 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 
 /// Menu, Options and Game start
 pub fn start() {
-    let mut opt: [&mut Setting; 5] = [
+    let mut opt: [&mut Setting; 6] = [
         &mut Setting {
-            name: "Speed :\0",
-            value: 1,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Int(3), "Fast\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(2), "Normal\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(1), "Slow\0")) };
-                v
-            },
+            name: "Speed\0",
+            choice: 1,
+            values: Vec::from_slice(&[3, 2, 1]).unwrap(),
+            texts: Vec::from_slice(&["Fast\0", "Normal\0", "Slow\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
-            name: "Terrain :\0",
-            value: 1,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Int(1), "Small\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(2), "Medium\0")) };
-                unsafe { v.push_unchecked((SettingType::Int(3), "Immense\0")) };
-                v
-            },
+            name: "Terrain\0",
+            choice: 1,
+            values: Vec::from_slice(&[1, 2, 3]).unwrap(),
+            texts: Vec::from_slice(&["Small\0", "Medium\0", "Immense\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
-            name: "Walls :\0",
-            value: 0,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
-                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
-                v
-            },
+            name: "Walls\0",
+            choice: 0,
+            values: Vec::from_slice(&[1, 0]).unwrap(),
+            texts: Vec::from_slice(&["Yes\0", "No\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
-            name: "Wrapping :\0",
-            value: 1,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Bool(true), "Yes\0")) };
-                unsafe { v.push_unchecked((SettingType::Bool(false), "No\0")) };
-                v
-            },
+            name: "Wrapping\0",
+            choice: 1,
+            values: Vec::from_slice(&[1, 0]).unwrap(),
+            texts: Vec::from_slice(&["Yes\0", "No\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
         },
         &mut Setting {
-            name: "Sprites :\0",
-            value: 0,
-            possible_values: {
-                let mut v = Vec::new();
-                unsafe { v.push_unchecked((SettingType::Bool(false), "Yes\0")) };
-                unsafe { v.push_unchecked((SettingType::Bool(true), "No\0")) };
-                v
-            },
+            name: "Sprites\0",
+            choice: 0,
+            values: Vec::from_slice(&[0, 1]).unwrap(),
+            texts: Vec::from_slice(&["Yes\0", "No\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
+        },
+        &mut Setting {
+            name: "High Score\0",
+            choice: 0,
+            values: Vec::from_slice(&[0]).unwrap(),
+            texts: Vec::new(),
+            user_modifiable: false,
+            fixed_values: false,
         },
     ];
     loop {
@@ -112,6 +108,7 @@ pub fn start() {
             &COLOR_CONFIG,
             crate::snake_ui::menu_vis_addon,
             include_str!("./data/snake_controls.txt"),
+            "snake",
         );
         if start == 0 {
             match opt[1].get_setting_value() {
@@ -135,12 +132,18 @@ pub fn start() {
                 )
             }
             loop {
+                let mut high_score = opt[5].get_setting_value();
                 let action = game(
-                    325 - opt[0].get_setting_value::<u16>() * 75,
-                    opt[2].get_setting_value(),
-                    opt[3].get_setting_value(),
-                    opt[4].get_setting_value(),
+                    325 - opt[0].get_setting_value() as u16 * 75,
+                    opt[2].get_setting_value() != 0,
+                    opt[3].get_setting_value() != 0,
+                    opt[4].get_setting_value() != 0,
+                    &mut high_score,
                 );
+                // high_score saving
+                opt[5].set_value(high_score);
+                write_values_to_file(&mut opt, "snake");
+
                 if action == 2 {
                     return;
                 } else if action == 1 {
@@ -154,7 +157,13 @@ pub fn start() {
 }
 
 /// The entire game is here.
-pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
+pub fn game(
+    speed: u16,
+    has_walls: bool,
+    wrapping: bool,
+    original: bool,
+    high_score: &mut u32,
+) -> u8 {
     //This mutable variables are the heart of everything. Really.
     let mut snake: Deque<Point, MAX_ARRAY_SIZE> = Deque::new();
     unsafe {
@@ -170,7 +179,7 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
         fruit_pos = get_random_point();
     }
     let mut walls: Vec<Point, MAX_ARRAY_SIZE> = Vec::new();
-    let mut points: u16 = 0;
+    let mut score: u16 = 0;
 
     display::wait_for_vblank();
     draw_terrain(wrapping);
@@ -191,7 +200,7 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
         } else if keyboard_state.key_down(key::LEFT) {
             direction = Direction::Left;
         } else if keyboard_state.key_down(key::OK) {
-            let action = snake_pause(points, false);
+            let action = snake_pause(score, false, &high_score);
             if action == 0 {
                 display::wait_for_vblank();
                 draw_terrain(wrapping);
@@ -226,13 +235,13 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
             }
             if (new_point.x == fruit_pos.x) && (new_point.y == fruit_pos.y) {
                 // if we ate the fruit
-                points += 1;
+                score += 1;
                 let next_direct_pos: Point = // Evite que les murs ou les fruits apparaissent directement devant le joueur
                 match get_point_from_dir(&new_point, &direction, &snake, &walls, wrapping) {
                     x @ Some(_) =>  x.unwrap(),
                     None => unsafe {  Point::new(MAX_WIDTH, MAX_HEIGHT) },
                 };
-                if has_walls && ((points % 2) == 0) {
+                if has_walls && ((score % 2) == 0) {
                     // add walls
                     let mut new_wall = get_random_point();
                     while is_in_walls(&new_wall, &walls)
@@ -266,7 +275,7 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
         }
     }
     draw_centered_string(
-        " GAME OVER ! \0",
+        " GAME OVER! \0",
         SCREEN_HEIGHT / 3 - LARGE_CHAR_HEIGHT,
         true,
         &ColorConfig {
@@ -276,12 +285,26 @@ pub fn game(speed: u16, has_walls: bool, wrapping: bool, original: bool) -> u8 {
         },
         true,
     );
-    snake_pause(points, true)
+    if score > *high_score as u16 {
+        draw_centered_string(
+            "NEW HIGH SCORE!\0",
+            SCREEN_HEIGHT / 3 + 2,
+            true,
+            &ColorConfig {
+                text: Color::BLACK,
+                bckgrd: BCKD_GRAY,
+                alt: Color::RED,
+            },
+            true,
+        );
+        *high_score = score as u32;
+    }
+    snake_pause(score, true, &high_score)
 }
 
-fn snake_pause(points: u16, death: bool) -> u8 {
+fn snake_pause(points: u16, death: bool, high_score: &u32) -> u8 {
     let mut string_points: String<15> = String::new();
-    string_points.push_str(" Points : ").unwrap();
+    string_points.push_str(" Score : ").unwrap();
     string_points
         .push_str(
             string_from_u16(points)
@@ -293,6 +316,25 @@ fn snake_pause(points: u16, death: bool) -> u8 {
         .unwrap();
     string_points.push_str(" \0").unwrap();
     draw_centered_string(&string_points, 5, true, &COLOR_CONFIG, false);
+    let mut string_high_score: String<20> = String::new();
+    string_high_score.push_str(" High Score : ").unwrap();
+    string_high_score
+        .push_str(
+            string_from_u16(*high_score as u16)
+                .as_str()
+                .split_terminator('\0')
+                .next()
+                .unwrap(),
+        )
+        .unwrap();
+    string_high_score.push_str(" \0").unwrap();
+    draw_centered_string(
+        &string_high_score,
+        5 + LARGE_CHAR_HEIGHT + 2,
+        true,
+        &COLOR_CONFIG,
+        false,
+    );
     let action = selection(
         &COLOR_CONFIG,
         &MenuConfig {

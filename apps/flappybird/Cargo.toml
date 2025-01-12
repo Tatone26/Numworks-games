@@ -1,13 +1,13 @@
 [package]
-name = "flappy"
-version = "0.1.5"
+name = "flappybird"
+version = "0.1.6"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 heapless = "0.8.0"
-numworks_utils = { path = "../numworks_utils", version = "0.1.1" }
+numworks_utils = { path = "../numworks_utils", version = "*" }
 
 [build-dependencies]
 nppm_decoder = { path = "../nppm_decoder", version = "*" }

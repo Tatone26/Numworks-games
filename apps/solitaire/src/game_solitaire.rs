@@ -2,11 +2,7 @@ use heapless::Vec;
 use numworks_utils::{
     eadk::{display::SCREEN_WIDTH, key, keyboard, timing, Color, State},
     graphical::{draw_centered_string, fading, ColorConfig},
-    menu::{
-        self, pause_menu,
-        settings::{Setting, SettingType},
-        start_menu, MenuConfig,
-    },
+    menu::{self, pause_menu, settings::Setting, start_menu, MenuConfig},
     utils::{wait_for_no_keydown, LARGE_CHAR_HEIGHT},
 };
 
@@ -38,14 +34,11 @@ pub const REPLAY_MENU_CONFIG: MenuConfig = MenuConfig {
 pub fn start() {
     let mut opt: [&mut Setting; 1] = [&mut Setting {
         name: "Difficulty\0",
-        value: 2,
-        possible_values: {
-            let mut v = Vec::new();
-            unsafe { v.push_unchecked((SettingType::Int(1), "Easy\0")) };
-            unsafe { v.push_unchecked((SettingType::Int(2), "Normal\0")) };
-            unsafe { v.push_unchecked((SettingType::Int(3), "HARD\0")) };
-            v
-        },
+        choice: 2,
+        values: Vec::from_slice(&[1, 2, 3]).unwrap(),
+        texts: Vec::from_slice(&["Easy\0", "Normal\0", "Hard\0"]).unwrap(),
+        user_modifiable: true,
+        fixed_values: true,
     }];
     loop {
         let start = start_menu(
@@ -54,19 +47,18 @@ pub fn start() {
             &COLOR_CONFIG,
             menu_vis_addon,
             include_str!("./data/model_controls.txt"),
+            "solitaire",
         );
-        // The menu does everything itself !
         if start == 0 {
             loop {
-                // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                let action = game(opt[0].get_setting_value()); // calling the game based on the parameters is better
+                let action = game(opt[0].get_setting_value() as u16);
                 if action == 2 {
                     // 2 means quitting
                     return;
                 } else if action == 1 {
                     // 1 means back to menu
                     break;
-                } // if action == 0 : rejouer
+                } // if action == 0 : play again
             }
         } else {
             return;

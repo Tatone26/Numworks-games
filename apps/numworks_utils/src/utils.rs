@@ -5,7 +5,7 @@ use heapless::String;
 use crate::eadk::display::{self, SCREEN_HEIGHT, SCREEN_WIDTH};
 use crate::eadk::{keyboard, random, Point};
 
-/// Those constants have been found by hand and seem to not be perfect.
+// Those constants have been found by hand and seem to not be perfect.
 
 /// Width in pixels of a large character
 pub const LARGE_CHAR_WIDTH: u16 = 9;
@@ -29,12 +29,15 @@ pub fn get_centered_text_x_coordo(string: &str, large: bool) -> u16 {
 
 /// Returns the size IN PIXELS, on the screen, of the given string
 pub fn get_string_pixel_size(string: &str, large: bool) -> u16 {
-    return string.chars().count() as u16
+    string
+        .chars()
+        .filter(|p| p.is_ascii_alphanumeric() || *p == ' ' || p.is_ascii_punctuation())
+        .count() as u16
         * (if large {
             LARGE_CHAR_WIDTH
         } else {
             SMALL_CHAR_WIDTH
-        });
+        })
 }
 
 #[inline]
@@ -67,6 +70,26 @@ pub fn decimal_to_ascii_number(number: u8) -> Option<u8> {
     } else {
         Some(number - 48)
     }
+}
+
+// Reads a text and returns the u32 associated with it. WARNING : does not care about overflow.
+// If the first character isn't a number, returns None. Else, stops at the first non-number character.
+pub fn text_to_u32(text: &str) -> Option<u32> {
+    let mut chars = text.chars().skip_while(|p| p.is_whitespace());
+    let c = chars.next()?;
+    let mut res = decimal_to_ascii_number(c as u8)? as u32;
+    let mut c2 = chars.next();
+    if c2.is_none() {
+        return Some(res);
+    }
+    while let Some(x) = decimal_to_ascii_number(c2.unwrap() as u8) {
+        res = res * 10 + x as u32;
+        c2 = chars.next();
+        if c2.is_none() {
+            return Some(res);
+        }
+    }
+    Some(res)
 }
 
 /// Returns the string corresponding to the decimal number given.
