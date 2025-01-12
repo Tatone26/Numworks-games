@@ -33,7 +33,7 @@ PS : These games are tested on a real N0110 and the latest version of the Epsilo
   **Instructions and controls are included in the games themselves!**
 
 - [Snake](./apps/snake/) : My take on the classic game!
-- [Connect Four](./apps/puissance4/): You can play against your friend or a basic but strong AI, and even try some 3 players games !
+- [Connect Four](./apps/connectfour/): You can play against your friend or a basic but strong AI, and even try some 3 players games !
 - [Solitaire](./apps/solitaire/) : A Classic Solitaire, with classic rules.
 - [Tetris](./apps/tetris/) : Yeah. Tetris! I *think* I followed every rule of the original game.
 - [Flappy Bird](./apps/flappybird/) : Everybody know Flappy Bird. As of today, it is by far the most **technically advanced game** I made. (and the one I worked the most on)
