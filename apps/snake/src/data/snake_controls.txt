@@ -2,7 +2,6 @@
                 
                 HOW TO PLAY
 
-
     - Arrow keys to change direction
     - <OK> to pause
 

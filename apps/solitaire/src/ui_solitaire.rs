@@ -48,14 +48,15 @@ fn draw_card(card: &Card, pos: Point) {
         draw_string(
             NAMES_LIST[card.number as usize],
             Point::new(
-                pos.x + CARD_WIDTH - 4 - {
+                pos.x + CARD_WIDTH - 3 - {
                     if card.number == 9 {
+                        // if "10"
                         2 * LARGE_CHAR_WIDTH
                     } else {
                         LARGE_CHAR_WIDTH
                     }
                 },
-                pos.y + CARD_HEIGHT - 4 - LARGE_CHAR_HEIGHT,
+                pos.y + CARD_HEIGHT - 2 - LARGE_CHAR_HEIGHT,
             ),
             true,
             Color::BLACK,

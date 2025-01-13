@@ -8,8 +8,9 @@
     - <BACKSPACE> (<clear>) to hold the tetri
     - <SHIFT> to pause
 
-    Every full line disappears !
-    Try to clear multiple lines at once !
-    The difficulty increase every 10 lines.
-    You lose when you reach the top. 
+    Every full line disappears
+    Get more points by clearing
+      multiple lines at once !
+    The level increases every 10 lines.
+    You lose when the stack reaches the top. 
     Hold the tetri to keep it for later !                                 

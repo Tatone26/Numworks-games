@@ -5,11 +5,10 @@
     - <OK> or <DOWN> to place the coin
 
     The first player to align 4 coins of 
-        his color wins !
+      his color wins !
     Of course, diagonals work too.   
 
     The AI may not be very smart, but winning
     against it is surprisingly difficult, 
-    even in its weakest setting... Never 
-    missing any obvious winning move may be 
-    the key after all !                                                                  
+    even in its weakest setting...  Try not
+    to miss any trap !                                                

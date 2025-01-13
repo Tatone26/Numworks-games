@@ -152,7 +152,7 @@ pub fn draw_constant_ui(high_score: u16) {
     draw_string(
         &string_from_u16(high_score),
         Point {
-            x: SCREEN_WIDTH - get_string_pixel_size(&s, true) - 5,
+            x: SCREEN_WIDTH - 5 - get_string_pixel_size(&s, true),
             y: 1,
         },
         true,

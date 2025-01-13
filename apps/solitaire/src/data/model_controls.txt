@@ -9,7 +9,8 @@
     - <SHIFT> to pause
     - <EXE> to use the deck
     - <TOOLBOX> to auto-place on foundations
-    Google "solitaire rules" if you never
+    Search "solitaire rules" if you've never
     played any Solitaire. 
-    Difficulty modify the number of cards
-    displayed by each deck use.                   
+    Changing the difficulty changes 
+    the number of cards displayed by each 
+    turn of the deck.                   

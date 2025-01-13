@@ -20,7 +20,7 @@ You can find a lot more programs on numworks.com, where anyone can submit their 
 
 **NEW : Data can now be saved, so games now store High Scores and settings.**
 
-> Be warned : resetting the console will remove any app and all the data too. 
+> Be warned : resetting the console will remove any app and all the data too.
 
 *Feel free to download and copy the code it if you want, but it's quite messy as I work alone.*
 
@@ -70,4 +70,3 @@ As I'm not an expert at all, I won't talk about the *truly* technical stuff. You
 
 - [ ] "Admin" editor to manually set highscore after a reset (which means creating a number input widget D: )
 - [ ] NEW GAMES
-- [ ] A better "string_size_in_pixels" function (why is the font not monospace...)

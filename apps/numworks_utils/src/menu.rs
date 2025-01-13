@@ -262,10 +262,11 @@ fn controls(text: &str, cfg: &ColorConfig) -> u8 {
         false,
     );
     wait_for_vblank();
-    for (i, line) in text.lines().enumerate() {
+    // draw_string_cfg(text, Point { x: 0, y: 0 }, false, cfg, false);
+    for (i, line) in text.split('\n').enumerate() {
         draw_string_cfg(
             line,
-            Point::new(0, i as u16 * (SMALL_CHAR_HEIGHT + 4)),
+            Point::new(0, i as u16 * SMALL_CHAR_HEIGHT),
             false,
             cfg,
             false,

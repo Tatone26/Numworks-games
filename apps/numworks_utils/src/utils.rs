@@ -8,13 +8,13 @@ use crate::eadk::{keyboard, random, Point};
 // Those constants have been found by hand and seem to not be perfect.
 
 /// Width in pixels of a large character
-pub const LARGE_CHAR_WIDTH: u16 = 9;
+pub const LARGE_CHAR_WIDTH: u16 = 10;
 /// Width in pixels of a small character
-pub const SMALL_CHAR_WIDTH: u16 = 6;
+pub const SMALL_CHAR_WIDTH: u16 = 7;
 /// Height in pixels of a large character
-pub const LARGE_CHAR_HEIGHT: u16 = 16;
+pub const LARGE_CHAR_HEIGHT: u16 = 18;
 /// Height in pixels of a small character
-pub const SMALL_CHAR_HEIGHT: u16 = 10;
+pub const SMALL_CHAR_HEIGHT: u16 = 14;
 
 /// This center is the upper left corner of the 4 pixels that make the center
 pub const CENTER: Point = Point::new(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2);
