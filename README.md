@@ -24,23 +24,21 @@ You can find a lot more programs on numworks.com, where anyone can submit their 
 
 *Feel free to download and copy the code it if you want, but it's quite messy as I work alone.*
 
-Remember that it is a calculator so it is **NOT** a game console at all !
-
-I'm also using these projects to learn some Rust, as I am already used to code in C. Read it at your own eye's risk !
+I'm also using these projects to learn some Rust, as I am already used to code in C. Read it at your own eyes' risk !
 
 PS : These games are tested on a real N0110 and the latest version of the Epsilon software.
 
   **Instructions and controls are included in the games themselves!**
 
 - [Snake](./apps/snake/) : My take on the classic game!
-- [Connect Four](./apps/connectfour/): You can play against your friend or an AI, and even try some (strange) 3 players games !
+- [Connect Four](./apps/connectfour/): You can play against your friend or **an AI**, and even try some (strange) 3 players games !
 - [Solitaire](./apps/solitaire/) : A Classic Solitaire, with classic rules.
-- [Tetris](./apps/tetris/) : Yeah. Tetris! I *think* I followed every rule of the original game.
-- [Flappy Bird](./apps/flappybird/) : Everybody know Flappy Bird. As of today, it is by far the most **technically advanced game** I made. (and the one I worked the most on)
+- [Tetris](./apps/tetris/) : Yeah. **Tetris!** I feel like it is almost as good as it can be :) I *think* I followed every rule of the original game.
+- [Flappy Bird](./apps/flappybird/) : Everybody knows Flappy Bird. As of today, it is by far the most **technically advanced game** I made. (and the one I worked the most on)
 
 - [Numworks_utils](./apps/numworks_utils/) contains a lot of the utility code I use : the numworks default functions, the entire menu code, graphical tools and more.
 - [Model](./apps/model/) is a basic repo you can copy to start your game using my template.
-- [Nppm_decoder](./apps/nppm_decoder/) is a build utility I made to process the images at compile time. Necessary to use the *tiling* module.
+- [Nppm_decoder](./apps/nppm_decoder/) is a build utility I made to process the images at compile time. Necessary to use my graphical modules, like *tiling*.
 
 The official software comes with a lot of limitations, but that's what makes it interesting too !
 
