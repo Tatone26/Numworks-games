@@ -2,6 +2,7 @@ use heapless::Vec;
 use numworks_utils::{
     graphical::{draw_centered_string, ColorConfig},
     menu::{self, settings::Setting, start_menu, MenuConfig},
+    utils::randint,
 };
 
 use crate::{
@@ -62,7 +63,7 @@ pub fn start() {
         &mut Setting {
             name: "IA Strength\0",
             choice: 1,
-            values: Vec::from_slice(&[4, 6, 8]).unwrap(),
+            values: Vec::from_slice(&[5, 18, i16::MAX as u32]).unwrap(), // This values dictate the "strength" of the AI, stopping as soon as it finds a move better than that.
             texts: Vec::from_slice(&["Weak\0", "Normal\0", "Strong\0"]).unwrap(),
             user_modifiable: true,
             fixed_values: true,
@@ -70,7 +71,7 @@ pub fn start() {
     ];
     loop {
         let start = start_menu(
-            "PUISSANCE 4\0",
+            "CONNECT 4\0",
             &mut opt,
             &COLOR_CONFIG,
             vis_addon,
@@ -95,7 +96,7 @@ pub fn start() {
                 let action = game(
                     opt[1].get_setting_value() as u8,
                     opt[0].get_setting_value() != 0,
-                    opt[3].get_setting_value() as u8,
+                    opt[3].get_setting_value() as i16,
                     &color_config,
                 ); // calling the game based on the parameters is better
                 if action == 2 {
@@ -117,24 +118,37 @@ pub const MAX_HEIGHT_SIZE: usize = 6;
 
 pub const PLAYERS_COLORS: [Color; 3] = [Color::BLUE, Color::RED, Color::from_rgb888(250, 200, 0)];
 
+pub const DEFAULT_TABLE_VALUE: u8 = u8::MAX;
+
+pub type Table = Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>;
+
 /// The entire game is here.
-pub fn game(nb_players: u8, solo: bool, ia_strength: u8, c: &ColorConfig) -> u8 {
-    let mut table: Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE> = Vec::new();
+pub fn game(nb_players: u8, solo: bool, ia_strength: i16, c: &ColorConfig) -> u8 {
+    let mut table: Table = Vec::new();
     for _ in 0..MAX_WIDTH_SIZE {
         let mut new_vec = Vec::<u8, MAX_HEIGHT_SIZE>::new();
         for _ in 0..MAX_HEIGHT_SIZE {
-            new_vec.push(u8::MAX).unwrap();
+            new_vec.push(DEFAULT_TABLE_VALUE).unwrap();
         }
         table.push(new_vec).unwrap();
     }
     let mut players_pos: [u16; 3] = [3, 3, 3];
+    let start_player = randint(0, nb_players as u32) as usize;
+
     draw_grid(nb_players, c);
-    let mut count_turns: u8 = 0;
+
+    let mut turn_count = 0;
     'gameloop: loop {
-        for (player, pos) in players_pos.iter_mut().enumerate().take(nb_players as usize) {
+        for (p, pos) in players_pos.iter_mut().enumerate().take(nb_players as usize) {
+            let player = (p + start_player) % nb_players as usize;
             if player == 0 || !solo {
                 *pos = selection(*pos, player as u16, nb_players, c);
-                while !table.get(*pos as usize).unwrap().last().eq(&Some(&u8::MAX)) {
+                while !table
+                    .get(*pos as usize)
+                    .unwrap()
+                    .last()
+                    .eq(&Some(&DEFAULT_TABLE_VALUE))
+                {
                     *pos = selection(*pos, player as u16, nb_players, c);
                 }
                 place_coin(*pos as u8, player as u8, &mut table, c);
@@ -143,14 +157,14 @@ pub fn game(nb_players: u8, solo: bool, ia_strength: u8, c: &ColorConfig) -> u8 
                     &table,
                     player as u8,
                     nb_players,
-                    if count_turns < ia_strength {
-                        // speed up the start of the game !
-                        count_turns
+                    if turn_count < 1 + 2 * (nb_players - 1) {
+                        // a way of randomizing the start of the game : the AI will play (almost) randomly for the first one to two moves !
+                        ia_strength / 5
                     } else {
                         ia_strength
                     },
-                )
-                .into();
+                    c,
+                ) as u16;
                 *pos = choice;
                 place_coin(choice as u8, player as u8, &mut table, c);
             }
@@ -160,10 +174,10 @@ pub fn game(nb_players: u8, solo: bool, ia_strength: u8, c: &ColorConfig) -> u8 
                 break 'gameloop;
             }
             if table_is_full(&table, nb_players) {
-                draw_centered_string("Egalite !\0", 10, true, c, false);
+                draw_centered_string("It's a draw!\0", 10, true, c, false);
                 break 'gameloop;
             }
-            count_turns += 1;
+            turn_count += 1;
         }
     }
     let menu_config = MenuConfig {
@@ -181,7 +195,7 @@ fn table_is_full(table: &Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>, players:
     let range_x = { 0..table.len() - (MAX_PLAYERS - players as usize) };
     for i in range_x {
         for j in table.get(i).unwrap() {
-            if *j == u8::MAX {
+            if *j == DEFAULT_TABLE_VALUE {
                 return false;
             }
         }
@@ -189,32 +203,40 @@ fn table_is_full(table: &Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>, players:
     true
 }
 
-/// Places a coin in a Table, without drawing it to the screen. Useful to perform checks on table copies.
-pub fn place_coin_nodraw(
-    x: u8,
-    number: u8,
-    table: &mut Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>,
-) -> u16 {
+/// Places a coin in a Table, without drawing it to the screen. Useful to perform checks on table.
+pub fn place_coin_nodraw(x: u8, number: u8, table: &mut Table) -> u16 {
     let vec_x = table.get_mut(x as usize).unwrap();
     let mut y = 0;
     for i in vec_x {
-        if *i == u8::MAX {
+        if *i == DEFAULT_TABLE_VALUE {
             *i = number;
             break;
         } else {
             y += 1
         }
     }
+    //draw_coin(x as u16, y, number as u16, &COLOR_CONFIG, false);
     y
 }
 
+/// used for AI, to perform some tests on table without copying it.
+pub fn remove_coin_nodraw(x: u8, number: u8, table: &mut Table) -> bool {
+    let vec_x = table.get_mut(x as usize).unwrap();
+    for (_y, i) in vec_x.iter_mut().enumerate().rev() {
+        if *i != DEFAULT_TABLE_VALUE {
+            if *i == number {
+                *i = DEFAULT_TABLE_VALUE;
+                //clear_coin(x as u16, y as u16, &COLOR_CONFIG);
+                return true;
+            }
+            break;
+        }
+    }
+    false
+}
+
 /// Places a coin in the table and raws it to the screen.
-fn place_coin(
-    x: u8,
-    number: u8,
-    table: &mut Vec<Vec<u8, MAX_HEIGHT_SIZE>, MAX_WIDTH_SIZE>,
-    c: &ColorConfig,
-) {
+fn place_coin(x: u8, number: u8, table: &mut Table, c: &ColorConfig) {
     let y = place_coin_nodraw(x, number, table);
     draw_coin(x as u16, y, number as u16, c, false);
 }

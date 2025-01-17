@@ -1,16 +1,23 @@
 {
   "configurations": [
     {
-      "name": "windows-gcc-x64",
+      "name": "arm-none-eabi-gcc",
       "includePath": [
         "${workspaceFolder}/**"
       ],
-      "compilerPath": "gcc",
+      "compilerPath": "/usr/bin/arm-none-eabi-gcc",
       "cStandard": "${default}",
       "cppStandard": "${default}",
-      "intelliSenseMode": "windows-gcc-x64",
+      "intelliSenseMode": "gcc-arm",
       "compilerArgs": [
-        ""
+        "-std=c99",
+        "-Os",
+        "-mthumb",
+        "-mfloat-abi=hard",
+        "-mcpu=cortex-m7",
+        "-mfpu=fpv5-sp-d16",
+        "-DPLATFORM_DEVICE=1",
+        "-I/usr/lib/node_modules/nwlink/dist/eadk"
       ]
     }
   ],

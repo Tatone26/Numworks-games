@@ -33,7 +33,7 @@ PS : These games are tested on a real N0110 and the latest version of the Epsilo
   **Instructions and controls are included in the games themselves!**
 
 - [Snake](./apps/snake/) : My take on the classic game!
-- [Connect Four](./apps/connectfour/): You can play against your friend or a basic but strong AI, and even try some 3 players games !
+- [Connect Four](./apps/connectfour/): You can play against your friend or an AI, and even try some (strange) 3 players games !
 - [Solitaire](./apps/solitaire/) : A Classic Solitaire, with classic rules.
 - [Tetris](./apps/tetris/) : Yeah. Tetris! I *think* I followed every rule of the original game.
 - [Flappy Bird](./apps/flappybird/) : Everybody know Flappy Bird. As of today, it is by far the most **technically advanced game** I made. (and the one I worked the most on)
@@ -63,11 +63,10 @@ As I'm not an expert at all, I won't talk about the *truly* technical stuff. You
 - There is no heap and no std, so no malloc to use. This changes a lot of things, but the **heapless crate** can solve most problems. I still had to rewrite some very basic functions, as I didn't want to import another crate.
 - The screen is 320x240 pixels and uses RGB565 (16 bits) colors. That means you need 2 bytes / pixel when drawing anything, which is a lot in this context.
 - The refresh rate is not bad (45Hz) **BUT** it works from the top-left to the bottom-right. This means that rectangles drawn too late in the frame can look *really* bad in the bottom-right corner. It seems to be a good pratice to draw from right to left if possible.
-- The VBlank time is pretty small too, so it is next to impossible to draw the entire screen. It is definitely able too, but I couldn't find how with the tools we have.
+- The VBlank time is pretty small too, so it is next to impossible to draw the entire screen. It is probably able too, but I couldn't find how with the tools we have.
 
 
 ### TODOS
 
 - [ ] "Admin" editor to manually set highscore after a reset (which means creating a number input widget D: )
 - [ ] NEW GAMES
-

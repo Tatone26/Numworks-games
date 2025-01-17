@@ -1,4 +1,10 @@
-use numworks_utils::graphical::{draw_centered_string, fill_screen, tiling::Tileset, ColorConfig};
+use core::str::FromStr;
+
+use heapless::String;
+use numworks_utils::{
+    graphical::{draw_centered_string, draw_string_cfg, fill_screen, tiling::Tileset, ColorConfig},
+    utils::{get_string_pixel_size, LARGE_CHAR_HEIGHT},
+};
 
 use crate::{
     eadk::{
@@ -35,10 +41,28 @@ pub fn draw_coin(x: u16, y: u16, color: u16, _c: &ColorConfig, vic: bool) {
     );
 }
 
+pub fn clear_coin(x: u16, y: u16, c: &ColorConfig) {
+    //wait_for_vblank();
+    push_rect_uniform(
+        Rect {
+            x: LEFT_POS + (COIN_SIZE + 4) * x,
+            y: UP_POS + (COIN_SIZE + 2) * (5 - y),
+            width: COIN_SIZE,
+            height: COIN_SIZE,
+        },
+        if c.bckgrd.rgb565 < 0x7BEF {
+            Color::from_rgb888(50, 50, 50)
+        } else {
+            Color::from_rgb888(200, 200, 200)
+        },
+    )
+}
+
 /// Draws a full grid, taking into account the number of players.
 pub fn draw_grid(players: u8, c: &ColorConfig) {
     wait_for_vblank();
     fill_screen(c.bckgrd);
+    wait_for_vblank();
     push_rect_uniform(
         Rect {
             x: LEFT_POS - 4,
@@ -61,19 +85,7 @@ pub fn draw_grid(players: u8, c: &ColorConfig) {
             c.bckgrd,
         );
         for y in 0..MAX_HEIGHT_SIZE as u16 {
-            push_rect_uniform(
-                Rect {
-                    x: LEFT_POS + (COIN_SIZE + 4) * x,
-                    y: UP_POS + (COIN_SIZE + 2) * (5 - y),
-                    width: COIN_SIZE,
-                    height: COIN_SIZE,
-                },
-                if c.bckgrd.rgb565 < 0x7BEF {
-                    Color::from_rgb888(50, 50, 50)
-                } else {
-                    Color::from_rgb888(200, 200, 200)
-                },
-            )
+            clear_coin(x, y, c);
         }
     }
 }
@@ -95,6 +107,7 @@ pub fn draw_selection_coin(x: u16, color: u16, _c: &ColorConfig, y_offset: i16) 
 
 /// Removes eveything above the grid, does NOT take into account y_offset for now -> BAD
 pub fn clear_selection_coin(x: u16, c: &ColorConfig) {
+    wait_for_vblank();
     push_rect_uniform(
         Rect {
             x: LEFT_POS + (COIN_SIZE + 4) * x,
@@ -144,4 +157,30 @@ pub fn victory(check: Alignment, c: &ColorConfig) {
             draw_coin(x, y, check.0 as u16, c, true);
         }
     }
+}
+
+pub fn draw_thinking_ai(frame: u16, c: &ColorConfig) {
+    wait_for_vblank();
+    let mut s: String<13> = String::from_str("Thinking").unwrap();
+    for _i in 0..(frame % 4) {
+        s.push('.').unwrap();
+    }
+    for _i in (frame % 4)..3 {
+        s.push(' ').unwrap();
+    }
+    s.push('\0').unwrap();
+    draw_string_cfg(&s, Point { x: 3, y: 3 }, true, c, false);
+}
+
+pub fn clear_thinking_ai(c: &ColorConfig) {
+    wait_for_vblank();
+    push_rect_uniform(
+        Rect {
+            x: 3,
+            y: 3,
+            width: get_string_pixel_size("Thinking...\0", true),
+            height: LARGE_CHAR_HEIGHT,
+        },
+        c.bckgrd,
+    );
 }

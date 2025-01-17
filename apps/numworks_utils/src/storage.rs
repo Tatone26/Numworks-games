@@ -11,11 +11,6 @@ pub mod low_level_storage {
         fn reverse32(value: u32) -> u32;
         #[allow(dead_code)]
         fn strcmp(s1: *const u8, s2: *const u8);
-        pub fn extapp_fileList(
-            filename: *const *const u8,
-            maxrecord: u32,
-            extension: *const u8,
-        ) -> u32;
         pub fn extapp_fileExists(filename: *const u8) -> bool;
         pub fn extapp_fileRead(filename: *const u8, len: *mut u32) -> *const u8;
         pub fn extapp_fileWrite(filename: *const u8, content: *const u8, len: u32) -> bool;

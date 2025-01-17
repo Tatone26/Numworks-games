@@ -2,10 +2,10 @@
 
 // I couldn't make the libc work with Rust and all... so I just remade those 4 functions that storage.c uses. It is definitely not a good solution, and I may look at it again later.
 
-// from github.com/numworks/epsilon/liba/src/memmove.c
+// from github.com/numworks/epsilon/liba/
 int strcmp(const char *s1, const char *s2)
 {
-    while (*s1 != NULL && *s1 == *s2)
+    while (*s1 != '\0' && *s1 == *s2)
     {
         s1++;
         s2++;
@@ -13,7 +13,7 @@ int strcmp(const char *s1, const char *s2)
     return (*(unsigned char *)s1) - (*(unsigned char *)s2);
 }
 
-// from github.com/numworks/epsilon/liba/src/memmove.c
+// from github.com/numworks/epsilon/liba/
 void *mymemcpy(void *__restrict__ dest, const void *__restrict__ src, size_t n)
 {
     char *destination = (char *)dest;
@@ -29,7 +29,7 @@ void *mymemcpy(void *__restrict__ dest, const void *__restrict__ src, size_t n)
     return dest;
 }
 
-// from github.com/numworks/epsilon/liba/src/memmove.c
+// from github.com/numworks/epsilon/liba/
 void *mymemmove(void *dest, const void *src, size_t n)
 {
     char *destination = (char *)dest;
@@ -56,7 +56,7 @@ void *mymemmove(void *dest, const void *src, size_t n)
     return dest;
 }
 
-// from github.com/numworks/epsilon/liba/src/memmove.c
+// from github.com/numworks/epsilon/liba/
 void *mymemset(void *s, int c, size_t n)
 {
     char *destination = (char *)s;
@@ -67,8 +67,8 @@ void *mymemset(void *s, int c, size_t n)
     return s;
 }
 
-// from github.com/numworks/epsilon/liba/src/memmove.c
-size_t strlen(const char *s)
+// from github.com/numworks/epsilon/liba/
+unsigned int strlen(const char *s)
 {
     const char *str = s;
     while (*str)

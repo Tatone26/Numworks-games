@@ -18,38 +18,6 @@ uint32_t reverse32(uint32_t value)
             ((value & 0xFF000000) >> 24));
 }
 
-int extapp_fileList(const char **filename, int maxrecord, const char *extension)
-{
-    uint32_t storageAddress = extapp_address();
-    char *offset = (char *)storageAddress;
-    const char *endAddress = (char *)extapp_size() + storageAddress;
-
-    if (!extapp_isValid((const uint32_t *)offset))
-    {
-        // Storage is invalid
-        return -1;
-    }
-
-    offset += 4;
-    int currentRecord = 0;
-
-    while ((currentRecord < maxrecord) && offset < endAddress)
-    {
-        uint16_t size = *(uint16_t *)offset;
-        if (size == 0)
-        {
-            break;
-        }
-        char *name = offset + 2;
-        filename[currentRecord] = name;
-
-        offset += size;
-        currentRecord++;
-    }
-
-    return currentRecord;
-}
-
 bool extapp_fileExists(const char *filename)
 {
     uint32_t storageAddress = extapp_address();
@@ -87,7 +55,7 @@ bool extapp_fileExists(const char *filename)
     return false;
 }
 
-const char *extapp_fileRead(const char *filename, size_t *len)
+char *extapp_fileRead(const char *filename, size_t *len)
 {
     uint32_t storageAddress = extapp_address();
     char *offset = (char *)storageAddress;
@@ -220,12 +188,12 @@ uint32_t extapp_address()
     return *(uint32_t *)((*extapp_userlandAddress()) + 0xC);
 }
 
-const uint32_t extapp_size()
+uint32_t extapp_size()
 {
     return *(uint32_t *)((*extapp_userlandAddress()) + 0x10);
 }
 
-const uint32_t *extapp_nextFree()
+uint32_t *extapp_nextFree()
 {
     uint32_t storageAddress = extapp_address();
     char *offset = (char *)storageAddress;
@@ -245,7 +213,7 @@ const uint32_t *extapp_nextFree()
         if (size == 0)
         {
             // Here, we are at the place where new records should start
-            return (const uint32_t *)offset;
+            return (uint32_t *)offset;
         }
 
         offset += size;
@@ -256,7 +224,7 @@ const uint32_t *extapp_nextFree()
     // return (uint32_t *)storageAddress + extapp_size();
 }
 
-const uint32_t extapp_used()
+uint32_t extapp_used()
 {
     return (uint32_t)extapp_nextFree() - extapp_address();
 }
@@ -266,7 +234,7 @@ bool extapp_isValid(const uint32_t *address)
     return *address == reverse32(0xBADD0BEE);
 }
 
-const uint8_t extapp_calculatorModel()
+uint8_t extapp_calculatorModel()
 {
     // To guess the storage size without reading forbidden addresses, we try to
     // get the storage address from the userland header
@@ -316,7 +284,7 @@ const uint8_t extapp_calculatorModel()
     return 0;
 }
 
-const uint32_t *extapp_userlandAddress()
+uint32_t *extapp_userlandAddress()
 {
     // Get the model
     const uint8_t model = extapp_calculatorModel();

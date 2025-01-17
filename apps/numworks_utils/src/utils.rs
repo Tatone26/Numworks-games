@@ -41,7 +41,7 @@ pub fn get_string_pixel_size(string: &str, large: bool) -> u16 {
 }
 
 #[inline]
-/// Gives a [random] integer between a and b (included)
+/// Gives a [random] integer between a and b (excluded)
 pub fn randint(a: u32, b: u32) -> u32 {
     if a == b {
         0

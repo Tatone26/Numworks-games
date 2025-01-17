@@ -24,7 +24,7 @@ fn main() {
     build
         .file("src/storage/storage.c")
         .file("src/storage/mystring.c")
-        .flag("-Os")
+        //        .flag("-Os")
         .compiler("arm-none-eabi-gcc")
         .compile("storage");
 
