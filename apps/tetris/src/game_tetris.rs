@@ -1,5 +1,9 @@
 use heapless::Vec;
 use numworks_utils::{
+    eadk::{
+        display::{self, wait_for_vblank},
+        key, keyboard, timing, Color,
+    },
     graphical::{draw_centered_string, ColorConfig},
     menu::{
         pause_menu, selection,
@@ -10,10 +14,6 @@ use numworks_utils::{
 };
 
 use crate::{
-    eadk::{
-        display::{self, wait_for_vblank},
-        key, keyboard, timing, Color,
-    },
     tetriminos::{get_initial_tetri, get_random_bag, get_wall_kicks_data, SignedPoint, Tetrimino},
     ui_tetris::{
         draw_blank_line, draw_block, draw_held_tetrimino, draw_level, draw_lines_number,

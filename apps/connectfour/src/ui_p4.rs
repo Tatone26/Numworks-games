@@ -2,18 +2,15 @@ use core::str::FromStr;
 
 use heapless::String;
 use numworks_utils::{
-    graphical::{draw_centered_string, draw_string_cfg, fill_screen, tiling::Tileset, ColorConfig},
-    utils::{get_string_pixel_size, LARGE_CHAR_HEIGHT},
-};
-
-use crate::{
     eadk::{
         display::{push_rect_uniform, wait_for_vblank},
         Color, Point, Rect,
     },
-    game_p4::{Alignment, MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE, PLAYERS_COLORS},
-    utils::CENTER,
+    graphical::{draw_centered_string, draw_string_cfg, fill_screen, tiling::Tileset, ColorConfig},
+    utils::{get_string_pixel_size, CENTER, LARGE_CHAR_HEIGHT},
 };
+
+use crate::game_p4::{Alignment, MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE, PLAYERS_COLORS};
 
 const COIN_SIZE: u16 = 21;
 const PIXELS: usize = { COIN_SIZE * COIN_SIZE } as usize;

@@ -1,9 +1,6 @@
 #![no_std]
 #![no_main]
 
-use numworks_utils::eadk;
-use numworks_utils::utils;
-
 pub mod game_p4;
 pub mod ia_p4;
 pub mod ui_p4;

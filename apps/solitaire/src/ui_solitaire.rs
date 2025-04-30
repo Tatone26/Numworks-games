@@ -25,11 +25,11 @@ const PIXELS: usize = { 35 * 35 } as usize;
 
 pub const BACKGROUND_COLOR: Color = Color::from_rgb888(1, 115, 55);
 const CARD_HEIGHT: u16 = 56;
-const CARD_WIDTH: u16 = 35;
+pub const CARD_WIDTH: u16 = 35;
 const HIDDEN_CARD_TILE: u16 = 4;
 
 /// Draws a given [Card] at a given [Point], point being in absolute pixel value
-fn draw_card(card: &Card, pos: Point) {
+pub fn draw_card(card: &Card, pos: Point) {
     if card.visible {
         TILESET.draw_tile::<PIXELS>(pos, Point::new(card.suit as u16, 0), 1, false);
         TILESET.draw_tile::<PIXELS>(

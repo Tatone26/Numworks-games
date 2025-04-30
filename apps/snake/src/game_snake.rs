@@ -1,26 +1,21 @@
-use crate::{
-    eadk::{
-        self,
-        display::{self, SCREEN_HEIGHT, SCREEN_WIDTH},
-        key, keyboard, timing, Point,
-    },
-    snake_ui::{
-        draw_box, draw_fruit, draw_snake, draw_snake_front, draw_terrain, draw_terrain_box,
-        draw_wall, BCKD_GRAY, CASE_SIZE, DARK_GREEN,
-    },
-    utils::{randint, wait_for_no_keydown, CENTER, LARGE_CHAR_HEIGHT},
+use crate::snake_ui::{
+    draw_box, draw_fruit, draw_snake, draw_snake_front, draw_terrain, draw_terrain_box, draw_wall,
+    BCKD_GRAY, CASE_SIZE, DARK_GREEN,
 };
-use eadk::Color;
-use heapless::String;
-use heapless::{Deque, Vec};
+
+use heapless::{Deque, String, Vec};
 use numworks_utils::{
+    eadk::{
+        display::{self, SCREEN_HEIGHT, SCREEN_WIDTH},
+        key, keyboard, timing, Color, Point,
+    },
     graphical::{draw_centered_string, fading, ColorConfig},
     menu::{
         selection,
         settings::{write_values_to_file, Setting},
         start_menu, MenuConfig,
     },
-    utils::string_from_u16,
+    utils::{randint, string_from_u16, wait_for_no_keydown, CENTER, LARGE_CHAR_HEIGHT},
 };
 
 /// Used to get directions, and nothing else !

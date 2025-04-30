@@ -1,6 +1,9 @@
 use heapless::Vec;
 use numworks_utils::{
-    eadk::{display::wait_for_vblank, timing},
+    eadk::{
+        display::{self, push_rect_uniform, wait_for_vblank},
+        key, keyboard, timing, Color, Point, Rect,
+    },
     graphical::{draw_centered_string, draw_string_cfg, fill_screen, tiling::Tileset, ColorConfig},
     include_bytes_align_as,
     menu::{
@@ -8,11 +11,6 @@ use numworks_utils::{
         start_menu,
     },
     utils::{string_from_u16, string_from_u32, wait_for_no_keydown, CENTER},
-};
-
-use crate::eadk::{
-    display::{self, push_rect_uniform},
-    key, keyboard, Color, Point, Rect,
 };
 
 // This dictates the principal colors that will be used

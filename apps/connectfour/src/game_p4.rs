@@ -1,18 +1,17 @@
 use heapless::Vec;
 use numworks_utils::{
-    graphical::{draw_centered_string, ColorConfig},
-    menu::{self, settings::Setting, start_menu, MenuConfig},
-    utils::randint,
-};
-
-use crate::{
     eadk::{
         display::{wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
         key, keyboard, timing, Color,
     },
+    graphical::{draw_centered_string, ColorConfig},
+    menu::{self, settings::Setting, start_menu, MenuConfig},
+    utils::{randint, wait_for_no_keydown, LARGE_CHAR_HEIGHT},
+};
+
+use crate::{
     ia_p4::{find_best_move, look_for_aligned_coins},
     ui_p4::{clear_selection_coin, draw_coin, draw_grid, draw_selection_coin, victory},
-    utils::{wait_for_no_keydown, LARGE_CHAR_HEIGHT},
 };
 
 // This dictates the principal colors that will be used

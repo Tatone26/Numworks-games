@@ -1,0 +1,16 @@
+[package]
+name = "all_the_apps"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+heapless = "0.8.0"
+numworks_utils = { path = "../numworks_utils", version = "*" }
+solitaire = { path = "../solitaire", version = "*" }
+snake = { path = "../snake", version = "*" }
+connectfour = { path = "../connectfour", version = "*" }
+tetris = { path = "../tetris", version = "*" }
+flappybird = { path = "../flappybird", version = "*" }
+
+[build-dependencies]
+nppm_decoder = { path = "../nppm_decoder", version = "*" }

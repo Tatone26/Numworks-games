@@ -1,21 +1,20 @@
 use heapless::String;
 use numworks_utils::{
-    graphical::{draw_image, draw_string_cfg, tiling::Tileset},
-    include_bytes_align_as,
-    utils::{string_from_u32, CENTER},
-};
-
-use crate::{
     eadk::{
         display::{push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
         Color, Point, Rect,
     },
+    graphical::{draw_image, draw_string_cfg, tiling::Tileset},
+    include_bytes_align_as,
+    utils::{string_from_u32, CENTER, LARGE_CHAR_HEIGHT},
+};
+
+use crate::{
     game_tetris::{
         BACKGROUND_DARK_GRAY, BACKGROUND_GRAY, CASE_SIZE, COLOR_CONFIG, PLAYFIELD_HEIGHT,
         PLAYFIELD_WIDTH,
     },
     tetriminos::Tetrimino,
-    utils::LARGE_CHAR_HEIGHT,
 };
 
 static TILESET: Tileset = Tileset {

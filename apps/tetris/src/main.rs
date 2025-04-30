@@ -1,9 +1,6 @@
 #![no_std]
 #![no_main]
 
-use numworks_utils::eadk;
-use numworks_utils::utils;
-
 pub mod tetriminos;
 pub mod ui_tetris;
 

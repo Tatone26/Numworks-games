@@ -1,14 +1,12 @@
 use heapless::Deque;
 use numworks_utils::{
+    eadk::{display::push_rect_uniform, Color, Point, Rect},
     graphical::{fill_screen, tiling::Tileset},
     include_bytes_align_as,
     utils::CENTER,
 };
 
-use crate::{
-    eadk::{display::push_rect_uniform, Color, Point, Rect},
-    game_snake::{Direction, GRID_OFFSET, MAX_ARRAY_SIZE, MAX_HEIGHT, MAX_WIDTH},
-};
+use crate::game_snake::{Direction, GRID_OFFSET, MAX_ARRAY_SIZE, MAX_HEIGHT, MAX_WIDTH};
 
 pub const DARK_GRAY: Color = Color::from_rgb888(60, 60, 80);
 pub const GRAY: Color = Color::from_rgb888(175, 175, 175);

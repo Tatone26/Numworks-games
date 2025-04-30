@@ -1,6 +1,6 @@
 use heapless::Vec;
 
-use crate::utils::randint;
+use numworks_utils::utils::randint;
 
 #[derive(Clone, PartialEq)]
 pub enum TetriType {
