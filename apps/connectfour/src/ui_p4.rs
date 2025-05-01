@@ -12,7 +12,7 @@ use numworks_utils::{
 
 use crate::game_p4::{Alignment, MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE, PLAYERS_COLORS};
 
-const COIN_SIZE: u16 = 21;
+pub const COIN_SIZE: u16 = 21;
 const PIXELS: usize = { COIN_SIZE * COIN_SIZE } as usize;
 const LEFT_POS: u16 = CENTER.x - (COIN_SIZE + 4) / 2 - (COIN_SIZE + 4) * 3;
 const UP_POS: u16 = 60;

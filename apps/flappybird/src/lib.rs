@@ -15,7 +15,7 @@ use numworks_utils::{
 };
 use pipes::OptiTiles;
 pub fn get_name() -> String<15> {
-    String::try_from("Flappy Bird").unwrap()
+    String::try_from("Flappy Bird\0").unwrap()
 }
 
 pub fn thumbnail(_: Point) {

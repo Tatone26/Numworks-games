@@ -195,7 +195,7 @@ pub fn game(
         } else if keyboard_state.key_down(key::LEFT) {
             direction = Direction::Left;
         } else if keyboard_state.key_down(key::OK) {
-            let action = snake_pause(score, false, &high_score);
+            let action = snake_pause(score, false, high_score);
             if action == 0 {
                 display::wait_for_vblank();
                 draw_terrain(wrapping);
@@ -294,7 +294,7 @@ pub fn game(
         );
         *high_score = score as u32;
     }
-    snake_pause(score, true, &high_score)
+    snake_pause(score, true, high_score)
 }
 
 fn snake_pause(points: u16, death: bool, high_score: &u32) -> u8 {

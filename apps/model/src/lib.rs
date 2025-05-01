@@ -21,5 +21,5 @@ pub fn thumbnail(pos: Point) {
 
 /// Function that returns a string with the name of the app (the text to write) for the multiple apps packages
 pub fn get_name() -> String<15> {
-    String::try_from("TEST").unwrap()
+    String::try_from("TEST\0").unwrap()
 }

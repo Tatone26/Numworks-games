@@ -70,5 +70,5 @@ pub fn thumbnail(_: Point) {
 }
 
 pub fn get_name() -> String<15> {
-    String::try_from("Solitaire").unwrap()
+    String::try_from("Solitaire\0").unwrap()
 }
