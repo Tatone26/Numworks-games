@@ -72,7 +72,8 @@ pub fn start_menu(
             false,
         );
         if action == 1 {
-            settings::settings(opt, cfg, filename);
+            let scan = keyboard::scan();
+            settings::settings(opt, cfg, filename, scan.key_down(key::SHIFT));
         } else if action == 2 {
             controls(controls_text, cfg);
         } else {

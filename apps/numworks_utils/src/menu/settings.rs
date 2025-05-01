@@ -11,6 +11,7 @@ use crate::{
         get_string_pixel_size, string_from_u32, wait_for_no_keydown, LARGE_CHAR_HEIGHT,
         SMALL_CHAR_HEIGHT,
     },
+    widgets::numberinput::numberinput,
 };
 
 use super::{REPETITION_SPEED, SPACE_BETWEEN_LINES};
@@ -56,11 +57,7 @@ impl Setting {
     }
 
     pub fn set_value(&mut self, value: u32) {
-        if self.fixed_values {
-            self.choice = value as usize;
-        } else {
-            self.values[self.choice] = value;
-        }
+        self.values[if self.fixed_values { 0 } else { self.choice }] = value;
     }
 
     #[inline(always)]
@@ -83,7 +80,7 @@ pub(super) fn set_values_from_file(list: &mut [&mut Setting], filename: &str) {
             x.choice = *y as usize;
         } else {
             x.choice = 0;
-            *x.values.get_mut(0).unwrap() = *y;
+            x.set_value(*y);
         }
     }
 }
@@ -100,8 +97,13 @@ pub fn write_values_to_file(list: &mut [&mut Setting], filename: &str) {
 
 /// Create a fully fonctional settings menu, which changes directly the [options][Setting] values. (no settings return)
 /// For now, only allows a limited number of settings because making multiple pages is too complicated and I don't have time for that
-pub(crate) fn settings(list: &mut [&mut Setting], cfg: &ColorConfig, filename: &str) {
-    let items_number: u16 = list.iter().filter(|p| p.user_modifiable).count() as u16;
+pub(crate) fn settings(
+    list: &mut [&mut Setting],
+    cfg: &ColorConfig,
+    filename: &str,
+    godmode: bool,
+) {
+    let items_number: u16 = list.iter().filter(|p| godmode || p.user_modifiable).count() as u16;
     let first_y: u16 = match (SCREEN_HEIGHT + LARGE_CHAR_HEIGHT)
         .checked_sub((LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * items_number)
     {
@@ -134,7 +136,11 @@ pub(crate) fn settings(list: &mut [&mut Setting], cfg: &ColorConfig, filename: &
         false,
     );
     // printing the options
-    for item in list.iter().filter(|p| p.user_modifiable).enumerate() {
+    for item in list
+        .iter()
+        .filter(|p| godmode || p.user_modifiable)
+        .enumerate()
+    {
         let (i, x) = item;
         let y_pos: u16 = first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * (i as u16);
         let large: bool =
@@ -156,14 +162,14 @@ pub(crate) fn settings(list: &mut [&mut Setting], cfg: &ColorConfig, filename: &
         );
         draw_setting_selection(x, y_pos, i == 0, cfg)
     }
-    setting_selection(list, cfg, first_y);
+    setting_selection(list, cfg, first_y, godmode);
     write_values_to_file(list, filename);
 }
 
 /// Takes care of all the difficult stuff, like moving the cursor and modifying the text.
 ///
 /// Similar to [super::selection] but redone to account for more things (and not account for horizontal versions)
-fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16) {
+fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16, godmode: bool) {
     wait_for_no_keydown();
 
     let mut cursor_pos: u16 = 0;
@@ -181,7 +187,7 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16)
 
             let current_selection: &Setting = list
                 .iter()
-                .filter(|p| p.user_modifiable)
+                .filter(|p| godmode || p.user_modifiable)
                 .nth(cursor_pos as usize)
                 .unwrap();
             draw_setting_selection(
@@ -195,11 +201,14 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16)
                 if cursor_pos > 0 {
                     cursor_pos -= 1;
                 } else {
-                    cursor_pos = (list.iter().filter(|p| p.user_modifiable).count() as u16) - 1;
+                    cursor_pos =
+                        (list.iter().filter(|p| godmode || p.user_modifiable).count() as u16) - 1;
                 }
                 last_action_key = key::UP;
             } else if keyboard_scan.key_down(key::DOWN) {
-                if cursor_pos < list.iter().filter(|p| p.user_modifiable).count() as u16 - 1 {
+                if cursor_pos
+                    < list.iter().filter(|p| godmode || p.user_modifiable).count() as u16 - 1
+                {
                     cursor_pos += 1;
                 } else {
                     cursor_pos = 0;
@@ -209,7 +218,7 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16)
 
             let new_selection: &Setting = list
                 .iter()
-                .filter(|p| p.user_modifiable)
+                .filter(|p| godmode || p.user_modifiable)
                 .nth(cursor_pos as usize)
                 .unwrap();
             draw_setting_selection(
@@ -238,17 +247,43 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16)
 
             let selection: &mut Setting = list
                 .iter_mut()
-                .filter(|p| p.user_modifiable)
+                .filter(|p| godmode || p.user_modifiable)
                 .nth(cursor_pos as usize)
                 .unwrap();
 
-            if keyboard_scan.key_down(key::OK) || keyboard_scan.key_down(key::RIGHT) {
+            if !selection.fixed_values {
+                if keyboard_scan.key_down(key::OK) {
+                    let v = numberinput(
+                        selection.values[0],
+                        selection.values[1],
+                        selection.values[2],
+                        true,
+                        Point {
+                            x: XPOS_VALUES,
+                            y: first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
+                        },
+                        cfg,
+                    );
+                    selection.set_value(v);
+                    last_action_key = key::OK;
+                } else if keyboard_scan.key_down(key::RIGHT) {
+                    // increment one step
+                    if selection.values[0] < selection.values[2] {
+                        selection.set_value(selection.values[0] + 1);
+                    }
+                    last_action_key = key::RIGHT;
+                } else if keyboard_scan.key_down(key::LEFT) {
+                    if selection.values[0] > selection.values[1] {
+                        selection.set_value(selection.values[0] - 1);
+                    }
+                    last_action_key = key::LEFT;
+                }
+            } else if keyboard_scan.key_down(key::OK) {
                 selection.increment_value();
-                last_action_key = if keyboard_scan.key_down(key::OK) {
-                    key::OK
-                } else {
-                    key::RIGHT
-                };
+                last_action_key = key::OK
+            } else if keyboard_scan.key_down(key::RIGHT) {
+                selection.increment_value();
+                last_action_key = key::RIGHT;
             } else {
                 selection.decrement_value();
                 last_action_key = key::LEFT

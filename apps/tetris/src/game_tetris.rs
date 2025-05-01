@@ -52,18 +52,15 @@ pub fn start() {
         &mut Setting {
             name: "Starting Level\0",
             choice: 0,
-            values: Vec::from_slice(&[1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap(),
-            texts: Vec::from_slice(&[
-                "1\0", "2\0", "3\0", "4\0", "5\0", "6\0", "7\0", "8\0", "9\0",
-            ])
-            .unwrap(),
+            values: Vec::from_slice(&[1, 1, 9]).unwrap(),
+            texts: Vec::new(),
             user_modifiable: true,
-            fixed_values: true,
+            fixed_values: false,
         },
         &mut Setting {
             name: "High Score\0",
             choice: 0,
-            values: Vec::from_slice(&[0]).unwrap(),
+            values: Vec::from_slice(&[0, 0, 999999]).unwrap(),
             texts: Vec::new(),
             user_modifiable: false,
             fixed_values: false,

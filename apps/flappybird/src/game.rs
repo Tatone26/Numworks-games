@@ -102,7 +102,7 @@ pub fn start() {
         &mut Setting {
             name: "High Score\0",
             choice: 0,
-            values: Vec::from_slice(&[0]).unwrap(),
+            values: Vec::from_slice(&[0, 0, u32::MAX]).unwrap(),
             texts: Vec::new(),
             user_modifiable: false,
             fixed_values: false,

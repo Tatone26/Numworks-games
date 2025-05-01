@@ -22,7 +22,7 @@ You can find a lot more programs on numworks.com, where anyone can submit their 
 
 **NEW BIS : All games can now be downloaded as a single package with "alltheapps.nwa" ! Saves a lot of space thanks to compiler optimisations.**
 
-> Be warned : resetting the console will remove any app and all the data too.
+> Be warned : resetting the console will remove any app and all the data too -> you can enter GodMode to edit the highscores by pressing 'shift' while clicking on settings.
 
 *Feel free to download and copy the code it if you want, but it's quite messy as I work alone.*
 
@@ -30,10 +30,9 @@ I'm also using these projects to learn some Rust, as I am already used to code i
 
 PS : These games are tested on a real N0110 and the latest version of the Epsilon software.
 
-  **Instructions and controls are included in the games themselves!**
+**Instructions and controls are included in the games themselves!**
 
 - [All the Apps](./apps/alltheapps) : This is a single application combining all the games with a simple menu. The data is not shared with the normal apps!
-
 - [Snake](./apps/snake/) : My take on the classic game!
 - [Connect Four](./apps/connectfour/) : You can play against your friend or **an AI**, and even try some (strange) 3 players games !
 - [Solitaire](./apps/solitaire/) : A Classic Solitaire, with classic rules.
