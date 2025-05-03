@@ -6,7 +6,7 @@ use numworks_utils::{
     utils::CENTER,
 };
 
-use crate::game_snake::{Direction, GRID_OFFSET, MAX_ARRAY_SIZE, MAX_HEIGHT, MAX_WIDTH};
+use crate::game_snake::{Direction, GRID_OFFSET, MAX_ARRAY_SIZE};
 
 pub const DARK_GRAY: Color = Color::from_rgb888(60, 60, 80);
 pub const GRAY: Color = Color::from_rgb888(175, 175, 175);
@@ -17,16 +17,12 @@ pub const LIGHT_GREEN: Color = Color::from_rgb888(40, 200, 120);
 
 /// The size of a grid case. Everything is linked to this value.
 pub const CASE_SIZE: u16 = 10;
-/// How much pixels it takes in a tile. (because square -> case_size squared.)
-pub const PIXELS: usize = (CASE_SIZE * CASE_SIZE) as usize;
 
 const MENU_FIGURE_Y: u16 = 70;
 
-pub static TILEMAP: Tileset = Tileset {
-    tile_size: CASE_SIZE,
-    width: 6 * CASE_SIZE,
-    image: include_bytes_align_as!(Color, "./data/image.nppm"),
-};
+const IMAGE_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/image.nppm");
+
+pub static TILEMAP: Tileset = Tileset::new(CASE_SIZE, 6, IMAGE_BYTES);
 
 /// Draws a box (case) of the grid
 pub fn draw_box(x: u16, y: u16, c: Color) {
@@ -55,7 +51,7 @@ pub fn draw_fruit(x: u16, y: u16, original: bool) {
         draw_box(x, y, Color::RED);
     } else {
         unsafe {
-            TILEMAP.draw_tile::<PIXELS>(
+            TILEMAP.draw_tile(
                 Point::new(x * CASE_SIZE + GRID_OFFSET.0, y * CASE_SIZE + GRID_OFFSET.1),
                 Point::new(0, 0),
                 1,
@@ -66,7 +62,7 @@ pub fn draw_fruit(x: u16, y: u16, original: bool) {
 }
 pub fn draw_snake_front(x: u16, y: u16, direction: Direction, original: bool) {
     if !original {
-        TILEMAP.draw_tile::<PIXELS>(
+        TILEMAP.draw_tile(
             unsafe { Point::new(x * CASE_SIZE + GRID_OFFSET.0, y * CASE_SIZE + GRID_OFFSET.1) },
             Point::new(
                 match direction {
@@ -89,7 +85,7 @@ pub fn draw_wall(x: u16, y: u16, original: bool) {
     if original {
         draw_box(x, y, Color::BLACK)
     } else {
-        TILEMAP.draw_tile::<PIXELS>(
+        TILEMAP.draw_tile(
             unsafe { Point::new(x * CASE_SIZE + GRID_OFFSET.0, y * CASE_SIZE + GRID_OFFSET.1) },
             Point::new(5, 0),
             1,
@@ -110,10 +106,10 @@ pub fn draw_snake(snake: &Deque<Point, MAX_ARRAY_SIZE>, direction: Direction, or
 }
 
 /// Draws the entire terrain
-pub fn draw_terrain(wrapping: bool) {
+pub fn draw_terrain(wrapping: bool, width: u16, height: u16) {
     // display::wait_for_vblank();
-    fill_screen(DARK_GRAY);
     unsafe {
+        fill_screen(DARK_GRAY);
         push_rect_uniform(
             Rect {
                 x: match GRID_OFFSET.0.checked_sub(CASE_SIZE / 2) {
@@ -124,8 +120,8 @@ pub fn draw_terrain(wrapping: bool) {
                     x @ Some(_) => x.unwrap(),
                     None => 0,
                 },
-                width: (MAX_WIDTH + 1) * CASE_SIZE,
-                height: (MAX_HEIGHT + 1) * CASE_SIZE,
+                width: (width + 1) * CASE_SIZE,
+                height: (height + 1) * CASE_SIZE,
             },
             if !wrapping {
                 Color::BLACK
@@ -137,28 +133,29 @@ pub fn draw_terrain(wrapping: bool) {
             Rect {
                 x: GRID_OFFSET.0,
                 y: GRID_OFFSET.1,
-                width: MAX_WIDTH * CASE_SIZE,
-                height: MAX_HEIGHT * CASE_SIZE,
+                width: width * CASE_SIZE,
+                height: height * CASE_SIZE,
             },
             LIGHT_GRAY,
         );
-        for x in (1..(MAX_WIDTH)).step_by(2) {
-            for y in (0..(MAX_HEIGHT)).step_by(2) {
-                draw_box(x, y, GRAY)
-            }
-        }
-        for x in (0..MAX_WIDTH).step_by(2) {
-            for y in (1..MAX_HEIGHT).step_by(2) {
-                draw_box(x, y, GRAY)
-            }
+    }
+    for x in (1..(width)).step_by(2) {
+        for y in (0..(height)).step_by(2) {
+            draw_box(x, y, GRAY)
         }
     }
+    for x in (0..width).step_by(2) {
+        for y in (1..height).step_by(2) {
+            draw_box(x, y, GRAY)
+        }
+    }
+
     //display::wait_for_vblank();
 }
 
 /// Menu Visual Addon
 pub fn menu_vis_addon() {
-    TILEMAP.draw_tile::<PIXELS>(
+    TILEMAP.draw_tile(
         Point::new(CENTER.x - CASE_SIZE, MENU_FIGURE_Y),
         Point::new(3, 0),
         2,
@@ -173,7 +170,7 @@ pub fn menu_vis_addon() {
         },
         DARK_GREEN,
     );
-    TILEMAP.draw_tile::<PIXELS>(
+    TILEMAP.draw_tile(
         Point::new(CENTER.x + CASE_SIZE * 3, MENU_FIGURE_Y),
         Point::new(0, 0),
         2,

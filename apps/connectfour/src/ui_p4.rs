@@ -7,27 +7,25 @@ use numworks_utils::{
         Color, Point, Rect,
     },
     graphical::{draw_centered_string, draw_string_cfg, fill_screen, tiling::Tileset, ColorConfig},
+    include_bytes_align_as,
     utils::{get_string_pixel_size, CENTER, LARGE_CHAR_HEIGHT},
 };
 
 use crate::game_p4::{Alignment, MAX_HEIGHT_SIZE, MAX_PLAYERS, MAX_WIDTH_SIZE, PLAYERS_COLORS};
 
 pub const COIN_SIZE: u16 = 21;
-const PIXELS: usize = { COIN_SIZE * COIN_SIZE } as usize;
 const LEFT_POS: u16 = CENTER.x - (COIN_SIZE + 4) / 2 - (COIN_SIZE + 4) * 3;
 const UP_POS: u16 = 60;
 
+const IMAGE_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/image.nppm");
+
 /// This tileset contains 3 colors of coins, each with there victoy version.
-static TILESET: Tileset = Tileset {
-    tile_size: COIN_SIZE,
-    width: 2 * COIN_SIZE,
-    image: include_bytes!("./data/image.nppm"),
-};
+static TILESET: Tileset = Tileset::new(COIN_SIZE, 2, IMAGE_BYTES);
 
 /// Draws a coin at the (x, y) GRID coordinates
 pub fn draw_coin(x: u16, y: u16, color: u16, _c: &ColorConfig, vic: bool) {
     wait_for_vblank();
-    TILESET.draw_tile::<PIXELS>(
+    TILESET.draw_tile(
         Point::new(
             LEFT_POS + (COIN_SIZE + 4) * x,
             UP_POS + (COIN_SIZE + 2) * (5 - y),
@@ -91,7 +89,7 @@ pub fn draw_grid(players: u8, c: &ColorConfig) {
 /// Make sure yourself that y_offset isn't going into negative values.
 pub fn draw_selection_coin(x: u16, color: u16, _c: &ColorConfig, y_offset: i16) {
     wait_for_vblank();
-    TILESET.draw_tile::<PIXELS>(
+    TILESET.draw_tile(
         Point::new(
             LEFT_POS + (COIN_SIZE + 4) * x,
             ((UP_POS - COIN_SIZE - 4) as i16 + y_offset) as u16,

@@ -21,7 +21,6 @@ use crate::{
     },
 };
 
-// This dictates the principal colors that will be used
 pub const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::from_rgb888(251, 251, 219),
     bckgrd: Color::from_rgb888(20, 20, 20),
@@ -153,6 +152,7 @@ static FALL_SPEED_DATA: [f32; 19] = [
     0.59, 0.92, 1.46, 2.36, 3.91, 6.61, 11.43, 20.0,
 ];
 
+// Yep, that is a lot of constants.
 pub const CASE_SIZE: u16 = 10;
 pub const PLAYFIELD_HEIGHT: u16 = 20;
 pub const PLAYFIELD_WIDTH: u16 = 10;
@@ -460,6 +460,7 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
     }
 }
 
+/// Removes the cleared lines and brings everything else down if needed. Draws too.
 fn bring_lines_down(clear_lines_y: &Vec<i16, 4>, grid: &mut Grid) {
     // Removes every cleared line
     for i in clear_lines_y {
@@ -481,6 +482,7 @@ fn bring_lines_down(clear_lines_y: &Vec<i16, 4>, grid: &mut Grid) {
     }
 }
 
+/// Draws the ghostly tetrimino that shows where the true one will fall.
 fn draw_ghost_tetri(tetri: &Tetrimino, grid: &Grid, clear: bool, do_it: bool) {
     if do_it && can_move(tetri, (0, 1), grid) {
         let mut ghost_tetri = tetri.clone();
@@ -585,6 +587,7 @@ fn add_lines(number: u16, level: u16, current_lines: u16, starting_level: u16) -
     (new_number, level)
 }
 
+/// Returns the rotated Tetrimino if it can rotate.
 fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> {
     let mut rotated_tetri = tetri.clone();
     if right {
@@ -592,9 +595,11 @@ fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> 
     } else {
         rotated_tetri.rotate_left();
     }
+    // using direction = (0, 0) means it checks if the position is valid
     if can_move(&rotated_tetri, (0, 0), grid) {
         Some(rotated_tetri)
     } else {
+        // if the position isn't valid, tries kicking to get a valid position
         let kicks = get_wall_kicks_data(tetri, right);
         for k in kicks {
             if can_move(&rotated_tetri, *k, grid) {

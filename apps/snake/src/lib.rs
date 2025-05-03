@@ -10,7 +10,7 @@ use numworks_utils::{
 };
 
 pub use game_snake::start;
-use snake_ui::{BCKD_GRAY, CASE_SIZE, DARK_GREEN, PIXELS, TILEMAP};
+use snake_ui::{BCKD_GRAY, CASE_SIZE, DARK_GREEN, TILEMAP};
 
 pub fn thumbnail(_: Point) {
     push_rect_uniform(
@@ -31,7 +31,7 @@ pub fn thumbnail(_: Point) {
         },
         BCKD_GRAY,
     );
-    TILEMAP.draw_tile::<PIXELS>(
+    TILEMAP.draw_tile(
         Point::new(CENTER.x - CASE_SIZE / 2, 15 + 50 - CASE_SIZE),
         Point::new(3, 0),
         2,
@@ -46,7 +46,7 @@ pub fn thumbnail(_: Point) {
         },
         DARK_GREEN,
     );
-    TILEMAP.draw_tile::<PIXELS>(
+    TILEMAP.draw_tile(
         Point::new(
             CENTER.x + CASE_SIZE * 3 + CASE_SIZE / 2,
             15 + 50 - CASE_SIZE,

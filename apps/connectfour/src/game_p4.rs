@@ -14,7 +14,6 @@ use crate::{
     ui_p4::{clear_selection_coin, draw_coin, draw_grid, draw_selection_coin, victory},
 };
 
-// This dictates the principal colors that will be used
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
     bckgrd: Color::WHITE,
@@ -76,7 +75,7 @@ pub fn start() {
             vis_addon,
             include_str!("./data/p4_controls.txt"),
             "connectfour",
-        ); // The menu does everything itself !
+        );
         if start == 0 {
             unsafe {
                 PLAYERS = opt[1].get_setting_value() as u8; // vis_addon update
@@ -91,13 +90,12 @@ pub fn start() {
                 } else {
                     COLOR_CONFIG
                 };
-                // a loop where the game is played again and again, which means it should be 100% contained after the menu
                 let action = game(
                     opt[1].get_setting_value() as u8,
                     opt[0].get_setting_value() != 0,
                     opt[3].get_setting_value() as i16,
                     &color_config,
-                ); // calling the game based on the parameters is better
+                );
                 if action == 2 {
                     // 2 means quitting
                     return;

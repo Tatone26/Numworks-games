@@ -46,8 +46,8 @@ pub fn start() {
         },
         &mut Setting {
             name: "High-score option !\0",
-            choice: 0,                              // forced
-            values: Vec::from_slice(&[0]).unwrap(), // default value
+            choice: 0,                                       // forced
+            values: Vec::from_slice(&[0, 0, 1000]).unwrap(), // default value, min, max
             texts: Vec::new(),
             fixed_values: false,    // allows using any value
             user_modifiable: false, // will not appear in "setting" page
@@ -91,13 +91,10 @@ pub fn start() {
     }
 }
 
+const IMAGE_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/image.nppm");
+
 /// Images work really well with square tiles. You can still draw other images, but it is less good.
-static TILESET: Tileset = Tileset {
-    tile_size: 55,
-    width: 55,
-    image: include_bytes_align_as!(Color, "./data/image.nppm"),
-};
-const PIXELS: usize = { 55 * 55 } as usize;
+static TILESET: Tileset = Tileset::new(55, 1, IMAGE_BYTES);
 
 /// The entire game is here.
 pub fn game(_exemple: bool, high_score: &mut u32) -> u8 {
@@ -111,7 +108,6 @@ pub fn game(_exemple: bool, high_score: &mut u32) -> u8 {
             &COLOR_CONFIG,
             false,
         );
-        measure_refresh_rate();
         draw_string_cfg(
             "Push <OK> for some magic ! <Back> to quit back to menu.\0",
             Point::new(0, 0),
@@ -125,10 +121,12 @@ pub fn game(_exemple: bool, high_score: &mut u32) -> u8 {
                 wait_for_no_keydown();
                 // fill_screen(Color::WHITE);
                 display::wait_for_vblank();
-                TILESET.tiling::<PIXELS>(Point::new(0, 0), (5, 4), Point::new(0, 0), false, 1);
-                TILESET.draw_tile::<PIXELS>(Point::new(0, 0), Point::new(0, 0), 2, false);
+                TILESET.tiling(Point::new(0, 0), (5, 4), Point::new(0, 0), false, 1);
+                TILESET.draw_tile(Point::new(0, 0), Point::new(0, 0), 2, false);
             } else if keyboard_state.key_down(key::BACK) {
                 break;
+            } else if keyboard_state.key_down(key::ONE) {
+                measure_refresh_rate();
             }
         }
     }

@@ -15,13 +15,10 @@ use crate::{
     table::{Stack, Table},
 };
 
+const IMAGE_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/image.nppm");
+
 /// Images work really well with square tiles. You can still draw other images, but it is less good.
-static TILESET: Tileset = Tileset {
-    tile_size: 35,
-    width: 35 * 5,
-    image: include_bytes_align_as!(Color, "./data/image.nppm"),
-};
-const PIXELS: usize = { 35 * 35 } as usize;
+static TILESET: Tileset = Tileset::new(35, 5, IMAGE_BYTES);
 
 pub const BACKGROUND_COLOR: Color = Color::from_rgb888(1, 115, 55);
 const CARD_HEIGHT: u16 = 56;
@@ -31,8 +28,8 @@ const HIDDEN_CARD_TILE: u16 = 4;
 /// Draws a given [Card] at a given [Point], point being in absolute pixel value
 pub fn draw_card(card: &Card, pos: Point) {
     if card.visible {
-        TILESET.draw_tile::<PIXELS>(pos, Point::new(card.suit as u16, 0), 1, false);
-        TILESET.draw_tile::<PIXELS>(
+        TILESET.draw_tile(pos, Point::new(card.suit as u16, 0), 1, false);
+        TILESET.draw_tile(
             Point::new(pos.x, pos.y + TILESET.tile_size),
             Point::new(card.suit as u16, 1),
             1,
@@ -63,8 +60,8 @@ pub fn draw_card(card: &Card, pos: Point) {
             Color::WHITE,
         );
     } else {
-        TILESET.draw_tile::<PIXELS>(pos, Point::new(HIDDEN_CARD_TILE, 0), 1, false);
-        TILESET.draw_tile::<PIXELS>(
+        TILESET.draw_tile(pos, Point::new(HIDDEN_CARD_TILE, 0), 1, false);
+        TILESET.draw_tile(
             Point::new(pos.x, pos.y + TILESET.tile_size),
             Point::new(HIDDEN_CARD_TILE, 1),
             1,
@@ -144,7 +141,7 @@ pub fn draw_selection(
                 3
             }
         };
-        TILESET.draw_tile::<PIXELS>(
+        TILESET.draw_tile(
             Point::new(pos.x, pos.y + TILESET.tile_size),
             Point::new(tile, 3),
             1,
@@ -154,7 +151,7 @@ pub fn draw_selection(
             CursorPos::Tableau(b) => {
                 let stack = &table.tableau[*b as usize];
                 for i in 0..selection_size {
-                    TILESET.draw_tile::<PIXELS>(
+                    TILESET.draw_tile(
                         Point::new(
                             pos.x,
                             pos.y
@@ -172,15 +169,15 @@ pub fn draw_selection(
                     );
                 }
             }
-            _ => TILESET.draw_tile::<PIXELS>(pos, Point::new(tile, 2), 1, true),
+            _ => TILESET.draw_tile(pos, Point::new(tile, 2), 1, true),
         }
     }
 }
 
 /// Draws an empty place, which is just an outline.
 fn draw_empty_place(pos: Point) {
-    TILESET.draw_tile::<PIXELS>(pos, Point::new(0, 2), 1, true);
-    TILESET.draw_tile::<PIXELS>(
+    TILESET.draw_tile(pos, Point::new(0, 2), 1, true);
+    TILESET.draw_tile(
         Point::new(pos.x, pos.y + TILESET.tile_size),
         Point::new(0, 3),
         1,

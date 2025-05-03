@@ -1,8 +1,6 @@
 #![no_std]
 #![no_main]
 
-use numworks_utils::eadk;
-
 mod game;
 
 #[used]

@@ -1,35 +1,21 @@
 use numworks_utils::{
     eadk::{
         display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
-        Color, Rect,
+        Rect,
     },
     numbers::{abs, ceil, floor},
     utils::randint,
 };
 
 use crate::{
-    flappy_ui::{
-        clear_moving_pipe, draw_pipe, BACKGROUND, PIXELS, TILESET_TILE_SIZE, UI_BACKGROUND,
-    },
+    flappy_ui::{clear_moving_pipe, draw_pipe, BACKGROUND, TILESET_TILE_SIZE, UI_BACKGROUND},
     game::WINDOW_SIZE,
 };
 
-/// OptiTiles contains the four transparent tiles (the edges of the pipe)
-///
-/// The central tiles are not transparent and not scaled, so no need to store them in RAM.
-pub struct OptiTiles {
-    pub left_bottom_tile: [Color; PIXELS],
-    pub right_bottom_tile: [Color; PIXELS],
-    pub left_top_tile: [Color; PIXELS],
-    pub right_top_tile: [Color; PIXELS],
-}
-
 /// A [Pipes] represent a pair of pipes, between which the bird need to pass.
 ///
-/// The speed is for now pretty bad.
-///
 /// An inactive pipe will not be drawn and is waiting for its turn to start moving
-pub struct Pipes<'a> {
+pub struct Pipes {
     pub interval: (u16, u16),
     pub x_pos: u16,
     pub active: bool,
@@ -38,27 +24,14 @@ pub struct Pipes<'a> {
     last_pos: u16,
     clear: bool,
     pub has_moved: bool,
-    pub tiles: &'a OptiTiles,
 }
 
-impl<'a> Pipes<'a> {
+impl Pipes {
     /// Last problem : with 4 pipes on the screen, it can't !
     pub fn draw_self(&self) {
         if self.active && self.has_moved {
-            draw_pipe(
-                self.x_pos,
-                self.interval,
-                &self.tiles.left_bottom_tile,
-                &self.tiles.right_bottom_tile,
-                false,
-            );
-            draw_pipe(
-                self.x_pos,
-                self.interval,
-                &self.tiles.left_top_tile,
-                &self.tiles.right_top_tile,
-                true,
-            );
+            draw_pipe(self.x_pos, self.interval, false);
+            draw_pipe(self.x_pos, self.interval, true);
             if self.x_pos >= SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - WINDOW_SIZE - 10 {
                 // 10 is probably overkilled but that doesn't change anything
                 // I tried not to put any UI drawing here, but it was necessary optimisation wise.
@@ -97,7 +70,7 @@ impl<'a> Pipes<'a> {
         }
     }
 
-    pub fn new(speed: f32, interval_size: u16, tiles: &'a OptiTiles) -> Self {
+    pub fn new(speed: f32, interval_size: u16) -> Self {
         Self {
             interval: Self::random_interval(interval_size),
             x_pos: SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - TILESET_TILE_SIZE / 2,
@@ -107,7 +80,6 @@ impl<'a> Pipes<'a> {
             has_moved: false,
             speed,
             last_pos: SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - TILESET_TILE_SIZE / 2,
-            tiles,
         }
     }
 

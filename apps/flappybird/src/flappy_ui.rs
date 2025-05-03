@@ -3,22 +3,18 @@ use numworks_utils::{
         display::{draw_string, push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
         timing, Color, Point, Rect,
     },
-    graphical::{draw_image, tiling::Tileset},
+    graphical::tiling::Tileset,
     include_bytes_align_as,
     numbers::ceil,
-    utils::{get_string_pixel_size, string_from_u16},
+    utils::{get_string_pixel_size, string_from_u16, CENTER},
 };
 
 use crate::game::WINDOW_SIZE;
 
 pub const TILESET_TILE_SIZE: u16 = 20;
-/// Images work really well with square tiles. You can still draw other images, but it is worse. I optimised everything to work with Tilesets.
-pub static TILESET: Tileset = Tileset {
-    tile_size: TILESET_TILE_SIZE,
-    width: 4 * TILESET_TILE_SIZE,
-    image: include_bytes_align_as!(Color, "./data/image.nppm"),
-};
-pub const PIXELS: usize = { 20 * 20 } as usize;
+
+const IMAGE_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/image.nppm");
+pub static TILESET: Tileset = Tileset::new(TILESET_TILE_SIZE, 4, IMAGE_BYTES);
 
 pub const BACKGROUND: Color = Color::from_rgb888(128, 212, 255);
 pub const UI_BACKGROUND: Color = Color::from_rgb888(50, 50, 50);
@@ -54,7 +50,7 @@ impl Cloud {
 
     pub fn draw_self(&self) {
         let pos_x = self.posx as u16;
-        TILESET.draw_tile::<PIXELS>(
+        TILESET.draw_tile(
             Point {
                 x: pos_x,
                 y: self.posy,
@@ -63,7 +59,7 @@ impl Cloud {
             1,
             false,
         );
-        TILESET.draw_tile::<PIXELS>(
+        TILESET.draw_tile(
             Point {
                 x: pos_x + TILESET_TILE_SIZE,
                 y: self.posy,
@@ -201,7 +197,7 @@ pub fn draw_ui(score: u16) {
 
 /// No scaling and no transparency -> fast, no need to store in RAM.
 pub fn draw_bird(pos: Point, frame: u8) {
-    TILESET.draw_tile::<PIXELS>(
+    TILESET.draw_tile(
         pos,
         Point {
             x: frame as u16 * 3,
@@ -215,18 +211,12 @@ pub fn draw_bird(pos: Point, frame: u8) {
 #[inline]
 /// Draws the dead bird. Transparency for nicer collisions !
 pub fn draw_dead_bird(pos: Point) {
-    TILESET.draw_tile::<PIXELS>(pos, Point { x: 0, y: 3 }, 1, true);
+    TILESET.draw_tile(pos, Point { x: 0, y: 3 }, 1, true);
 }
 
 #[inline]
 /// Draws the shaft of the pipe and the entrance on top.
-pub fn draw_pipe(
-    posx: u16,
-    interval: (u16, u16),
-    left_tile: &[Color; PIXELS],
-    right_tile: &[Color; PIXELS],
-    top: bool,
-) {
+pub fn draw_pipe(posx: u16, interval: (u16, u16), top: bool) {
     draw_full_pipe(posx, interval, top);
     draw_pipe_entrance(
         posx,
@@ -235,8 +225,6 @@ pub fn draw_pipe(
         } else {
             interval.1
         },
-        left_tile,
-        right_tile,
         top,
     );
 }
@@ -262,34 +250,24 @@ pub fn clear_moving_pipe(last_pos_x: u16, interval: (u16, u16), speed: u16, top:
 /// Draws the top part, with the small transparent parts and all.
 ///
 /// left_tile and right_tile are the tiles with transparency.
-pub fn draw_pipe_entrance(
-    posx: u16,
-    posy: u16,
-    left_tile: &[Color; PIXELS],
-    right_tile: &[Color; PIXELS],
-    top: bool,
-) {
+pub fn draw_pipe_entrance(posx: u16, posy: u16, top: bool) {
     if posx > WINDOW_SIZE {
         // don't need to try to draw if it is in the UI
-        draw_image(
-            left_tile,
+        TILESET.draw_tile(
             Point {
                 x: posx - TILESET_TILE_SIZE,
                 y: posy,
             },
-            (
-                TILESET_TILE_SIZE,
-                if top {
-                    TILESET_TILE_SIZE
-                } else {
-                    TILESET_TILE_SIZE / 2
-                },
-            ),
+            if top {
+                Point { x: 0, y: 1 }
+            } else {
+                Point { x: 0, y: 2 }
+            },
             1,
             true,
         );
     }
-    TILESET.draw_tile::<PIXELS>(
+    TILESET.draw_tile(
         Point { x: posx, y: posy },
         Point {
             x: 1,
@@ -298,7 +276,7 @@ pub fn draw_pipe_entrance(
         1,
         false,
     );
-    TILESET.draw_tile::<PIXELS>(
+    TILESET.draw_tile(
         Point {
             x: posx + TILESET_TILE_SIZE,
             y: posy,
@@ -312,23 +290,19 @@ pub fn draw_pipe_entrance(
     );
     if posx < SCREEN_WIDTH - WINDOW_SIZE - TILESET_TILE_SIZE * 2 {
         // Same, don't need to draw if in the UI
-        draw_image(
-            right_tile,
+        TILESET.draw_tile(
             Point {
                 x: posx + 2 * TILESET_TILE_SIZE,
                 y: posy,
             },
-            (
-                TILESET_TILE_SIZE,
-                if top {
-                    TILESET_TILE_SIZE
-                } else {
-                    TILESET_TILE_SIZE / 2
-                },
-            ),
+            if top {
+                Point { x: 3, y: 1 }
+            } else {
+                Point { x: 3, y: 2 }
+            },
             1,
             true,
-        )
+        );
     }
 }
 
@@ -338,7 +312,7 @@ pub fn draw_full_pipe(posx: u16, interval: (u16, u16), top: bool) {
     } else {
         SCREEN_HEIGHT - WINDOW_SIZE - TILESET_TILE_SIZE
     };
-    TILESET.draw_tile::<PIXELS>(
+    TILESET.draw_tile(
         Point {
             x: posx,
             y: start_pos,
@@ -347,7 +321,7 @@ pub fn draw_full_pipe(posx: u16, interval: (u16, u16), top: bool) {
         1,
         false,
     );
-    TILESET.draw_tile::<PIXELS>(
+    TILESET.draw_tile(
         Point {
             x: posx + TILESET_TILE_SIZE,
             y: start_pos,
@@ -363,8 +337,8 @@ pub fn draw_full_pipe(posx: u16, interval: (u16, u16), top: bool) {
     })
     .step_by(TILESET_TILE_SIZE as usize)
     {
-        TILESET.draw_tile::<PIXELS>(Point { x: posx, y: i }, Point { x: 1, y: 0 }, 1, false);
-        TILESET.draw_tile::<PIXELS>(
+        TILESET.draw_tile(Point { x: posx, y: i }, Point { x: 1, y: 0 }, 1, false);
+        TILESET.draw_tile(
             Point {
                 x: posx + TILESET_TILE_SIZE,
                 y: i,
@@ -379,7 +353,7 @@ pub fn draw_full_pipe(posx: u16, interval: (u16, u16), top: bool) {
 pub fn countdown(pos: Point) {
     wait_for_vblank();
     for n in (1..=3).rev() {
-        TILESET.draw_tile::<PIXELS>(pos, Point { x: n, y: 4 }, 2, true);
+        TILESET.draw_tile(pos, Point { x: n, y: 4 }, 2, true);
         timing::msleep(900);
         wait_for_vblank();
         push_rect_uniform(
@@ -406,5 +380,16 @@ pub fn draw_ground(frame_counter: u16) {
         ),
         Point { x: 0, y: 4 },
         false,
+    );
+}
+
+pub fn menu_vis_addon() {
+    draw_pipe_entrance(CENTER.x + 10, 97 + 10 - TILESET_TILE_SIZE, false);
+    draw_bird(
+        Point {
+            x: CENTER.x - 35,
+            y: 15 + TILESET_TILE_SIZE + TILESET_TILE_SIZE,
+        },
+        0,
     );
 }

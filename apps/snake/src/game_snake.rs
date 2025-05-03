@@ -27,16 +27,13 @@ pub enum Direction {
     Right,
 }
 
-/// The max y value on the grid
-/// - 1 because the grid starts at (0, 0)
-pub static mut MAX_HEIGHT: u16 = SCREEN_HEIGHT / CASE_SIZE - 1;
-/// THe max x value on the grid
-pub static mut MAX_WIDTH: u16 = SCREEN_WIDTH / CASE_SIZE - 1;
-/// The offset of the grid
+/// The offset of the grid. Using static because don't have the courage to do an other way...
 pub static mut GRID_OFFSET: (u16, u16) = (CASE_SIZE / 2, CASE_SIZE / 2);
-/// No array in this program can exceed this size ; it can be used to set the size.
+
+/// Max array size : width * height (the grid)
 pub const MAX_ARRAY_SIZE: usize =
     ((SCREEN_HEIGHT / CASE_SIZE - 1) * SCREEN_WIDTH / CASE_SIZE - 1) as usize;
+
 /// The [ColorConfig] to use for most of the text in menus etc
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
@@ -106,24 +103,15 @@ pub fn start() {
             "snake",
         );
         if start == 0 {
-            match opt[1].get_setting_value() {
-                1 => unsafe {
-                    MAX_HEIGHT = 11;
-                    MAX_WIDTH = 16;
-                },
-                2 => unsafe {
-                    MAX_HEIGHT = 15;
-                    MAX_WIDTH = 24;
-                },
-                _ => unsafe {
-                    MAX_HEIGHT = SCREEN_HEIGHT / CASE_SIZE - 1;
-                    MAX_WIDTH = SCREEN_WIDTH / CASE_SIZE - 1;
-                },
-            }
+            let (height, width) = match opt[1].get_setting_value() {
+                1 => (11, 16),
+                2 => (15, 24),
+                _ => (SCREEN_HEIGHT / CASE_SIZE - 1, SCREEN_WIDTH / CASE_SIZE - 1),
+            };
             unsafe {
                 GRID_OFFSET = (
-                    CENTER.x - (MAX_WIDTH * CASE_SIZE) / 2,
-                    CENTER.y - (MAX_HEIGHT * CASE_SIZE) / 2,
+                    CENTER.x - (width * CASE_SIZE) / 2,
+                    CENTER.y - (height * CASE_SIZE) / 2,
                 )
             }
             loop {
@@ -133,6 +121,8 @@ pub fn start() {
                     opt[2].get_setting_value() != 0,
                     opt[3].get_setting_value() != 0,
                     opt[4].get_setting_value() != 0,
+                    height,
+                    width,
                     &mut high_score,
                 );
                 // high_score saving
@@ -157,9 +147,13 @@ pub fn game(
     has_walls: bool,
     wrapping: bool,
     original: bool,
+    height: u16,
+    width: u16,
     high_score: &mut u32,
 ) -> u8 {
-    //This mutable variables are the heart of everything. Really.
+    let random_point = || get_random_point(width, height);
+    // This mutable variables are the heart of everything. Really.
+    // Not the prettiest way, but works well enough for a simple game.
     let mut snake: Deque<Point, MAX_ARRAY_SIZE> = Deque::new();
     unsafe {
         snake.push_front_unchecked(Point::new(1, 1));
@@ -169,15 +163,15 @@ pub fn game(
     let mut last_move: u64 = timing::millis();
     let mut direction: Direction = Direction::Right;
     let mut last_direction: Direction = direction;
-    let mut fruit_pos: Point = get_random_point();
+    let mut fruit_pos: Point = random_point();
     while is_in_snake(&fruit_pos, &snake) {
-        fruit_pos = get_random_point();
+        fruit_pos = random_point();
     }
     let mut walls: Vec<Point, MAX_ARRAY_SIZE> = Vec::new();
     let mut score: u16 = 0;
 
     display::wait_for_vblank();
-    draw_terrain(wrapping);
+    draw_terrain(wrapping, width, height);
     draw_snake(&snake, direction, original);
     draw_fruit(fruit_pos.x, fruit_pos.y, original);
     display::wait_for_vblank();
@@ -198,7 +192,7 @@ pub fn game(
             let action = snake_pause(score, false, high_score);
             if action == 0 {
                 display::wait_for_vblank();
-                draw_terrain(wrapping);
+                draw_terrain(wrapping, width, height);
                 draw_snake(&snake, direction, original);
                 draw_fruit(fruit_pos.x, fruit_pos.y, original);
                 for i in &walls {
@@ -218,7 +212,15 @@ pub fn game(
             unsafe {
                 // Dangerous place ! Have to be really cautious about what I'm doing to this array !
                 front_point = *snake.front().unwrap();
-                match get_point_from_dir(&front_point, &direction, &snake, &walls, wrapping) {
+                match get_point_from_dir(
+                    &front_point,
+                    &direction,
+                    &snake,
+                    &walls,
+                    wrapping,
+                    height,
+                    width,
+                ) {
                     // renvoie None si le nouveau point n'existe pas, est un mur ou une partie du snake (derniere partie exclue)
                     x @ Some(_) => {
                         new_point = x.unwrap();
@@ -232,30 +234,30 @@ pub fn game(
                 // if we ate the fruit
                 score += 1;
                 let next_direct_pos: Point = // Evite que les murs ou les fruits apparaissent directement devant le joueur
-                match get_point_from_dir(&new_point, &direction, &snake, &walls, wrapping) {
+                match get_point_from_dir(&new_point, &direction, &snake, &walls, wrapping, height, width) {
                     x @ Some(_) =>  x.unwrap(),
-                    None => unsafe {  Point::new(MAX_WIDTH, MAX_HEIGHT) },
+                    None =>  Point::new(width, height),
                 };
                 if has_walls && ((score % 2) == 0) {
                     // add walls
-                    let mut new_wall = get_random_point();
+                    let mut new_wall = random_point();
                     while is_in_walls(&new_wall, &walls)
                         || is_in_snake(&new_wall, &snake)
                         || ((new_wall.x == next_direct_pos.x) && (new_wall.y == next_direct_pos.y))
                     {
-                        new_wall = get_random_point();
+                        new_wall = random_point();
                     }
                     unsafe {
                         walls.push_unchecked(new_wall);
                     }
                     draw_wall(new_wall.x, new_wall.y, original);
                 }
-                fruit_pos = get_random_point();
+                fruit_pos = random_point();
                 while is_in_snake(&fruit_pos, &snake)
                     || is_in_walls(&fruit_pos, &walls)
                     || ((fruit_pos.x == next_direct_pos.x) && (fruit_pos.y == next_direct_pos.y))
                 {
-                    fruit_pos = get_random_point();
+                    fruit_pos = random_point();
                 }
                 draw_fruit(fruit_pos.x, fruit_pos.y, original);
             } else {
@@ -351,9 +353,9 @@ fn snake_pause(points: u16, death: bool, high_score: &u32) -> u8 {
     action
 }
 
+/// Just checks if the new direction isn't the opposite of the last one (as the snake can't go back on itself)
 fn check_direction(direction: Direction, last_direction: Direction) -> Direction {
     match direction {
-        // need to check if the direction is not the opposite of the actual direction.
         Direction::Up => {
             if last_direction == Direction::Down {
                 return last_direction;
@@ -399,12 +401,10 @@ fn is_in_walls(p: &Point, walls: &Vec<Point, MAX_ARRAY_SIZE>) -> bool {
 }
 
 /// Give a random Point, corresponding to a position on the game grid
-fn get_random_point() -> Point {
-    unsafe {
-        let x = randint(0, (MAX_WIDTH - 1) as u32) as u16;
-        let y = randint(0, (MAX_HEIGHT - 1) as u32) as u16;
-        Point::new(x, y)
-    }
+fn get_random_point(width: u16, height: u16) -> Point {
+    let x = randint(0, (width - 1) as u32) as u16;
+    let y = randint(0, (height - 1) as u32) as u16;
+    Point::new(x, y)
 }
 
 /// Return a Point from a Point and a Direction, None if the Point is non-valid
@@ -414,6 +414,8 @@ fn get_point_from_dir(
     snake: &Deque<Point, MAX_ARRAY_SIZE>,
     walls: &Vec<Point, MAX_ARRAY_SIZE>,
     wrapping: bool,
+    height: u16,
+    width: u16,
 ) -> Option<Point> {
     let mut new_point = Point::new(p.x, p.y);
     match d {
@@ -422,38 +424,38 @@ fn get_point_from_dir(
             if new_point.y >= 1 {
                 new_point.y -= 1
             } else if wrapping {
-                unsafe { new_point.y = MAX_HEIGHT - 1 }
+                new_point.y = height - 1
             } else {
                 return None;
             }
         }
-        Direction::Down => unsafe {
-            if new_point.y < MAX_HEIGHT - 1 {
+        Direction::Down => {
+            if new_point.y < height - 1 {
                 new_point.y += 1
             } else if wrapping {
                 new_point.y = 0
             } else {
                 return None;
             }
-        },
+        }
         Direction::Left => {
             if new_point.x >= 1 {
                 new_point.x -= 1
             } else if wrapping {
-                unsafe { new_point.x = MAX_WIDTH - 1 }
+                new_point.x = width - 1
             } else {
                 return None;
             }
         }
-        Direction::Right => unsafe {
-            if new_point.x < MAX_WIDTH - 1 {
+        Direction::Right => {
+            if new_point.x < width - 1 {
                 new_point.x += 1
             } else if wrapping {
                 new_point.x = 0
             } else {
                 return None;
             }
-        },
+        }
     }
     if is_in_walls(&new_point, walls) {
         return None;

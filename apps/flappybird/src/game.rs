@@ -18,28 +18,18 @@ use numworks_utils::{
 use crate::{
     bird::Player,
     flappy_ui::{
-        countdown, draw_bird, draw_constant_ui, draw_dead_bird, draw_ground, draw_ui, Cloud,
-        BACKGROUND, PIXELS, TILESET, TILESET_TILE_SIZE, UI_BACKGROUND,
+        countdown, draw_constant_ui, draw_dead_bird, draw_ground, draw_ui, menu_vis_addon, Cloud,
+        BACKGROUND, TILESET_TILE_SIZE, UI_BACKGROUND,
     },
-    pipes::{OptiTiles, Pipes},
+    pipes::Pipes,
 };
 
-// This dictates the principal colors that will be used for menu etc
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
     bckgrd: BACKGROUND,
     alt: Color::from_rgb888(255, 140, 65),
 };
 
-fn vis_addon() {
-    draw_bird(
-        Point {
-            x: SCREEN_WIDTH / 2 - TILESET_TILE_SIZE / 2,
-            y: 70,
-        },
-        0,
-    );
-}
 /// Menu, Options and Game start
 pub fn start() {
     let mut opt: [&mut Setting; 7] = [
@@ -102,7 +92,7 @@ pub fn start() {
         &mut Setting {
             name: "High Score\0",
             choice: 0,
-            values: Vec::from_slice(&[0, 0, u32::MAX]).unwrap(),
+            values: Vec::from_slice(&[0, 0, u16::MAX as u32]).unwrap(),
             texts: Vec::new(),
             user_modifiable: false,
             fixed_values: false,
@@ -114,7 +104,7 @@ pub fn start() {
             "FLAPPY BIRD\0",
             &mut opt,
             &COLOR_CONFIG,
-            vis_addon,
+            menu_vis_addon,
             include_str!("./data/model_controls.txt"),
             "flappybird",
         );
@@ -151,9 +141,9 @@ pub fn start() {
 /// number of pixels of the window border.
 pub const WINDOW_SIZE: u16 = 20;
 
+/// max number of pipes on screen (before the calculator cannot follow)
 const MAX_PIPES_ON_SCREEN: usize = 4;
 
-/// The entire game is here.
 pub fn game(
     starting_speed: f32,
     density: u16,
@@ -171,18 +161,9 @@ pub fn game(
         0.20,
     );
 
-    // Optimisation : storing the transparent images in RAM. Those are loaded anyway, so may has well do it only once.
-    // The other tiles don't have to be loaded in RAM to be drawn by a single call.
-    let tiles = OptiTiles {
-        left_bottom_tile: TILESET.get_tile::<PIXELS>(Point { x: 0, y: 2 }),
-        right_bottom_tile: TILESET.get_tile::<PIXELS>(Point { x: 3, y: 2 }),
-        left_top_tile: TILESET.get_tile::<PIXELS>(Point { x: 0, y: 1 }),
-        right_top_tile: TILESET.get_tile::<PIXELS>(Point { x: 3, y: 1 }),
-    };
-
     let mut pipes_list: Vec<Pipes, MAX_PIPES_ON_SCREEN> = Vec::new();
     for _ in 0..MAX_PIPES_ON_SCREEN {
-        let _ = pipes_list.push(Pipes::new(starting_speed, 75, &tiles));
+        let _ = pipes_list.push(Pipes::new(starting_speed, 75));
     }
     pipes_list[0].active = true;
     pipes_list[0].has_moved = true;
@@ -206,6 +187,7 @@ pub fn game(
     let mut can_increase_speed: bool = true; // if true, can check for speed increase (true as soon as a point is won)
 
     let mut frame_counter: u16 = 0;
+    let mut ground_position: f32 = 0.0;
     let mut start: bool = false;
 
     let mut previous_pipe_active: bool = true; // used to know if a given pipe can start
@@ -220,7 +202,7 @@ pub fn game(
     });
 
     'gameloop: loop {
-        // By optimising the s*** out of my graphical methods, I was able to draw all 3 double pipes, the cloud, the floor and the bird every SINGLE frame !!
+        // By optimising the s*** out of my graphical methods, I was able to draw all 4 double pipes, the cloud, the floor and the bird every SINGLE frame !!
         // I compute everything during the frame time, and I draw eveything during the vblank time (which is short so it's difficult)
         // Need to make sure the game logic is fast enough and that I draw NOTHING unnecessary !!
         let scan = keyboard::scan();
@@ -239,7 +221,7 @@ pub fn game(
                 }
                 bird.draw_self();
 
-                draw_ground(frame_counter);
+                draw_ground(ground_position as u16);
 
                 draw_constant_ui(*high_score as u16);
                 draw_ui(score);
@@ -291,6 +273,8 @@ pub fn game(
             }
         }
 
+        ground_position += pipes_list[0].speed;
+
         // speed increase
         if can_increase_speed && score != 0 && score % speed_increase == 0 {
             for i in 0..MAX_PIPES_ON_SCREEN {
@@ -324,7 +308,7 @@ pub fn game(
             }
         }
 
-        draw_ground(frame_counter); // this too
+        draw_ground(ground_position as u16); // this too
 
         draw_ui(score); // just at the limit of the frame vblank time...
         {

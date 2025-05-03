@@ -4,7 +4,7 @@ use numworks_utils::{
         display::{push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
         Color, Point, Rect,
     },
-    graphical::{draw_image, draw_string_cfg, tiling::Tileset},
+    graphical::{draw_string_cfg, tiling::Tileset},
     include_bytes_align_as,
     utils::{string_from_u32, CENTER, LARGE_CHAR_HEIGHT},
 };
@@ -17,11 +17,9 @@ use crate::{
     tetriminos::Tetrimino,
 };
 
-static TILESET: Tileset = Tileset {
-    width: CASE_SIZE * 10,
-    image: include_bytes_align_as!(Color, "./data/image.nppm"),
-    tile_size: CASE_SIZE,
-};
+const IMAGE_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/image.nppm");
+
+static TILESET: Tileset = Tileset::new(CASE_SIZE, 10, IMAGE_BYTES);
 
 /// Draws a box of the given size, at the given pos on the grid, with a given title (first-line text), following the ui style
 fn draw_ui_base(title: &'static str, pos: Point, w: u16, h: u16) {
@@ -78,7 +76,7 @@ pub fn draw_stable_ui(level: u16, level_lines: u16, score: u32, high_score: u32)
         },
         BACKGROUND_DARK_GRAY,
     );
-    TILESET.tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
+    TILESET.tiling(
         Point::new(start_x, start_y),
         (PLAYFIELD_WIDTH, PLAYFIELD_HEIGHT),
         Point::new(7, 0),
@@ -185,22 +183,12 @@ pub fn draw_lines_number(line: u16) {
 
 /// Draws a given tetrimino.
 pub fn draw_tetrimino(tetri: &Tetrimino, clear: bool) {
-    let image: [Color; (CASE_SIZE * CASE_SIZE) as usize] = TILESET.get_tile(if clear {
-        Point::new(7, 0)
-    } else {
-        Point::new(tetri.color as u16, 0)
-    });
     for pos in tetri.get_blocks_grid_pos() {
         if (pos.x >= 0) & (pos.y >= 0) {
-            draw_image(
-                &image,
-                Point::new(
-                    CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE + (pos.x as u16) * CASE_SIZE,
-                    CASE_SIZE * 2 + (pos.y as u16) * CASE_SIZE,
-                ),
-                (CASE_SIZE, CASE_SIZE),
-                1,
-                false,
+            draw_block_image(
+                CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE + (pos.x as u16) * CASE_SIZE,
+                CASE_SIZE * 2 + (pos.y as u16) * CASE_SIZE,
+                if clear { 7 } else { tetri.color as u16 },
             );
         }
     }
@@ -246,7 +234,7 @@ pub fn draw_held_tetrimino(tetri: &Tetrimino) {
 
 pub fn draw_blank_line(y: u16) {
     let start_x = CENTER.x - (PLAYFIELD_WIDTH / 2) * CASE_SIZE;
-    TILESET.tiling::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
+    TILESET.tiling(
         Point::new(start_x, y * CASE_SIZE + 2 * CASE_SIZE),
         (PLAYFIELD_WIDTH, 1),
         Point::new(7, 0),
@@ -256,12 +244,7 @@ pub fn draw_blank_line(y: u16) {
 }
 
 fn draw_block_image(abs_x: u16, abs_y: u16, x_map: u16) {
-    TILESET.draw_tile::<{ (CASE_SIZE * CASE_SIZE) as usize }>(
-        Point::new(abs_x, abs_y),
-        Point::new(x_map, 0),
-        1,
-        false,
-    );
+    TILESET.draw_tile(Point::new(abs_x, abs_y), Point::new(x_map, 0), 1, false);
 }
 
 pub fn draw_block(x: u16, y: u16, color: u16) {
