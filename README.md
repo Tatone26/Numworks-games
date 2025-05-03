@@ -69,5 +69,4 @@ As I'm not an expert at all, I won't talk about the *truly* technical stuff. You
 
 ### TODOS
 
-- [ ] "Admin" editor to manually set highscore after a reset (which means creating a number input widget D: )
 - [ ] NEW GAMES
