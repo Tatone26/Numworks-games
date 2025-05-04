@@ -1,20 +1,17 @@
-use core::panic::PanicInfo;
-
 use heapless::Vec;
 use numworks_utils::{
     eadk::{
         display::{push_rect_uniform, wait_for_vblank, SCREEN_WIDTH},
         key, keyboard, Color, Point, Rect,
     },
-    graphical::{tiling::Tileset, ColorConfig},
-    include_bytes_align_as,
+    graphical::ColorConfig,
     menu::{
         settings::{write_values_to_file, Setting},
         start_menu,
     },
 };
 
-use crate::pac_ui::draw_maze;
+use crate::pac_ui::{clear_player, draw_maze, draw_player};
 
 // This dictates the principal colors that will be used
 const COLOR_CONFIG: ColorConfig = ColorConfig {
@@ -95,18 +92,8 @@ const GRID_HEIGHT: u16 = 30;
 const ARRAY_SIZE: usize = (GRID_WIDTH * GRID_HEIGHT) as usize;
 pub const X_GRID_OFFSET: u16 = (SCREEN_WIDTH - GRID_WIDTH * TILE_SIZE) / 2;
 
-const CELL_SIZE: u16 = 16;
-const GAME_GRID_WIDTH: u16 = GRID_WIDTH / 2;
-const GAME_GRID_HEIGHT: u16 = GRID_HEIGHT / 2;
-
-const WALL_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/walls.nppm");
-const SPRITES_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/sprites.nppm");
 // Sadly, had to remove a line as the screen was 8 pixels too short...
 const MAZE_BYTES: &str = include_str!("./data/maze.txt");
-
-/// I'm using two Tileset because one is using 8 pixels wide tiles and the second 16 pixels wide.
-pub static TILESET_WALLS: Tileset = Tileset::new(TILE_SIZE, 16, WALL_IMAGES_BYTES);
-pub static TILESET_SPRITES: Tileset = Tileset::new(CELL_SIZE, 8, SPRITES_IMAGES_BYTES);
 
 #[derive(Clone, Copy)]
 enum Space {
@@ -117,12 +104,32 @@ enum Space {
     Fruit,
 }
 
-#[derive(Clone, Copy)]
-enum Direction {
+#[derive(Clone, Copy, PartialEq)]
+pub enum Direction {
     Up,
     Down,
     Right,
     Left,
+}
+
+impl Direction {
+    pub const fn opposite(&self) -> Direction {
+        match self {
+            Direction::Up => Direction::Down,
+            Direction::Down => Direction::Up,
+            Direction::Right => Direction::Left,
+            Direction::Left => Direction::Right,
+        }
+    }
+
+    pub const fn to_vector(self) -> (i16, i16) {
+        match self {
+            Direction::Up => (0, -1),
+            Direction::Down => (0, 1),
+            Direction::Right => (1, 0),
+            Direction::Left => (-1, 0),
+        }
+    }
 }
 
 struct Grid {
@@ -153,7 +160,91 @@ impl Grid {
                 }
             }
         }
-        return grid;
+        grid
+    }
+}
+
+const STEPS_PER_CELL: u8 = 8;
+struct Player {
+    grid_position: Point,
+    destination: Point,
+    steps: u8,
+    direction: Direction,
+    speed: u8,
+}
+
+impl Player {
+    pub fn new() -> Self {
+        Self {
+            grid_position: Point { x: 1, y: 1 },
+            destination: Point { x: 2, y: 1 },
+            steps: 0,
+            speed: 1,
+            direction: Direction::Right,
+        }
+    }
+
+    pub fn move_player(&mut self, grid: &Grid) {
+        if self.grid_position.x == self.destination.x && self.grid_position.y == self.destination.y
+        {
+            return;
+        }
+        self.steps += self.speed;
+        if self.steps >= STEPS_PER_CELL {
+            // if arrived to next node
+            self.grid_position = self.destination;
+            // looking for new destination
+            let next_pos = Point {
+                x: (self.grid_position.x as i16 + self.direction.to_vector().0) as u16,
+                y: (self.grid_position.y as i16 + self.direction.to_vector().1) as u16,
+            };
+            // if can continue, then continue else stop
+            (self.destination, self.steps) = match grid
+                .grid
+                .get((next_pos.x + next_pos.y * GRID_WIDTH) as usize)
+            {
+                Some(Space::Wall) => (self.grid_position, 0),
+                Some(_) => (next_pos, self.steps % STEPS_PER_CELL),
+                _ => (self.grid_position, 0),
+            };
+        }
+    }
+
+    pub fn read_input(&mut self, grid: &Grid) {
+        let scan = keyboard::scan();
+        let new_dir = if scan.key_down(key::UP)
+            && can_go_to(self.grid_position, &Direction::Up, grid)
+        {
+            Direction::Up
+        } else if scan.key_down(key::DOWN) && can_go_to(self.grid_position, &Direction::Down, grid)
+        {
+            Direction::Down
+        } else if scan.key_down(key::RIGHT)
+            && can_go_to(self.grid_position, &Direction::Right, grid)
+        {
+            Direction::Right
+        } else if scan.key_down(key::LEFT) && can_go_to(self.grid_position, &Direction::Left, grid)
+        {
+            Direction::Left
+        } else {
+            self.direction
+        };
+        if new_dir.opposite() == self.direction {
+            self.direction = new_dir;
+            self.grid_position = self.destination;
+            self.destination = Point {
+                x: (self.grid_position.x as i16 + self.direction.to_vector().0) as u16,
+                y: (self.grid_position.y as i16 + self.direction.to_vector().1) as u16,
+            };
+            self.steps = u8::abs_diff(STEPS_PER_CELL, self.steps);
+        } else if new_dir != self.direction {
+            self.steps = 0;
+            self.direction = new_dir;
+            self.destination = Point {
+                x: (self.grid_position.x as i16 + self.direction.to_vector().0) as u16,
+                y: (self.grid_position.y as i16 + self.direction.to_vector().1) as u16,
+            };
+        }
     }
 }
 
@@ -161,86 +252,29 @@ impl Grid {
 pub fn game(_exemple: bool, _high_score: &mut u32) -> u8 {
     let mut grid = Grid::new(MAZE_BYTES);
     draw_maze(MAZE_BYTES);
-    let mut direction = Direction::Right;
-    let mut pac_position = Point {
-        x: TILE_SIZE / 2 + TILE_SIZE * 1,
-        y: TILE_SIZE / 2 + TILE_SIZE * 1,
-    };
+    let mut pac = Player::new();
     loop {
         let scan = keyboard::scan();
         if scan.key_down(key::OK) {
             break;
         }
-        direction = read_input(&direction);
-        let next = next_pos(&pac_position, &direction, &grid);
-        move_to(pac_position, next);
-        pac_position = next;
+        wait_for_vblank();
+        clear_player(pac.grid_position, pac.steps, &pac.direction);
+        pac.read_input(&grid);
+        pac.move_player(&grid);
+        draw_player(pac.grid_position, pac.steps, &pac.direction);
     }
     1
 }
 
-const fn direction_coordinates(dir: &Direction) -> (i16, i16) {
-    match dir {
-        Direction::Up => (0, -1),
-        Direction::Down => (0, 1),
-        Direction::Right => (1, 0),
-        Direction::Left => (-1, 0),
-    }
-}
-
-// TODO : changement de direction seulement à la bonne position.
-fn read_input(current_dir: &Direction) -> Direction {
-    let scan = keyboard::scan();
-    if scan.key_down(key::UP) && !scan.key_down(key::DOWN) {
-        return Direction::Up;
-    } else if scan.key_down(key::DOWN) && !scan.key_down(key::UP) {
-        return Direction::Down;
-    } else if scan.key_down(key::RIGHT) && !scan.key_down(key::LEFT) {
-        return Direction::Right;
-    } else if scan.key_down(key::LEFT) && !scan.key_down(key::RIGHT) {
-        return Direction::Left;
-    }
-
-    *current_dir
-}
-
-fn get_grid_value_from_abs_pos(pos: &Point, grid: &Grid, direction: (i16, i16)) -> Space {
-    let x = (pos.x as i16 + (TILE_SIZE / 2) as i16 * direction.0) as u16 / TILE_SIZE;
-    let y = (pos.y as i16 + (TILE_SIZE / 2) as i16 * direction.1) as u16 / TILE_SIZE;
-    return *grid.grid.get((x + y * GRID_WIDTH) as usize).unwrap();
-}
-
-fn next_pos(current_pos: &Point, current_dir: &Direction, grid: &Grid) -> Point {
-    let dir = direction_coordinates(current_dir);
-    let next_pos = Point {
-        x: (current_pos.x as i16 + dir.0) as u16,
-        y: (current_pos.y as i16 + dir.1) as u16,
+fn can_go_to(from: Point, dir: &Direction, grid: &Grid) -> bool {
+    let next = Point {
+        x: (from.x as i16 + dir.to_vector().0) as u16,
+        y: (from.y as i16 + dir.to_vector().1) as u16,
     };
-    match get_grid_value_from_abs_pos(&next_pos, grid, direction_coordinates(current_dir)) {
-        Space::Wall => *current_pos,
-        _ => next_pos,
+    match grid.grid.get((next.x + next.y * GRID_WIDTH) as usize) {
+        Some(Space::Wall) => false,
+        Some(_) => true,
+        None => false,
     }
-}
-
-fn move_to(pos: Point, next_pos: Point) -> Point {
-    wait_for_vblank();
-    push_rect_uniform(
-        Rect {
-            x: pos.x + X_GRID_OFFSET - TILE_SIZE / 2 - 1,
-            y: pos.y - TILE_SIZE / 2 - 1,
-            width: 13,
-            height: 14,
-        },
-        Color::BLACK,
-    );
-    TILESET_SPRITES.draw_tile(
-        Point {
-            x: next_pos.x + X_GRID_OFFSET - TILE_SIZE / 2 - 1,
-            y: next_pos.y - TILE_SIZE / 2 - 1,
-        },
-        Point { x: 0, y: 0 },
-        1,
-        true,
-    );
-    next_pos
 }
