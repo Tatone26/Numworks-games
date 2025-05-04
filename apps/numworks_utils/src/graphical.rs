@@ -13,7 +13,9 @@ pub struct ColorConfig {
 use crate::{
     eadk::{
         backlight::{brightness, set_brightness},
-        display::{self, draw_string, push_rect, push_rect_uniform, SCREEN_HEIGHT},
+        display::{
+            self, draw_string, push_rect, push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT,
+        },
         timing, Color, Point, Rect,
     },
     utils::get_centered_text_x_coordo,
@@ -41,8 +43,8 @@ pub fn fading(dur: u32) {
         timing::msleep(dur / start_brightness as u32);
         set_brightness(bs);
     }
+    wait_for_vblank();
     fill_screen(Color::BLACK);
-    display::wait_for_vblank();
     set_brightness(start_brightness);
 }
 
@@ -85,7 +87,7 @@ pub const TRANSPARENCY_COLOR: Color = Color::from_rgb888(231, 0, 255);
 /// Can be scaled and can take care of transparency, but no scaling and no transparency is incomparably faster. Use carefully.
 /// Using transparency on an image that doesn't have any will still use only one draw call, but use quite a bit more overhead.
 ///
-/// Scaling is very slow, please consider using full size images if speed is needed !
+/// Scaling is very VERY slow, don't use it for anything reactive.
 pub fn draw_image(image: &[Color], pos: Point, size: (u16, u16), scaling: u16, transparency: bool) {
     if scaling > 1 {
         // As I almost never use scaling > 1, this is not optimised at all and I don't care for now.
@@ -187,7 +189,7 @@ pub fn draw_image(image: &[Color], pos: Point, size: (u16, u16), scaling: u16, t
             }
         }
     } else {
-        // fastest option
+        // fastest option -> nothing to do but a syscall
         push_rect(
             Rect {
                 x: pos.x,

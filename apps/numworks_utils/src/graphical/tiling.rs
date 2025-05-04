@@ -7,7 +7,7 @@ use crate::{
 
 /// Transforms a &[u8] to &[Color]
 /// Good luck with it
-pub const fn as_color_slice(bytes: &'static [u8]) -> &'static [Color] {
+const fn as_color_slice(bytes: &'static [u8]) -> &'static [Color] {
     unsafe {
         slice::from_raw_parts(
             bytes.as_ptr() as *const Color,
@@ -40,7 +40,7 @@ impl Tileset {
     }
 
     /// Returns the slice associated with the data of the image.
-    /// Because I don't care, the size associated with totally wrong. Use Tileset.tile_size instead.
+    /// Because I don't care, the size associated with it is totally wrong. Use Tileset.tile_size instead.
     pub fn get_tile(
         &self,
         pos_in_tileset: Point, // as tiles
@@ -51,6 +51,7 @@ impl Tileset {
         &self.image[offset..]
     }
 
+    #[inline(always)]
     /// Draws the given tile.
     /// Just a helper function, the logic being in draw_image anyway.
     pub fn draw_tile(&self, pos: Point, tile: Point, scaling: u16, transparency: bool) {
