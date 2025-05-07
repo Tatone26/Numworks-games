@@ -87,8 +87,8 @@ pub fn start() {
 }
 
 pub const TILE_SIZE: u16 = 8;
-const GRID_WIDTH: u16 = 28;
-const GRID_HEIGHT: u16 = 30;
+pub const GRID_WIDTH: u16 = 28;
+pub const GRID_HEIGHT: u16 = 30;
 const ARRAY_SIZE: usize = (GRID_WIDTH * GRID_HEIGHT) as usize;
 pub const X_GRID_OFFSET: u16 = (SCREEN_WIDTH - GRID_WIDTH * TILE_SIZE) / 2;
 
@@ -96,7 +96,7 @@ pub const X_GRID_OFFSET: u16 = (SCREEN_WIDTH - GRID_WIDTH * TILE_SIZE) / 2;
 const MAZE_BYTES: &str = include_str!("./data/maze.txt");
 
 #[derive(Clone, Copy)]
-enum Space {
+pub enum Space {
     Wall,
     Empty,
     Point,
@@ -132,39 +132,31 @@ impl Direction {
     }
 }
 
-struct Grid {
-    grid: [Space; ARRAY_SIZE],
-}
+pub type Grid = [Space; ARRAY_SIZE];
 
-impl Grid {
-    pub fn new(maze_file: &str) -> Grid {
-        Grid {
-            grid: Grid::read_file(maze_file),
-        }
-    }
-
-    fn read_file(maze_file: &str) -> [Space; ARRAY_SIZE] {
-        let mut grid: [Space; ARRAY_SIZE] = [Space::Empty; ARRAY_SIZE];
-        for (line, s) in maze_file
-            .lines()
-            .filter(|s| !s.is_empty())
-            .enumerate()
-            .take(GRID_HEIGHT as usize)
-        {
-            for (i, c) in s.chars().enumerate().take(GRID_WIDTH as usize) {
-                match c {
-                    '.' => grid[line * GRID_WIDTH as usize + i] = Space::Point,
-                    '°' => grid[line * GRID_WIDTH as usize + i] = Space::Superball,
-                    ' ' => grid[line * GRID_WIDTH as usize + i] = Space::Empty,
-                    _ => grid[line * GRID_WIDTH as usize + i] = Space::Wall,
-                }
+fn read_file(maze_file: &str) -> [Space; ARRAY_SIZE] {
+    let mut grid: [Space; ARRAY_SIZE] = [Space::Empty; ARRAY_SIZE];
+    for (line, s) in maze_file
+        .lines()
+        .filter(|s| !s.is_empty())
+        .enumerate()
+        .take(GRID_HEIGHT as usize)
+    {
+        for (i, c) in s.chars().enumerate().take(GRID_WIDTH as usize) {
+            match c {
+                '.' => grid[line * GRID_WIDTH as usize + i] = Space::Point,
+                '°' => grid[line * GRID_WIDTH as usize + i] = Space::Superball,
+                ' ' => grid[line * GRID_WIDTH as usize + i] = Space::Empty,
+                _ => grid[line * GRID_WIDTH as usize + i] = Space::Wall,
             }
         }
-        grid
     }
+    grid
 }
 
 const STEPS_PER_CELL: u8 = 8;
+
+#[derive(Clone, Copy)]
 struct Player {
     grid_position: Point,
     destination: Point,
@@ -184,12 +176,17 @@ impl Player {
         }
     }
 
-    pub fn move_player(&mut self, grid: &Grid) {
+    pub fn move_player(&mut self, grid: &mut Grid) {
         if self.grid_position.x == self.destination.x && self.grid_position.y == self.destination.y
         {
             return;
         }
         self.steps += self.speed;
+        if self.steps >= STEPS_PER_CELL / 4 {
+            // eating
+            // TODO : right now eating but not removing it from screen
+            grid[(self.destination.x + self.destination.y * GRID_WIDTH) as usize] = Space::Empty;
+        }
         if self.steps >= STEPS_PER_CELL {
             // if arrived to next node
             self.grid_position = self.destination;
@@ -199,14 +196,12 @@ impl Player {
                 y: (self.grid_position.y as i16 + self.direction.to_vector().1) as u16,
             };
             // if can continue, then continue else stop
-            (self.destination, self.steps) = match grid
-                .grid
-                .get((next_pos.x + next_pos.y * GRID_WIDTH) as usize)
-            {
-                Some(Space::Wall) => (self.grid_position, 0),
-                Some(_) => (next_pos, self.steps % STEPS_PER_CELL),
-                _ => (self.grid_position, 0),
-            };
+            (self.destination, self.steps) =
+                match grid.get((next_pos.x + next_pos.y * GRID_WIDTH) as usize) {
+                    Some(Space::Wall) => (self.grid_position, 0),
+                    Some(_) => (next_pos, self.steps % STEPS_PER_CELL),
+                    _ => (self.grid_position, 0),
+                };
         }
     }
 
@@ -230,13 +225,19 @@ impl Player {
             self.direction
         };
         if new_dir.opposite() == self.direction {
+            let stopped = self.grid_position.x == self.destination.x
+                && self.grid_position.y == self.destination.y;
             self.direction = new_dir;
             self.grid_position = self.destination;
             self.destination = Point {
                 x: (self.grid_position.x as i16 + self.direction.to_vector().0) as u16,
                 y: (self.grid_position.y as i16 + self.direction.to_vector().1) as u16,
             };
-            self.steps = u8::abs_diff(STEPS_PER_CELL, self.steps);
+            if !stopped {
+                self.steps = u8::abs_diff(STEPS_PER_CELL, self.steps);
+            } else {
+                self.steps = 0;
+            }
         } else if new_dir != self.direction {
             self.steps = 0;
             self.direction = new_dir;
@@ -250,19 +251,23 @@ impl Player {
 
 /// The entire game is here.
 pub fn game(_exemple: bool, _high_score: &mut u32) -> u8 {
-    let mut grid = Grid::new(MAZE_BYTES);
+    let mut grid = read_file(MAZE_BYTES);
     draw_maze(MAZE_BYTES);
     let mut pac = Player::new();
+    let mut frames: u32 = 0;
     loop {
         let scan = keyboard::scan();
         if scan.key_down(key::OK) {
             break;
         }
-        wait_for_vblank();
-        clear_player(pac.grid_position, pac.steps, &pac.direction);
+        let old = pac.clone();
         pac.read_input(&grid);
-        pac.move_player(&grid);
-        draw_player(pac.grid_position, pac.steps, &pac.direction);
+        pac.move_player(&mut grid);
+        wait_for_vblank();
+        clear_player(old.grid_position, old.steps, &old.direction, &grid);
+        draw_player(pac.grid_position, pac.steps, &pac.direction, frames);
+
+        frames = frames.wrapping_add(1);
     }
     1
 }
@@ -272,7 +277,7 @@ fn can_go_to(from: Point, dir: &Direction, grid: &Grid) -> bool {
         x: (from.x as i16 + dir.to_vector().0) as u16,
         y: (from.y as i16 + dir.to_vector().1) as u16,
     };
-    match grid.grid.get((next.x + next.y * GRID_WIDTH) as usize) {
+    match grid.get((next.x + next.y * GRID_WIDTH) as usize) {
         Some(Space::Wall) => false,
         Some(_) => true,
         None => false,

@@ -1,3 +1,5 @@
+use core::iter::Empty;
+
 use numworks_utils::{
     eadk::{
         display::{push_rect_uniform, wait_for_vblank},
@@ -7,7 +9,7 @@ use numworks_utils::{
     include_bytes_align_as,
 };
 
-use crate::game::{Direction, TILE_SIZE, X_GRID_OFFSET};
+use crate::game::{Direction, Grid, Space, GRID_WIDTH, TILE_SIZE, X_GRID_OFFSET};
 
 const WALL_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/walls.nppm");
 const SPRITES_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/sprites.nppm");
@@ -23,15 +25,20 @@ const fn abs_from_pos(pos: Point) -> Point {
     }
 }
 
-pub fn draw_player(next_pos: Point, steps: u8, dir: &Direction) {
+pub fn draw_player(next_pos: Point, steps: u8, dir: &Direction, frames: u32) {
     let np = abs_from_pos(next_pos);
+    let offset = match dir {
+        Direction::Up | Direction::Down => 0,
+        Direction::Right | Direction::Left => 1,
+    };
     TILESET_SPRITES.draw_tile(
         Point {
             x: (np.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
-            y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16,
+            y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16
+                + offset,
         },
         Point {
-            x: 0,
+            x: ((frames / 4) % 2) as u16,
             y: match dir {
                 Direction::Up => 2,
                 Direction::Down => 3,
@@ -44,17 +51,43 @@ pub fn draw_player(next_pos: Point, steps: u8, dir: &Direction) {
     );
 }
 
-pub fn clear_player(pos: Point, steps: u8, dir: &Direction) {
+pub fn clear_player(pos: Point, steps: u8, dir: &Direction, grid: &Grid) {
     let p = abs_from_pos(pos);
+    let offset = match dir {
+        Direction::Up | Direction::Down => 0,
+        Direction::Right | Direction::Left => 1,
+    };
     push_rect_uniform(
         Rect {
-            x: (p.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
-            y: (p.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16,
-            width: 15,
-            height: 15,
+            x: (p.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16 + 1,
+            y: (p.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16
+                + offset,
+            width: 14,
+            height: 14,
         },
         Color::BLACK,
     );
+    let next = Point {
+        x: (pos.x as i16 + dir.to_vector().0) as u16,
+        y: (pos.y as i16 + dir.to_vector().1) as u16,
+    };
+    match grid.get((next.x + next.y * GRID_WIDTH) as usize) {
+        Some(Space::Empty) => (),
+        Some(Space::Point) => TILESET_WALLS.draw_tile(
+            abs_from_pos(next),
+            get_tile_position('.').unwrap(),
+            1,
+            false,
+        ),
+        Some(Space::Superball) => TILESET_WALLS.draw_tile(
+            abs_from_pos(next),
+            get_tile_position('°').unwrap(),
+            1,
+            false,
+        ),
+        Some(_) => (),
+        None => panic!(),
+    }
 }
 
 /// Determines the tile position based on the character.
