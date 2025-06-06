@@ -1,5 +1,3 @@
-use core::iter::Empty;
-
 use numworks_utils::{
     eadk::{
         display::{push_rect_uniform, wait_for_vblank},
@@ -9,7 +7,7 @@ use numworks_utils::{
     include_bytes_align_as,
 };
 
-use crate::game::{Direction, Grid, Space, GRID_WIDTH, TILE_SIZE, X_GRID_OFFSET};
+use crate::game::{next_pos, Direction, Grid, Space, GRID_WIDTH, TILE_SIZE, X_GRID_OFFSET};
 
 const WALL_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/walls.nppm");
 const SPRITES_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/sprites.nppm");
@@ -25,18 +23,18 @@ const fn abs_from_pos(pos: Point) -> Point {
     }
 }
 
-pub fn draw_player(next_pos: Point, steps: u8, dir: &Direction, frames: u32) {
+pub fn draw_player(next_pos: Point, steps: u8, dir: &Direction, frames: u32, wrapping: bool) {
     let np = abs_from_pos(next_pos);
     let offset = match dir {
         Direction::Up | Direction::Down => 0,
         Direction::Right | Direction::Left => 1,
     };
+    let p = Point {
+        x: (np.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
+        y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16 + offset,
+    };
     TILESET_SPRITES.draw_tile(
-        Point {
-            x: (np.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
-            y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16
-                + offset,
-        },
+        p,
         Point {
             x: ((frames / 4) % 2) as u16,
             y: match dir {
@@ -49,9 +47,31 @@ pub fn draw_player(next_pos: Point, steps: u8, dir: &Direction, frames: u32) {
         1,
         true,
     );
+    if wrapping {
+        // TODO : repair that when going right (and down)
+        // need to clear what is going beyond the grid
+        push_rect_uniform(
+            Rect {
+                x: p.x,
+                y: p.y,
+                width: if offset == 1 {
+                    steps as u16 + TILE_SIZE / 2
+                } else {
+                    14
+                },
+                height: if offset == 0 {
+                    steps as u16 + TILE_SIZE / 2
+                } else {
+                    14
+                },
+            },
+            Color::BLACK,
+        );
+    }
 }
 
 pub fn clear_player(pos: Point, steps: u8, dir: &Direction, grid: &Grid) {
+    // TODO : Some problems when the player change direction to opposite ; can cut part of destination cell.
     let p = abs_from_pos(pos);
     let offset = match dir {
         Direction::Up | Direction::Down => 0,
@@ -67,26 +87,22 @@ pub fn clear_player(pos: Point, steps: u8, dir: &Direction, grid: &Grid) {
         },
         Color::BLACK,
     );
-    let next = Point {
-        x: (pos.x as i16 + dir.to_vector().0) as u16,
-        y: (pos.y as i16 + dir.to_vector().1) as u16,
-    };
-    match grid.get((next.x + next.y * GRID_WIDTH) as usize) {
-        Some(Space::Empty) => (),
-        Some(Space::Point) => TILESET_WALLS.draw_tile(
-            abs_from_pos(next),
-            get_tile_position('.').unwrap(),
-            1,
-            false,
-        ),
-        Some(Space::Superball) => TILESET_WALLS.draw_tile(
-            abs_from_pos(next),
-            get_tile_position('°').unwrap(),
-            1,
-            false,
-        ),
-        Some(_) => (),
-        None => panic!(),
+    let (next, wrapping) = next_pos(pos, dir);
+
+    for p in if wrapping { [pos, pos] } else { [next, pos] } {
+        match grid.get((p.x + p.y * GRID_WIDTH) as usize) {
+            Some(Space::Empty) => {
+                TILESET_WALLS.draw_tile(abs_from_pos(p), get_tile_position(' ').unwrap(), 1, false)
+            }
+            Some(Space::Point) => {
+                TILESET_WALLS.draw_tile(abs_from_pos(p), get_tile_position('.').unwrap(), 1, false)
+            }
+            Some(Space::Superball) => {
+                TILESET_WALLS.draw_tile(abs_from_pos(p), get_tile_position('°').unwrap(), 1, false)
+            }
+            Some(_) => (),
+            None => panic!(),
+        }
     }
 }
 

@@ -3,5 +3,10 @@ target = "thumbv7em-none-eabihf"
 
 [target.thumbv7em-none-eabihf]
 rustflags = [
-    "-C", "link-arg=-Tlinker_script.ld" # Adjust if you have a custom linker script
+    "-C",
+    "link-arg=--relocatable",
+    "-C",
+    "link-arg=-no-gc-sections",
+    "-C",
+    "target-cpu=cortex-m7",
 ]

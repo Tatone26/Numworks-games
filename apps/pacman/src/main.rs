@@ -6,7 +6,7 @@ mod pac_ui;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]
-pub static EADK_APP_NAME: [u8; 8] = *b"DUNGEON\0";
+pub static EADK_APP_NAME: [u8; 7] = *b"PACMAN\0";
 
 #[used]
 #[link_section = ".rodata.eadk_api_level"]

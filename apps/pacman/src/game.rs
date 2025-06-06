@@ -154,15 +154,17 @@ fn read_file(maze_file: &str) -> [Space; ARRAY_SIZE] {
     grid
 }
 
-const STEPS_PER_CELL: u8 = 8;
+const STEPS_PER_CELL: f32 = 8.0;
 
 #[derive(Clone, Copy)]
 struct Player {
     grid_position: Point,
     destination: Point,
-    steps: u8,
+    steps: f32,
     direction: Direction,
-    speed: u8,
+    speed: f32,
+    superball_active: bool,
+    wrapping: bool,
 }
 
 impl Player {
@@ -170,39 +172,65 @@ impl Player {
         Self {
             grid_position: Point { x: 1, y: 1 },
             destination: Point { x: 2, y: 1 },
-            steps: 0,
-            speed: 1,
+            steps: 0.0,
+            speed: 1.0,
             direction: Direction::Right,
+            superball_active: false,
+            wrapping: false,
         }
     }
 
-    pub fn move_player(&mut self, grid: &mut Grid) {
+    /// Returns the type of thing that has been eaten, Empty if none
+    pub fn move_player(&mut self, grid: &mut Grid) -> Space {
         if self.grid_position.x == self.destination.x && self.grid_position.y == self.destination.y
         {
-            return;
+            return Space::Empty;
         }
-        self.steps += self.speed;
-        if self.steps >= STEPS_PER_CELL / 4 {
-            // eating
-            // TODO : right now eating but not removing it from screen
-            grid[(self.destination.x + self.destination.y * GRID_WIDTH) as usize] = Space::Empty;
-        }
+        self.steps += if self.superball_active {
+            self.speed * 1.5
+        } else {
+            self.speed
+        };
+        // eating if there is something to eat (on the next cell)
+        let eaten = match grid.get((self.destination.x + self.destination.y * GRID_WIDTH) as usize)
+        {
+            Some(Space::Point) => {
+                // eating point
+                if self.steps >= STEPS_PER_CELL / 4.0 {
+                    grid[(self.destination.x + self.destination.y * GRID_WIDTH) as usize] =
+                        Space::Empty;
+                    Space::Point
+                } else {
+                    Space::Empty
+                }
+            }
+            Some(Space::Superball) => {
+                // eating superball
+                if self.steps >= 3.0 * (STEPS_PER_CELL / 4.0) {
+                    grid[(self.destination.x + self.destination.y * GRID_WIDTH) as usize] =
+                        Space::Empty;
+                    self.superball_active = true;
+                    Space::Superball
+                } else {
+                    Space::Empty
+                }
+            }
+            _ => Space::Empty,
+        };
+        // if reached end of current cell, then move to next cell
         if self.steps >= STEPS_PER_CELL {
             // if arrived to next node
             self.grid_position = self.destination;
-            // looking for new destination
-            let next_pos = Point {
-                x: (self.grid_position.x as i16 + self.direction.to_vector().0) as u16,
-                y: (self.grid_position.y as i16 + self.direction.to_vector().1) as u16,
-            };
-            // if can continue, then continue else stop
+            let (next_pos, wrap) = next_pos(self.grid_position, &self.direction);
+            self.wrapping = wrap;
             (self.destination, self.steps) =
                 match grid.get((next_pos.x + next_pos.y * GRID_WIDTH) as usize) {
-                    Some(Space::Wall) => (self.grid_position, 0),
-                    Some(_) => (next_pos, self.steps % STEPS_PER_CELL),
-                    _ => (self.grid_position, 0),
+                    Some(Space::Wall) => (self.grid_position, 0.0),
+                    Some(_) => (next_pos, self.steps % STEPS_PER_CELL as f32),
+                    _ => (self.grid_position, 0.0),
                 };
         }
+        eaten
     }
 
     pub fn read_input(&mut self, grid: &Grid) {
@@ -229,22 +257,16 @@ impl Player {
                 && self.grid_position.y == self.destination.y;
             self.direction = new_dir;
             self.grid_position = self.destination;
-            self.destination = Point {
-                x: (self.grid_position.x as i16 + self.direction.to_vector().0) as u16,
-                y: (self.grid_position.y as i16 + self.direction.to_vector().1) as u16,
-            };
+            (self.destination, self.wrapping) = next_pos(self.grid_position, &self.direction);
             if !stopped {
-                self.steps = u8::abs_diff(STEPS_PER_CELL, self.steps);
+                self.steps = f32::abs(STEPS_PER_CELL - self.steps);
             } else {
-                self.steps = 0;
+                self.steps = 0.0;
             }
         } else if new_dir != self.direction {
-            self.steps = 0;
+            self.steps = 0.0;
             self.direction = new_dir;
-            self.destination = Point {
-                x: (self.grid_position.x as i16 + self.direction.to_vector().0) as u16,
-                y: (self.grid_position.y as i16 + self.direction.to_vector().1) as u16,
-            };
+            (self.destination, self.wrapping) = next_pos(self.grid_position, &self.direction);
         }
     }
 }
@@ -255,6 +277,8 @@ pub fn game(_exemple: bool, _high_score: &mut u32) -> u8 {
     draw_maze(MAZE_BYTES);
     let mut pac = Player::new();
     let mut frames: u32 = 0;
+    // TODO : all the pacman rules. Yay !
+    let mut score: u32 = 0;
     loop {
         let scan = keyboard::scan();
         if scan.key_down(key::OK) {
@@ -262,10 +286,20 @@ pub fn game(_exemple: bool, _high_score: &mut u32) -> u8 {
         }
         let old = pac.clone();
         pac.read_input(&grid);
-        pac.move_player(&mut grid);
+        let eaten = pac.move_player(&mut grid);
+        match eaten {
+            Space::Superball | Space::Point => score += 1,
+            _ => (),
+        }
         wait_for_vblank();
-        clear_player(old.grid_position, old.steps, &old.direction, &grid);
-        draw_player(pac.grid_position, pac.steps, &pac.direction, frames);
+        clear_player(old.grid_position, old.steps as u8, &old.direction, &grid);
+        draw_player(
+            pac.grid_position,
+            pac.steps as u8,
+            &pac.direction,
+            frames,
+            pac.wrapping,
+        );
 
         frames = frames.wrapping_add(1);
     }
@@ -273,13 +307,35 @@ pub fn game(_exemple: bool, _high_score: &mut u32) -> u8 {
 }
 
 fn can_go_to(from: Point, dir: &Direction, grid: &Grid) -> bool {
-    let next = Point {
-        x: (from.x as i16 + dir.to_vector().0) as u16,
-        y: (from.y as i16 + dir.to_vector().1) as u16,
-    };
+    let (next, _) = next_pos(from, dir);
     match grid.get((next.x + next.y * GRID_WIDTH) as usize) {
         Some(Space::Wall) => false,
         Some(_) => true,
-        None => false,
+        None => true,
+    }
+}
+
+pub fn next_pos(from: Point, dir: &Direction) -> (Point, bool) {
+    let next = (
+        (from.x as i16 + dir.to_vector().0),
+        (from.y as i16 + dir.to_vector().1),
+    );
+    if next.0 < 0 || next.1 < 0 || next.0 >= GRID_WIDTH as i16 || next.1 >= GRID_HEIGHT as i16 {
+        // wrapping
+        (
+            Point {
+                x: ((GRID_WIDTH as i16 + next.0) % GRID_WIDTH as i16) as u16,
+                y: ((GRID_HEIGHT as i16 + next.1) % GRID_HEIGHT as i16) as u16,
+            },
+            true,
+        )
+    } else {
+        (
+            Point {
+                x: next.0 as u16,
+                y: next.1 as u16,
+            },
+            false,
+        )
     }
 }
