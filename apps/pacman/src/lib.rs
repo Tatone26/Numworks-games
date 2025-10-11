@@ -6,6 +6,8 @@ use numworks_utils::eadk::{display::push_rect_uniform, Color, Point, Rect};
 /// Function that will be called by the multiple apps packages
 pub use game::start;
 
+mod ghost;
+mod moveable;
 mod pac_ui;
 
 /// Function that draws something to represent the game in the multiple apps packages

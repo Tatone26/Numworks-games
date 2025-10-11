@@ -2,6 +2,8 @@
 #![no_main]
 
 mod game;
+mod ghost;
+mod moveable;
 mod pac_ui;
 
 #[used]

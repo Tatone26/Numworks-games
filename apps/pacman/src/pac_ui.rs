@@ -1,13 +1,18 @@
 use numworks_utils::{
     eadk::{
-        display::{push_rect_uniform, wait_for_vblank},
+        display::{draw_string, push_rect_uniform, wait_for_vblank},
         Color, Point, Rect,
     },
     graphical::tiling::Tileset,
     include_bytes_align_as,
+    utils::string_from_u16,
 };
 
-use crate::game::{next_pos, Direction, Grid, Space, GRID_WIDTH, TILE_SIZE, X_GRID_OFFSET};
+use crate::{
+    game::{Grid, Space, GRID_WIDTH, TILE_SIZE, X_GRID_OFFSET},
+    ghost::GhostType,
+    moveable::{next_pos, Direction},
+};
 
 const WALL_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/walls.nppm");
 const SPRITES_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/sprites.nppm");
@@ -16,6 +21,7 @@ const SPRITES_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/sprit
 pub static TILESET_WALLS: Tileset = Tileset::new(TILE_SIZE, 16, WALL_IMAGES_BYTES);
 pub static TILESET_SPRITES: Tileset = Tileset::new(TILE_SIZE * 2, 8, SPRITES_IMAGES_BYTES);
 
+/// Gives the absolute pixel position from the given position on the grid.
 const fn abs_from_pos(pos: Point) -> Point {
     Point {
         x: pos.x * TILE_SIZE + X_GRID_OFFSET,
@@ -23,8 +29,9 @@ const fn abs_from_pos(pos: Point) -> Point {
     }
 }
 
-pub fn draw_player(next_pos: Point, steps: u8, dir: &Direction, frames: u32, wrapping: bool) {
-    let np = abs_from_pos(next_pos);
+/// Draws the player. Help.
+pub fn draw_player(next_po: Point, steps: u8, dir: &Direction, frames: u32, wrapping: bool) {
+    let np = abs_from_pos(next_po);
     let offset = match dir {
         Direction::Up | Direction::Down => 0,
         Direction::Right | Direction::Left => 1,
@@ -48,28 +55,26 @@ pub fn draw_player(next_pos: Point, steps: u8, dir: &Direction, frames: u32, wra
         true,
     );
     if wrapping {
-        // TODO : repair that when going right (and down)
-        // need to clear what is going beyond the grid
+        // clear the part that overflows the play screen (wanted to do that less hard-coded but who cares)
         push_rect_uniform(
             Rect {
-                x: p.x,
+                x: if dir == &Direction::Left {
+                    X_GRID_OFFSET - 14
+                } else if dir == &Direction::Right {
+                    X_GRID_OFFSET + GRID_WIDTH * TILE_SIZE
+                } else {
+                    p.x
+                },
                 y: p.y,
-                width: if offset == 1 {
-                    steps as u16 + TILE_SIZE / 2
-                } else {
-                    14
-                },
-                height: if offset == 0 {
-                    steps as u16 + TILE_SIZE / 2
-                } else {
-                    14
-                },
+                width: 14,
+                height: 14,
             },
             Color::BLACK,
         );
     }
 }
 
+/// Clear the player. Help bis
 pub fn clear_player(pos: Point, steps: u8, dir: &Direction, grid: &Grid) {
     // TODO : Some problems when the player change direction to opposite ; can cut part of destination cell.
     let p = abs_from_pos(pos);
@@ -88,20 +93,126 @@ pub fn clear_player(pos: Point, steps: u8, dir: &Direction, grid: &Grid) {
         Color::BLACK,
     );
     let (next, wrapping) = next_pos(pos, dir);
-
     for p in if wrapping { [pos, pos] } else { [next, pos] } {
         match grid.get((p.x + p.y * GRID_WIDTH) as usize) {
-            Some(Space::Empty) => {
-                TILESET_WALLS.draw_tile(abs_from_pos(p), get_tile_position(' ').unwrap(), 1, false)
-            }
             Some(Space::Point) => {
                 TILESET_WALLS.draw_tile(abs_from_pos(p), get_tile_position('.').unwrap(), 1, false)
             }
             Some(Space::Superball) => {
                 TILESET_WALLS.draw_tile(abs_from_pos(p), get_tile_position('°').unwrap(), 1, false)
             }
+            Some(Space::Empty) | None => {
+                TILESET_WALLS.draw_tile(abs_from_pos(p), get_tile_position(' ').unwrap(), 1, false)
+            }
+            // TODO : fruits :)
             Some(_) => (),
-            None => panic!(),
+        }
+    }
+}
+
+/// Draws a ghost. Help.
+pub fn draw_ghost(
+    next_po: Point,
+    steps: u8,
+    dir: &Direction,
+    frames: u32,
+    wrapping: bool,
+    gtype: &GhostType,
+    at_home: bool,
+) {
+    let mut np = abs_from_pos(next_po);
+    if at_home {
+        np.y = np.y + TILE_SIZE / 2;
+    }
+
+    let p = Point {
+        x: (np.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
+        y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16,
+    };
+    TILESET_SPRITES.draw_tile(
+        p,
+        Point {
+            x: match dir {
+                Direction::Up => 4,
+                Direction::Down => 6,
+                Direction::Right => 0,
+                Direction::Left => 2,
+            } + ((frames / 4) % 2) as u16,
+            y: match gtype {
+                GhostType::Blinky => 4,
+                GhostType::Pinky => 5,
+                GhostType::Inky => 6,
+                GhostType::Clyde => 7,
+            },
+        },
+        1,
+        true,
+    );
+    if wrapping {
+        // clear the part that overflows the play screen (wanted to do that less hard-coded but who cares)
+        push_rect_uniform(
+            Rect {
+                x: if dir == &Direction::Left {
+                    X_GRID_OFFSET - 14
+                } else if dir == &Direction::Right {
+                    X_GRID_OFFSET + GRID_WIDTH * TILE_SIZE
+                } else {
+                    p.x
+                },
+                y: p.y,
+                width: 15,
+                height: 15,
+            },
+            Color::BLACK,
+        );
+    }
+}
+
+/// Clear the player. Help bis
+pub fn clear_ghost(pos: Point, steps: u8, dir: &Direction, grid: &Grid, is_home: bool) {
+    let mut p = abs_from_pos(pos);
+    if is_home {
+        p.y = p.y + TILE_SIZE / 2;
+    }
+    push_rect_uniform(
+        Rect {
+            x: (p.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
+            y: (p.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16,
+            width: 16,
+            height: 16,
+        },
+        Color::BLACK,
+    );
+    let (next, wrapping) = next_pos(pos, dir);
+    for p_ in if wrapping { [pos] } else { [pos] } {
+        for off in [(0, 0), (0, 1), (0, -1), (1, 0), (-1, 0)] {
+            // TODO : hating this but otherwise getting artifacts and broken balls
+            let p = Point {
+                x: (p_.x as i16 + off.0) as u16,
+                y: (p_.y as i16 + off.1) as u16,
+            };
+            match grid.get((p.x as u16 + p.y as u16 * GRID_WIDTH) as usize) {
+                Some(Space::Point) => TILESET_WALLS.draw_tile(
+                    abs_from_pos(p),
+                    get_tile_position('.').unwrap(),
+                    1,
+                    false,
+                ),
+                Some(Space::Superball) => TILESET_WALLS.draw_tile(
+                    abs_from_pos(p),
+                    get_tile_position('°').unwrap(),
+                    1,
+                    false,
+                ),
+                Some(Space::Empty) | None => TILESET_WALLS.draw_tile(
+                    abs_from_pos(p),
+                    get_tile_position(' ').unwrap(),
+                    1,
+                    false,
+                ),
+                // TODO : fruits :)
+                Some(_) => (),
+            }
         }
     }
 }
@@ -136,8 +247,18 @@ const fn get_tile_position(c: char) -> Option<Point> {
     }
 }
 
+pub fn draw_score(score: u16) {
+    draw_string(
+        &string_from_u16(score),
+        Point { x: 0, y: 0 },
+        false,
+        Color::WHITE,
+        Color::BLACK,
+    );
+}
+
 /// Draws the entirety of the maze (walls, points) based on a given file.
-/// Used only at launch, doesn't need to be called again next.
+/// Used only at launch, doesn't need to be called again.
 pub fn draw_maze(file: &str) {
     for (line, s) in file.lines().filter(|s| !s.is_empty()).enumerate() {
         wait_for_vblank();
