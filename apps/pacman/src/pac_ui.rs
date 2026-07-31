@@ -9,15 +9,40 @@ use numworks_utils::{
 };
 
 use crate::{
-    game::{Grid, Space, GRID_WIDTH, TILE_SIZE, X_GRID_OFFSET},
-    ghost::GhostType,
-    moveable::{next_pos, Direction},
+    game::{Grid, Space, GRID_HEIGHT, GRID_WIDTH, MAZE_BYTES, TILE_SIZE, X_GRID_OFFSET},
+    ghost::{Ghost, GhostType, HouseState, MovementMode},
+    moveable::Direction,
+    player::Player,
 };
 
 const WALL_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/walls.nppm");
 const SPRITES_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/sprites.nppm");
+const GRID_SIZE: usize = (GRID_WIDTH as usize) * (GRID_HEIGHT as usize);
 
-/// I'm using two Tileset because one is using 8 pixels wide tiles and the second 16 pixels wide.
+/// The maze is printed a first time but also every frame around each Moveable object.
+/// That being heavy in calculation, we cache the tileset positions corresponding to each grid positions.
+static mut MAZE_TILE_CACHE: [Point; GRID_SIZE] = [Point { x: 12, y: 2 }; GRID_SIZE];
+static mut MAZE_TILE_CACHE_READY: bool = false;
+fn ensure_maze_tile_cache() {
+    unsafe {
+        if !MAZE_TILE_CACHE_READY {
+            let mut index = 0;
+            for line in MAZE_BYTES
+                .lines()
+                .filter(|s| !s.is_empty())
+                .take(GRID_HEIGHT as usize)
+            {
+                for c in line.chars().take(GRID_WIDTH as usize) {
+                    MAZE_TILE_CACHE[index] = get_tile_position(c).unwrap_or(Point { x: 12, y: 2 });
+                    index += 1;
+                }
+            }
+            MAZE_TILE_CACHE_READY = true;
+        }
+    }
+}
+
+/// I'm using two different Tilesets because one is using 8 pixels wide tiles and the second 16 pixels wide.
 pub static TILESET_WALLS: Tileset = Tileset::new(TILE_SIZE, 16, WALL_IMAGES_BYTES);
 pub static TILESET_SPRITES: Tileset = Tileset::new(TILE_SIZE * 2, 8, SPRITES_IMAGES_BYTES);
 
@@ -29,9 +54,9 @@ const fn abs_from_pos(pos: Point) -> Point {
     }
 }
 
-/// Draws the player. Help.
-pub fn draw_player(next_po: Point, steps: u8, dir: &Direction, frames: u32, wrapping: bool) {
-    let np = abs_from_pos(next_po);
+/// Draws Pac-Man.
+pub fn draw_player(pos: Point, steps: u8, dir: &Direction, frames: u32, wrapping: bool) {
+    let np = abs_from_pos(pos);
     let offset = match dir {
         Direction::Up | Direction::Down => 0,
         Direction::Right | Direction::Left => 1,
@@ -55,7 +80,7 @@ pub fn draw_player(next_po: Point, steps: u8, dir: &Direction, frames: u32, wrap
         true,
     );
     if wrapping {
-        // clear the part that overflows the play screen (wanted to do that less hard-coded but who cares)
+        // clear the part that overflows the play screen
         push_rect_uniform(
             Rect {
                 x: if dir == &Direction::Left {
@@ -74,82 +99,110 @@ pub fn draw_player(next_po: Point, steps: u8, dir: &Direction, frames: u32, wrap
     }
 }
 
-/// Clear the player. Help bis
-pub fn clear_player(pos: Point, steps: u8, dir: &Direction, grid: &Grid) {
-    // TODO : Some problems when the player change direction to opposite ; can cut part of destination cell.
-    let p = abs_from_pos(pos);
-    let offset = match dir {
-        Direction::Up | Direction::Down => 0,
-        Direction::Right | Direction::Left => 1,
-    };
-    push_rect_uniform(
-        Rect {
-            x: (p.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16 + 1,
-            y: (p.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16
-                + offset,
-            width: 14,
-            height: 14,
-        },
-        Color::BLACK,
-    );
-    let (next, wrapping) = next_pos(pos, dir);
-    for p in if wrapping { [pos, pos] } else { [next, pos] } {
-        match grid.get((p.x + p.y * GRID_WIDTH) as usize) {
-            Some(Space::Point) => {
-                TILESET_WALLS.draw_tile(abs_from_pos(p), get_tile_position('.').unwrap(), 1, false)
+/// Clear ghost or player by redrawing the maze tiles around it.
+pub fn clear_moveable(pos: Point, _steps: u8, _dir: &Direction, grid: &Grid, _is_ghost_home: bool) {
+    ensure_maze_tile_cache();
+    for dy in -1..=1 {
+        for dx in -1..=1 {
+            let tile_pos = Point {
+                x: (pos.x as i16 + dx as i16).clamp(0, GRID_WIDTH as i16 - 1) as u16,
+                y: (pos.y as i16 + dy as i16).clamp(0, GRID_HEIGHT as i16 - 1) as u16,
+            };
+            let tile_pixel_pos = abs_from_pos(tile_pos);
+            match grid.get((tile_pos.x + tile_pos.y * GRID_WIDTH) as usize) {
+                Some(Space::Point) => draw_space(tile_pixel_pos, Space::Point),
+                Some(Space::Superball) => draw_space(tile_pixel_pos, Space::Superball),
+                Some(Space::Fruit) => draw_space(tile_pixel_pos, Space::Fruit),
+                Some(Space::Empty) | None => draw_space(tile_pixel_pos, Space::Empty),
+                Some(Space::Wall) => {
+                    let wall_tile_pos =
+                        unsafe { MAZE_TILE_CACHE[(tile_pos.x + tile_pos.y * GRID_WIDTH) as usize] };
+                    TILESET_WALLS.draw_tile(tile_pixel_pos, wall_tile_pos, 1, false);
+                }
             }
-            Some(Space::Superball) => {
-                TILESET_WALLS.draw_tile(abs_from_pos(p), get_tile_position('°').unwrap(), 1, false)
-            }
-            Some(Space::Empty) | None => {
-                TILESET_WALLS.draw_tile(abs_from_pos(p), get_tile_position(' ').unwrap(), 1, false)
-            }
-            // TODO : fruits :)
-            Some(_) => (),
         }
     }
 }
 
-/// Draws a ghost. Help.
+/// Draws a ghost.
 pub fn draw_ghost(
-    next_po: Point,
+    pos: Point,
     steps: u8,
     dir: &Direction,
     frames: u32,
     wrapping: bool,
     gtype: &GhostType,
-    at_home: bool,
+    house_state: HouseState,
+    movement_mode: &MovementMode,
 ) {
-    let mut np = abs_from_pos(next_po);
-    if at_home {
+    let mut np = abs_from_pos(pos);
+    if house_state == HouseState::Inside {
         np.y = np.y + TILE_SIZE / 2;
     }
 
+    let offset = match dir {
+        Direction::Up | Direction::Down => 0,
+        Direction::Right | Direction::Left => 1,
+    };
     let p = Point {
         x: (np.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
-        y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16,
+        y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16 + offset,
     };
-    TILESET_SPRITES.draw_tile(
-        p,
-        Point {
-            x: match dir {
-                Direction::Up => 4,
-                Direction::Down => 6,
-                Direction::Right => 0,
-                Direction::Left => 2,
-            } + ((frames / 4) % 2) as u16,
-            y: match gtype {
-                GhostType::Blinky => 4,
-                GhostType::Pinky => 5,
-                GhostType::Inky => 6,
-                GhostType::Clyde => 7,
+    match movement_mode {
+        MovementMode::Frightened => TILESET_SPRITES.draw_tile(
+            p,
+            Point {
+                x: 2 + ((frames / 4) % 2) as u16,
+                y: 2,
             },
-        },
-        1,
-        true,
-    );
+            1,
+            true,
+        ),
+        MovementMode::FrightenedBlinking => TILESET_SPRITES.draw_tile(
+            p,
+            Point {
+                x: 2 + ((frames / 4) % 2) as u16 + ((frames / 16) % 2) as u16 * 2,
+                y: 2,
+            },
+            1,
+            true,
+        ),
+        MovementMode::Scatter | MovementMode::Chase => TILESET_SPRITES.draw_tile(
+            p,
+            Point {
+                x: match dir {
+                    Direction::Up => 4,
+                    Direction::Down => 6,
+                    Direction::Right => 0,
+                    Direction::Left => 2,
+                } + ((frames / 4) % 2) as u16,
+                y: match gtype {
+                    GhostType::Blinky => 4,
+                    GhostType::Pinky => 5,
+                    GhostType::Inky => 6,
+                    GhostType::Clyde => 7,
+                },
+            },
+            1,
+            true,
+        ),
+        MovementMode::Eaten => TILESET_SPRITES.draw_tile(
+            p,
+            Point {
+                x: match dir {
+                    Direction::Up => 4,
+                    Direction::Down => 5,
+                    Direction::Right => 2,
+                    Direction::Left => 3,
+                },
+                y: 3,
+            },
+            1,
+            true,
+        ),
+    }
+    // clears part outside of grid; TODO : add the other side ?
     if wrapping {
-        // clear the part that overflows the play screen (wanted to do that less hard-coded but who cares)
         push_rect_uniform(
             Rect {
                 x: if dir == &Direction::Left {
@@ -168,56 +221,105 @@ pub fn draw_ghost(
     }
 }
 
-/// Clear the player. Help bis
-pub fn clear_ghost(pos: Point, steps: u8, dir: &Direction, grid: &Grid, is_home: bool) {
-    let mut p = abs_from_pos(pos);
-    if is_home {
-        p.y = p.y + TILE_SIZE / 2;
-    }
-    push_rect_uniform(
-        Rect {
-            x: (p.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
-            y: (p.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16,
-            width: 16,
-            height: 16,
-        },
+/// UI stuff.
+pub fn draw_score(score: u16) {
+    draw_string(
+        &string_from_u16(score),
+        Point { x: 0, y: 0 },
+        false,
+        Color::WHITE,
         Color::BLACK,
     );
-    let (next, wrapping) = next_pos(pos, dir);
-    for p_ in if wrapping { [pos] } else { [pos] } {
-        for off in [(0, 0), (0, 1), (0, -1), (1, 0), (-1, 0)] {
-            // TODO : hating this but otherwise getting artifacts and broken balls
-            let p = Point {
-                x: (p_.x as i16 + off.0) as u16,
-                y: (p_.y as i16 + off.1) as u16,
+}
+
+/// Draws a given grid space.
+pub fn draw_space(pos: Point, space: Space) {
+    let tile_pos = match space {
+        Space::Point => get_tile_position('.').unwrap(),
+        Space::Superball => get_tile_position('°').unwrap(),
+        Space::Fruit => get_tile_position('a').unwrap(),
+        Space::Empty | Space::Wall => get_tile_position(' ').unwrap(),
+    };
+    TILESET_WALLS.draw_tile(pos, tile_pos, 1, false);
+}
+
+/// Death animation. Needs the killer ghost too.
+pub fn draw_dead_pac(pac: &Player, ghost: &Ghost, grid: &Grid) {
+    let np = abs_from_pos(pac.moveable.grid_position);
+    let offset = match pac.moveable.direction {
+        Direction::Up | Direction::Down => 0,
+        Direction::Right | Direction::Left => 1,
+    };
+    let p = Point {
+        x: (np.x as i16 - TILE_SIZE as i16 / 2
+            + pac.moveable.steps as i16 * pac.moveable.direction.to_vector().0) as u16,
+        y: (np.y as i16 - TILE_SIZE as i16 / 2
+            + pac.moveable.steps as i16 * pac.moveable.direction.to_vector().1) as u16
+            + offset,
+    };
+
+    for y in 0..2 {
+        for x in 2..8 {
+            clear_moveable(
+                pac.moveable.grid_position,
+                pac.moveable.steps as u8,
+                &pac.moveable.direction,
+                grid,
+                false,
+            );
+            draw_ghost(
+                ghost.moveable.grid_position,
+                ghost.moveable.steps as u8,
+                &ghost.moveable.direction,
+                0,
+                ghost.moveable.wrapping,
+                &ghost.gtype,
+                ghost.house_state,
+                &ghost.movement_mode,
+            );
+            TILESET_SPRITES.draw_tile(p, Point { x, y }, 1, true);
+            wait_for_vblank();
+            wait_for_vblank();
+            wait_for_vblank();
+        }
+    }
+    clear_moveable(
+        pac.moveable.grid_position,
+        pac.moveable.steps as u8,
+        &pac.moveable.direction,
+        grid,
+        false,
+    );
+    draw_ghost(
+        ghost.moveable.grid_position,
+        ghost.moveable.steps as u8,
+        &ghost.moveable.direction,
+        0,
+        ghost.moveable.wrapping,
+        &ghost.gtype,
+        ghost.house_state,
+        &ghost.movement_mode,
+    );
+}
+
+/// Draws the entirety of the maze (walls, points) based on the built-in maze bytes.
+/// Used only at launch, does not need to be called again.
+pub fn draw_maze() {
+    ensure_maze_tile_cache();
+    for line in 0..GRID_HEIGHT as usize {
+        wait_for_vblank();
+        for col in 0..GRID_WIDTH as usize {
+            let pos = Point {
+                x: col as u16 * TILE_SIZE + X_GRID_OFFSET,
+                y: line as u16 * TILE_SIZE,
             };
-            match grid.get((p.x as u16 + p.y as u16 * GRID_WIDTH) as usize) {
-                Some(Space::Point) => TILESET_WALLS.draw_tile(
-                    abs_from_pos(p),
-                    get_tile_position('.').unwrap(),
-                    1,
-                    false,
-                ),
-                Some(Space::Superball) => TILESET_WALLS.draw_tile(
-                    abs_from_pos(p),
-                    get_tile_position('°').unwrap(),
-                    1,
-                    false,
-                ),
-                Some(Space::Empty) | None => TILESET_WALLS.draw_tile(
-                    abs_from_pos(p),
-                    get_tile_position(' ').unwrap(),
-                    1,
-                    false,
-                ),
-                // TODO : fruits :)
-                Some(_) => (),
-            }
+            let tile_pos = unsafe { MAZE_TILE_CACHE[line * GRID_WIDTH as usize + col] };
+            TILESET_WALLS.draw_tile(pos, tile_pos, 1, false);
         }
     }
 }
 
-/// Determines the tile position based on the character.
+/// For the maze, determines the tile position based on the character written in the .txt file.
 const fn get_tile_position(c: char) -> Option<Point> {
     match c {
         '.' => Some(Point { x: 13, y: 2 }),
@@ -244,32 +346,5 @@ const fn get_tile_position(c: char) -> Option<Point> {
             y: 2,
         }),
         _ => None, // Handle unexpected characters
-    }
-}
-
-pub fn draw_score(score: u16) {
-    draw_string(
-        &string_from_u16(score),
-        Point { x: 0, y: 0 },
-        false,
-        Color::WHITE,
-        Color::BLACK,
-    );
-}
-
-/// Draws the entirety of the maze (walls, points) based on a given file.
-/// Used only at launch, doesn't need to be called again.
-pub fn draw_maze(file: &str) {
-    for (line, s) in file.lines().filter(|s| !s.is_empty()).enumerate() {
-        wait_for_vblank();
-        for (i, c) in s.chars().enumerate() {
-            let pos = Point {
-                x: i as u16 * TILE_SIZE + X_GRID_OFFSET,
-                y: line as u16 * TILE_SIZE,
-            };
-            if let Some(tile_pos) = get_tile_position(c) {
-                TILESET_WALLS.draw_tile(pos, tile_pos, 1, false);
-            }
-        }
     }
 }

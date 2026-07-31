@@ -1,4 +1,5 @@
 #![no_std]
+
 mod game;
 use heapless::String;
 use numworks_utils::eadk::{display::push_rect_uniform, Color, Point, Rect};
@@ -9,6 +10,7 @@ pub use game::start;
 mod ghost;
 mod moveable;
 mod pac_ui;
+mod player;
 
 /// Function that draws something to represent the game in the multiple apps packages
 pub fn thumbnail(pos: Point) {

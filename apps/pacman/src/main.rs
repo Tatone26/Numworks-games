@@ -5,6 +5,7 @@ mod game;
 mod ghost;
 mod moveable;
 mod pac_ui;
+mod player;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]

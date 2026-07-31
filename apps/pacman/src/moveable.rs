@@ -82,18 +82,21 @@ impl Moveable {
     }
 
     pub fn change_direction(&mut self, new_dir: Direction) {
-        if new_dir.opposite() == self.direction {
+        let should_reverse = new_dir.opposite() == self.direction;
+        let is_new_direction = new_dir != self.direction;
+
+        if should_reverse {
             let stopped = self.grid_position.x == self.destination.x
                 && self.grid_position.y == self.destination.y;
             self.direction = new_dir;
             self.grid_position = self.destination;
             (self.destination, self.wrapping) = next_pos(self.grid_position, &self.direction);
-            if !stopped {
-                self.steps = f32::abs(STEPS_PER_CELL - self.steps);
+            self.steps = if stopped {
+                0.0
             } else {
-                self.steps = 0.0;
-            }
-        } else if new_dir != self.direction {
+                f32::abs(STEPS_PER_CELL - self.steps)
+            };
+        } else if is_new_direction {
             self.steps = 0.0;
             self.direction = new_dir;
             (self.destination, self.wrapping) = next_pos(self.grid_position, &self.direction);
