@@ -1,9 +1,15 @@
 
             HOW TO PLAY
 
-    This is an exemple of a file
-        that explains stuff. 
+    Move your character with the arrow
+     keys. Press <OK> to pause the game.
 
+    The goal is to eat all the dots
+     without touching the ghosts.
 
-    Blablablablabalbal                          
-    
+    The Superballs allow you to become
+     temporarily a ghost-eater. 
+
+    Fruits give you points too. 
+
+                                                    

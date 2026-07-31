@@ -1,14 +1,14 @@
 use heapless::{String, Vec};
 use numworks_utils::{
     eadk::{
-        display::{push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
+        display::{wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
         key, keyboard,
         timing::msleep,
-        Color, Point, Rect,
+        Color, Point,
     },
-    graphical::{draw_centered_string, fading, ColorConfig},
+    graphical::{draw_centered_string, draw_image, fading, ColorConfig},
     menu::{
-        selection,
+        pause_menu, selection,
         settings::{write_values_to_file, Setting},
         start_menu, MenuConfig,
     },
@@ -16,44 +16,55 @@ use numworks_utils::{
 };
 
 use crate::{
+    fruit::FruitManager,
     ghost::{Ghost, GhostType, HouseState, MovementMode},
-    moveable::Direction,
-    pac_ui::{clear_moveable, draw_dead_pac, draw_ghost, draw_maze, draw_player, draw_score},
+    pac_ui::{
+        clear_moveable, clear_potential_wrapping_stuff, draw_dead_pac, draw_fruit, draw_ghost,
+        draw_maze, draw_player, draw_score, draw_space, TILESET_SPRITES,
+    },
     player::{Player, SuperballEvent},
 };
 
 const COLOR_CONFIG: ColorConfig = ColorConfig {
-    text: Color::BLACK,
-    bckgrd: Color::WHITE,
+    text: Color::WHITE,
+    bckgrd: Color::BLACK,
     alt: Color::RED,
 };
 
 fn vis_addon() {
-    push_rect_uniform(
-        Rect {
-            x: 0,
-            y: 0,
-            width: 10,
-            height: 10,
-        },
-        Color::BLACK,
+    draw_player(
+        Point { x: 10, y: 10 },
+        0,
+        &crate::moveable::Direction::Right,
+        3,
+        false,
+    );
+    draw_ghost(
+        Point { x: 15, y: 10 },
+        0,
+        &crate::moveable::Direction::Right,
+        3,
+        false,
+        &GhostType::Clyde,
+        HouseState::Outside,
+        &MovementMode::Scatter,
     );
 }
 
 pub fn start() {
     let mut opt: [&mut Setting; 2] = [
         &mut Setting {
-            name: "Modifiable option !\0",
+            name: "Starting Level\0",
             choice: 0,
-            values: Vec::from_slice(&[1, 0]).unwrap(),
-            texts: Vec::from_slice(&["True\0", "False\0"]).unwrap(),
-            fixed_values: true,
+            values: Vec::from_slice(&[1, 1, 19]).unwrap(),
+            texts: Vec::new(),
+            fixed_values: false,
             user_modifiable: true,
         },
         &mut Setting {
-            name: "High-score option !\0",
+            name: "High-score\0",
             choice: 0,
-            values: Vec::from_slice(&[0]).unwrap(),
+            values: Vec::from_slice(&[0, 0, u32::MAX]).unwrap(),
             texts: Vec::new(),
             fixed_values: false,
             user_modifiable: false,
@@ -61,7 +72,7 @@ pub fn start() {
     ];
     loop {
         let start = start_menu(
-            "TEST\0",
+            "PACMAN\0",
             &mut opt,
             &COLOR_CONFIG,
             vis_addon,
@@ -71,7 +82,7 @@ pub fn start() {
         if start == 0 {
             let mut high_score: u32 = opt[1].get_setting_value();
             loop {
-                let action = game(opt[0].get_setting_value() != 0, &mut high_score);
+                let action = game(opt[0].get_setting_value(), &mut high_score);
                 opt[1].set_value(high_score);
                 write_values_to_file(&mut opt, "pacman");
                 if action == GAME_ACTION_QUIT {
@@ -147,7 +158,14 @@ impl GhostSnapshot {
     }
 }
 
-fn apply_eaten_item(pac: &mut Player, grid: &mut Grid, score: &mut u32, ghosts: &mut [Ghost; 4]) {
+fn apply_eaten_item(
+    pac: &mut Player,
+    grid: &mut Grid,
+    score: &mut u32,
+    level: u32,
+    ghosts: &mut [Ghost; 4],
+    fruit_manager: &mut FruitManager,
+) {
     let (eaten, event) = pac.move_player(grid);
 
     match event {
@@ -175,9 +193,11 @@ fn apply_eaten_item(pac: &mut Player, grid: &mut Grid, score: &mut u32, ghosts: 
         Some(Space::Point) => {
             *score += 1;
             draw_score(*score as u16);
+            pac.dots_eaten += 1;
+            fruit_manager.check_dot_spawn(pac.dots_eaten, grid);
         }
         Some(Space::Fruit) => {
-            *score += 50;
+            *score += fruit_manager.get_fruit_value(level);
             draw_score(*score as u16);
         }
         _ => (),
@@ -235,6 +255,8 @@ fn render_frame(
     pac: &Player,
     ghosts: &[Ghost; 4],
     ghost_snapshots: &[GhostSnapshot; 4],
+    fruit_manager: &FruitManager,
+    level: u32,
     frames: u32,
     grid: &Grid,
 ) {
@@ -253,6 +275,13 @@ fn render_frame(
             &ghost.moveable.direction,
             grid,
             snapshot.house_state == HouseState::Inside,
+        );
+    }
+
+    if grid[13 + 16 * GRID_WIDTH as usize] == Space::Fruit {
+        draw_fruit(
+            Point { x: 13, y: 16 },
+            fruit_manager.get_current_fruit_type(level) as u8,
         );
     }
 
@@ -275,6 +304,8 @@ fn render_frame(
         frames,
         pac.moveable.wrapping,
     );
+
+    clear_potential_wrapping_stuff();
 }
 
 fn advance_game_state(
@@ -282,9 +313,11 @@ fn advance_game_state(
     ghosts: &mut [Ghost; 4],
     grid: &mut Grid,
     score: &mut u32,
+    level: u32,
+    fruit_manager: &mut FruitManager,
 ) -> Option<usize> {
     pac.read_input(grid);
-    apply_eaten_item(pac, grid, score, ghosts);
+    apply_eaten_item(pac, grid, score, level, ghosts, fruit_manager);
     update_ghosts(ghosts, pac, grid);
 
     for (i, ghost) in ghosts.iter_mut().enumerate() {
@@ -357,10 +390,12 @@ fn game_over_screen(score: u32, high_score: &mut u32) -> u8 {
     action
 }
 
-pub fn game(_exemple: bool, high_score: &mut u32) -> u8 {
+pub fn game(starting_level: u32, high_score: &mut u32) -> u8 {
     let mut grid = read_file(MAZE_BYTES);
     draw_maze();
     let mut pac = Player::new();
+
+    let mut fruit_manager = FruitManager::new();
 
     let mut ghosts: [Ghost; 4] = [
         Ghost::new(Point { x: 13, y: 13 }, GhostType::Blinky),
@@ -371,15 +406,40 @@ pub fn game(_exemple: bool, high_score: &mut u32) -> u8 {
 
     let mut frames: u32 = 0;
     let mut score: u32 = 0;
+    let mut level: u32 = starting_level;
 
     loop {
         let scan = keyboard::scan();
         if scan.key_down(key::OK) {
-            return GAME_ACTION_MENU;
+            let answer = pause_menu(&COLOR_CONFIG, 50);
+            if answer != 0 {
+                return answer;
+            } else {
+                draw_maze();
+                let ghosts_snapshots = capture_ghost_snapshots(&ghosts);
+                render_frame(
+                    &pac,
+                    &pac,
+                    &ghosts,
+                    &ghosts_snapshots,
+                    &fruit_manager,
+                    level,
+                    frames,
+                    &grid,
+                );
+                msleep(300);
+            }
         }
 
         let player_before = pac;
-        if let Some(i) = advance_game_state(&mut pac, &mut ghosts, &mut grid, &mut score) {
+        if let Some(i) = advance_game_state(
+            &mut pac,
+            &mut ghosts,
+            &mut grid,
+            &mut score,
+            level,
+            &mut fruit_manager,
+        ) {
             draw_dead_pac(&pac, &ghosts[i], &grid);
             msleep(500);
             return game_over_screen(score, high_score);
@@ -392,9 +452,13 @@ pub fn game(_exemple: bool, high_score: &mut u32) -> u8 {
             &pac,
             &ghosts,
             &ghost_snapshots,
+            &fruit_manager,
+            level,
             frames,
             &grid,
         );
+
+        fruit_manager.update(&mut grid);
         frames = frames.wrapping_add(1);
     }
 }

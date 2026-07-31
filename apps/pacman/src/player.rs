@@ -21,6 +21,7 @@ pub struct Player {
     pub superball_active: bool,
     superball_until: u64,
     blinking_triggered: bool,
+    pub dots_eaten: u16,
 }
 
 impl Player {
@@ -35,6 +36,7 @@ impl Player {
             superball_active: false,
             superball_until: 0,
             blinking_triggered: false,
+            dots_eaten: 0,
         }
     }
 

@@ -65,38 +65,25 @@ pub fn draw_player(pos: Point, steps: u8, dir: &Direction, frames: u32, wrapping
         x: (np.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
         y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16 + offset,
     };
+    let frame = ((frames / 2) % 4) as u16; // animation has four stages : closed, semi, open, semi
     TILESET_SPRITES.draw_tile(
         p,
         Point {
-            x: ((frames / 4) % 2) as u16,
-            y: match dir {
-                Direction::Up => 2,
-                Direction::Down => 3,
-                Direction::Right => 0,
-                Direction::Left => 1,
+            x: if frame == 0 { 2 } else { frame % 2 },
+            y: if frame == 0 {
+                0
+            } else {
+                match dir {
+                    Direction::Up => 2,
+                    Direction::Down => 3,
+                    Direction::Right => 0,
+                    Direction::Left => 1,
+                }
             },
         },
         1,
         true,
     );
-    if wrapping {
-        // clear the part that overflows the play screen
-        push_rect_uniform(
-            Rect {
-                x: if dir == &Direction::Left {
-                    X_GRID_OFFSET - 14
-                } else if dir == &Direction::Right {
-                    X_GRID_OFFSET + GRID_WIDTH * TILE_SIZE
-                } else {
-                    p.x
-                },
-                y: p.y,
-                width: 14,
-                height: 14,
-            },
-            Color::BLACK,
-        );
-    }
 }
 
 /// Clear ghost or player by redrawing the maze tiles around it.
@@ -201,24 +188,6 @@ pub fn draw_ghost(
             true,
         ),
     }
-    // clears part outside of grid; TODO : add the other side ?
-    if wrapping {
-        push_rect_uniform(
-            Rect {
-                x: if dir == &Direction::Left {
-                    X_GRID_OFFSET - 14
-                } else if dir == &Direction::Right {
-                    X_GRID_OFFSET + GRID_WIDTH * TILE_SIZE
-                } else {
-                    p.x
-                },
-                y: p.y,
-                width: 15,
-                height: 15,
-            },
-            Color::BLACK,
-        );
-    }
 }
 
 /// UI stuff.
@@ -237,10 +206,40 @@ pub fn draw_space(pos: Point, space: Space) {
     let tile_pos = match space {
         Space::Point => get_tile_position('.').unwrap(),
         Space::Superball => get_tile_position('°').unwrap(),
-        Space::Fruit => get_tile_position('a').unwrap(),
-        Space::Empty | Space::Wall => get_tile_position(' ').unwrap(),
+        Space::Empty | Space::Wall | Space::Fruit => get_tile_position(' ').unwrap(),
     };
     TILESET_WALLS.draw_tile(pos, tile_pos, 1, false);
+}
+
+pub fn draw_fruit(grid_pos: Point, fruit_type: u8) {
+    let tile_pos = Point {
+        x: fruit_type as u16,
+        y: 8,
+    };
+    let mut abs_pos = abs_from_pos(grid_pos);
+    abs_pos.y = abs_pos.y - TILE_SIZE / 2;
+    TILESET_SPRITES.draw_tile(abs_pos, tile_pos, 1, true);
+}
+
+pub fn clear_potential_wrapping_stuff() {
+    push_rect_uniform(
+        Rect {
+            x: X_GRID_OFFSET - TILE_SIZE * 2,
+            y: 11 * TILE_SIZE,
+            width: TILE_SIZE * 2,
+            height: TILE_SIZE * 4,
+        },
+        Color::BLACK,
+    );
+    push_rect_uniform(
+        Rect {
+            x: X_GRID_OFFSET + GRID_WIDTH * TILE_SIZE,
+            y: 11 * TILE_SIZE,
+            width: TILE_SIZE * 2,
+            height: TILE_SIZE * 4,
+        },
+        Color::BLACK,
+    );
 }
 
 /// Death animation. Needs the killer ghost too.

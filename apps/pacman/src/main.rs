@@ -1,6 +1,7 @@
 #![no_std]
 #![no_main]
 
+mod fruit;
 mod game;
 mod ghost;
 mod moveable;
