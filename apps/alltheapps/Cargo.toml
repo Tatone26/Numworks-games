@@ -11,6 +11,7 @@ snake = { path = "../snake", version = "*" }
 connectfour = { path = "../connectfour", version = "*" }
 tetris = { path = "../tetris", version = "*" }
 flappybird = { path = "../flappybird", version = "*" }
+pacman = { path = "../pacman", version = "*"}
 
 [build-dependencies]
 nppm_decoder = { path = "../nppm_decoder", version = "*" }

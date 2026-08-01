@@ -15,7 +15,7 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
     alt: Color::RED,
 };
 
-const NB_GAMES: usize = 5;
+const NB_GAMES: usize = 6;
 
 const STARTS: [fn(); NB_GAMES] = [
     flappybird::start,
@@ -23,6 +23,7 @@ const STARTS: [fn(); NB_GAMES] = [
     connectfour::start,
     snake::start,
     solitaire::start,
+    pacman::start,
 ];
 const THUMBNAILS: [fn(Point); NB_GAMES] = [
     flappybird::thumbnail,
@@ -30,6 +31,7 @@ const THUMBNAILS: [fn(Point); NB_GAMES] = [
     connectfour::thumbnail,
     snake::thumbnail,
     solitaire::thumbnail,
+    pacman::thumbnail,
 ];
 const NAMES: [fn() -> String<15>; NB_GAMES] = [
     flappybird::get_name,
@@ -37,6 +39,7 @@ const NAMES: [fn() -> String<15>; NB_GAMES] = [
     connectfour::get_name,
     snake::get_name,
     solitaire::get_name,
+    pacman::get_name,
 ];
 
 pub fn start() {

@@ -1,9 +1,9 @@
 #![no_std]
 #![no_main]
 
-mod fruit;
 mod game;
 mod ghost;
+mod levels;
 mod moveable;
 mod pac_ui;
 mod player;
@@ -18,7 +18,7 @@ pub static EADK_APP_API_LEVEL: u32 = 0;
 
 #[used]
 #[link_section = ".rodata.eadk_app_icon"]
-pub static EADK_APP_ICON: [u8; 2286] = *include_bytes!("../target/icon.nwi");
+pub static EADK_APP_ICON: [u8; 1998] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {

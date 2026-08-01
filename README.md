@@ -33,12 +33,13 @@ PS : These games are tested on a real N0110 and the latest version of the Epsilo
 
 **Instructions and controls are included in the games themselves!**
 
-- [All the Apps](./apps/alltheapps) : This is a single application combining all the games with a simple menu. The data is not shared with the normal apps!
+- [All the Apps](./apps/alltheapps) : This is a single application combining all the games with a simple menu. The data is not shared with the normal apps, so you can't really use it in parallel of isolated apps.
 - [Snake](./apps/snake/) : My take on the classic game!
 - [Connect Four](./apps/connectfour/) : You can play against your friend or **an AI**, and even try some (strange) 3 players games !
 - [Solitaire](./apps/solitaire/) : A Classic Solitaire, with classic rules.
 - [Tetris](./apps/tetris/) : Yeah. **Tetris!** I feel like it is almost as good as it can be :) I *think* I followed every rule of the original game.
 - [Flappy Bird](./apps/flappybird/) : Everybody knows Flappy Bird. As of today, it is by far the most **technically advanced game** I made. (and the one I worked the most on)
+- [Pacman](./apps/pacman/) : A pretty correct recreation of the original arcade Pacman game. You won't believe how many lines of code this needs.
 
 - [Numworks_utils](./apps/numworks_utils/) contains a lot of the utility code I use : the numworks default functions, the entire menu code, graphical tools and more.
 - [Model](./apps/model/) is a basic repo you can copy to start making a game using my template.

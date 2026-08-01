@@ -11,6 +11,7 @@ dependencies = [
  "heapless",
  "nppm_decoder",
  "numworks_utils",
+ "pacman",
  "snake",
  "solitaire",
  "tetris",
@@ -78,6 +79,15 @@ version = "0.2.5"
 dependencies = [
  "cc",
  "heapless",
+]
+
+[[package]]
+name = "pacman"
+version = "0.1.0"
+dependencies = [
+ "heapless",
+ "nppm_decoder",
+ "numworks_utils",
 ]
 
 [[package]]

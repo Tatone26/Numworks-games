@@ -2,11 +2,9 @@ use numworks_utils::eadk::{key, keyboard, timing, Point};
 
 use crate::{
     game::{Grid, Space, GRID_WIDTH, STEPS_PER_CELL},
+    levels::LevelConfig,
     moveable::{can_go_to, Direction, Moveable},
 };
-
-const SUPERBALL_DURATION_MS: u64 = 7000;
-const SUPERBALL_BLINK_WINDOW_MS: u64 = 2000; // Blinks during the last 2 seconds
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum SuperballEvent {
@@ -20,27 +18,45 @@ pub struct Player {
     pub moveable: Moveable,
     pub superball_active: bool,
     superball_until: u64,
+    blink_at: u64,
     blinking_triggered: bool,
     pub dots_eaten: u16,
+    just_ate: bool,
 }
 
 impl Player {
-    pub fn new() -> Self {
+    pub fn new(config: &LevelConfig) -> Self {
         Self {
             moveable: Moveable::new(
                 Point { x: 13, y: 22 },
                 Point { x: 14, y: 22 },
                 Direction::Right,
-                1.0,
+                config.pac_speed,
             ),
             superball_active: false,
             superball_until: 0,
             blinking_triggered: false,
             dots_eaten: 0,
+            just_ate: false,
+            blink_at: 0,
         }
     }
 
-    pub fn handle_events(&mut self) -> SuperballEvent {
+    pub fn activate_superball(&mut self, config: &LevelConfig) {
+        let duration = config.frightened_duration_ms;
+        if duration == 0 {
+            return;
+        }
+
+        let now = timing::millis();
+        self.superball_active = true;
+        self.superball_until = now + duration;
+        self.blink_at = self.superball_until.saturating_sub(config.blink_window_ms);
+        self.blinking_triggered = false;
+        self.moveable.speed = config.pac_speed * 1.15;
+    }
+
+    pub fn handle_events(&mut self, config: &LevelConfig) -> SuperballEvent {
         if self.superball_until == 0 {
             return SuperballEvent::None;
         }
@@ -50,14 +66,9 @@ impl Player {
             self.superball_active = false;
             self.superball_until = 0;
             self.blinking_triggered = false;
-            self.moveable.speed = 1.0;
+            self.moveable.speed = config.pac_speed;
             SuperballEvent::Expired
-        } else if now
-            >= self
-                .superball_until
-                .saturating_sub(SUPERBALL_BLINK_WINDOW_MS)
-            && !self.blinking_triggered
-        {
+        } else if self.blink_at != 0 && now >= self.blink_at && !self.blinking_triggered {
             self.blinking_triggered = true;
             SuperballEvent::BlinkingStarted
         } else {
@@ -65,15 +76,17 @@ impl Player {
         }
     }
 
-    pub fn activate_superball(&mut self) {
-        self.superball_active = true;
-        self.superball_until = timing::millis() + SUPERBALL_DURATION_MS;
-        self.blinking_triggered = false;
-        self.moveable.speed = 1.5;
-    }
+    pub fn move_player(
+        &mut self,
+        config: &LevelConfig,
+        grid: &mut Grid,
+    ) -> (Option<Space>, SuperballEvent) {
+        let event = self.handle_events(config);
 
-    pub fn move_player(&mut self, grid: &mut Grid) -> (Option<Space>, SuperballEvent) {
-        let event = self.handle_events();
+        if self.just_ate {
+            self.just_ate = false;
+            return (None, event); // FIXED: Pass through event instead of swallowing it
+        }
 
         let on = self.moveable.move_moveable(grid, false);
         let eaten = match on {
@@ -83,7 +96,8 @@ impl Player {
                         + self.moveable.destination.y * GRID_WIDTH)
                         as usize;
                     grid[idx] = Space::Empty;
-                    self.activate_superball();
+                    self.activate_superball(config);
+                    self.just_ate = true;
                     Some(Space::Superball)
                 } else {
                     None
@@ -95,6 +109,7 @@ impl Player {
                         + self.moveable.destination.y * GRID_WIDTH)
                         as usize;
                     grid[idx] = Space::Empty;
+                    self.just_ate = true;
                     Some(Space::Point)
                 } else {
                     None
@@ -106,6 +121,7 @@ impl Player {
                         + self.moveable.destination.y * GRID_WIDTH)
                         as usize;
                     grid[idx] = Space::Empty;
+                    self.just_ate = true;
                     Some(Space::Fruit)
                 } else {
                     None

@@ -1,7 +1,8 @@
 use numworks_utils::eadk::{timing, Point};
 
 use crate::{
-    game::{Grid, GRID_HEIGHT, GRID_WIDTH, STEPS_PER_CELL},
+    game::{Grid, GRID_HEIGHT, GRID_WIDTH},
+    levels::LevelConfig,
     moveable::{can_go_to, next_pos, Direction, Moveable},
 };
 
@@ -42,13 +43,13 @@ pub struct Ghost {
     door_position: Point,
 
     release_timer: u64,
-    scatter_until: u64,
-    chase_until: u64,
+    wave_timer: u64,
+    wave_step: u8,
     tried_change: bool,
 }
 
 impl Ghost {
-    pub fn new(start: Point, gtype: GhostType) -> Self {
+    pub fn new(start: Point, gtype: GhostType, config: &LevelConfig) -> Self {
         let now = timing::millis();
 
         let door_position = Point {
@@ -59,8 +60,16 @@ impl Ghost {
         let (house_state, release_timer, initial_dir) = match gtype {
             GhostType::Blinky => (HouseState::Outside, 0, Direction::Left),
             GhostType::Pinky => (HouseState::Leaving, 0, Direction::Up),
-            GhostType::Inky => (HouseState::Inside, now + 4000, Direction::Left),
-            GhostType::Clyde => (HouseState::Inside, now + 8000, Direction::Right),
+            GhostType::Inky => (
+                HouseState::Inside,
+                now + config.inky_release_ms,
+                Direction::Left,
+            ),
+            GhostType::Clyde => (
+                HouseState::Inside,
+                now + config.clyde_release_ms,
+                Direction::Right,
+            ),
         };
 
         let spawn_pos = if gtype == GhostType::Blinky {
@@ -73,15 +82,15 @@ impl Ghost {
 
         Self {
             gtype,
-            moveable: Moveable::new(spawn_pos, initial_dest, initial_dir, 0.5),
+            moveable: Moveable::new(spawn_pos, initial_dest, initial_dir, config.ghost_speed),
             movement_mode: MovementMode::Scatter,
             house_state,
             target_cell: Point { x: 0, y: 0 },
             home_position: start,
             door_position,
             release_timer,
-            scatter_until: now + 7000,
-            chase_until: 0,
+            wave_timer: now + config.wave_timings.scatter_1,
+            wave_step: 0,
             tried_change: false,
         }
     }
@@ -92,8 +101,10 @@ impl Ghost {
         pac_direction: &Direction,
         blinky_pos: Point,
         grid: &mut Grid,
+        config: &LevelConfig,
     ) {
-        self.handle_events();
+        self.handle_events(config);
+        self.recalculate_speed(config);
 
         match self.house_state {
             HouseState::Inside => {
@@ -107,7 +118,7 @@ impl Ghost {
                 self.process_house_exit(grid);
             }
             HouseState::Entering => {
-                self.process_house_entry(grid);
+                self.process_house_entry(grid, config);
             }
             HouseState::Outside => {
                 self.update_outside_movement(pac_position, pac_direction, blinky_pos, grid);
@@ -115,25 +126,77 @@ impl Ghost {
         }
     }
 
-    fn handle_events(&mut self) {
-        let now = timing::millis();
+    fn recalculate_speed(&mut self, config: &LevelConfig) {
+        let cur = self.moveable.grid_position;
+        let is_in_tunnel = (cur.x <= 5 || cur.x >= 22) && (cur.y == 12 || cur.y == 13);
 
-        if self.movement_mode == MovementMode::Scatter
-            && self.scatter_until != 0
-            && now >= self.scatter_until
+        self.moveable.speed = match self.movement_mode {
+            MovementMode::Eaten => config.eaten_ghost_speed,
+            MovementMode::Frightened | MovementMode::FrightenedBlinking => {
+                config.frightened_ghost_speed
+            }
+            MovementMode::Chase | MovementMode::Scatter => {
+                if is_in_tunnel {
+                    config.tunnel_ghost_speed
+                } else {
+                    config.ghost_speed
+                }
+            }
+        };
+    }
+
+    fn handle_events(&mut self, config: &LevelConfig) {
+        // Do not advance AI wave timers while frightened or returning as eyes
+        if self.movement_mode == MovementMode::Frightened
+            || self.movement_mode == MovementMode::FrightenedBlinking
+            || self.movement_mode == MovementMode::Eaten
         {
-            self.movement_mode = MovementMode::Chase;
-            self.scatter_until = 0;
-            self.chase_until = now + 20000;
+            return;
         }
 
-        if self.movement_mode == MovementMode::Chase
-            && self.chase_until != 0
-            && now >= self.chase_until
-        {
-            self.movement_mode = MovementMode::Scatter;
-            self.chase_until = 0;
-            self.scatter_until = now + 7000;
+        let now = timing::millis();
+        if self.wave_timer == 0 || now < self.wave_timer {
+            return;
+        }
+
+        let timings = &config.wave_timings;
+        match self.wave_step {
+            0 => {
+                self.wave_step = 1;
+                self.movement_mode = MovementMode::Chase;
+                self.wave_timer = now + timings.chase_1;
+            }
+            1 => {
+                self.wave_step = 2;
+                self.movement_mode = MovementMode::Scatter;
+                self.wave_timer = now + timings.scatter_2;
+            }
+            2 => {
+                self.wave_step = 3;
+                self.movement_mode = MovementMode::Chase;
+                self.wave_timer = now + timings.chase_2;
+            }
+            3 => {
+                self.wave_step = 4;
+                self.movement_mode = MovementMode::Scatter;
+                self.wave_timer = now + timings.scatter_3;
+            }
+            4 => {
+                self.wave_step = 5;
+                self.movement_mode = MovementMode::Chase;
+                self.wave_timer = now + timings.chase_3;
+            }
+            5 => {
+                self.wave_step = 6;
+                self.movement_mode = MovementMode::Scatter;
+                self.wave_timer = now + timings.scatter_4;
+            }
+            6 => {
+                self.wave_step = 7;
+                self.movement_mode = MovementMode::Chase;
+                self.wave_timer = 0;
+            }
+            _ => {}
         }
     }
 
@@ -177,7 +240,7 @@ impl Ghost {
         self.moveable.move_moveable(grid, true);
     }
 
-    fn process_house_entry(&mut self, grid: &mut Grid) {
+    fn process_house_entry(&mut self, grid: &mut Grid, config: &LevelConfig) {
         let cur = self.moveable.grid_position;
 
         if cur.y < self.home_position.y {
@@ -187,8 +250,10 @@ impl Ghost {
         } else if cur.x > self.home_position.x {
             self.moveable.change_direction(Direction::Left);
         } else {
+            // ARCADE RULE: Eaten eyes revived inside the house exit IMMEDIATELY.
+            // They revive in normal (dangerous) Scatter mode, even if Superball is still active on Pac-Man.
             self.movement_mode = MovementMode::Scatter;
-            self.moveable.speed = 0.5;
+            self.moveable.speed = config.ghost_speed;
             self.house_state = HouseState::Leaving;
             return;
         }
@@ -224,12 +289,18 @@ impl Ghost {
         }
     }
 
-    pub fn set_frightened(&mut self) {
-        if self.movement_mode != MovementMode::Eaten && self.house_state == HouseState::Outside {
+    pub fn set_frightened(&mut self, config: &LevelConfig) {
+        // ARCADE RULE: All ghosts (Inside, Leaving, or Outside) become Frightened when Superball is eaten,
+        // EXCEPT for ghosts returning as Eaten eyes.
+        if self.movement_mode != MovementMode::Eaten {
             self.movement_mode = MovementMode::Frightened;
-            self.moveable.speed = 0.35;
-            let rev = self.moveable.direction.opposite();
-            self.moveable.change_direction(rev);
+            self.moveable.speed = config.frightened_ghost_speed;
+
+            // Only reverse direction if actively navigating the open maze
+            if self.house_state == HouseState::Outside {
+                let rev = self.moveable.direction.opposite();
+                self.moveable.change_direction(rev);
+            }
         }
     }
 
@@ -239,18 +310,18 @@ impl Ghost {
         }
     }
 
-    pub fn stop_frightened(&mut self) {
+    pub fn stop_frightened(&mut self, config: &LevelConfig) {
         if self.movement_mode == MovementMode::Frightened
             || self.movement_mode == MovementMode::FrightenedBlinking
         {
             self.movement_mode = MovementMode::Chase;
-            self.moveable.speed = 0.5;
+            self.moveable.speed = config.ghost_speed;
         }
     }
 
-    pub fn set_eaten(&mut self) {
+    pub fn set_eaten(&mut self, config: &LevelConfig) {
         self.movement_mode = MovementMode::Eaten;
-        self.moveable.speed = 1.2;
+        self.moveable.speed = config.eaten_ghost_speed;
     }
 
     fn should_retarget(&self) -> bool {
@@ -322,7 +393,7 @@ impl Ghost {
                             y: pac_position.y.saturating_add(2).min(max_y),
                         },
                         Direction::Right => Point {
-                            x: pac_position.x.saturating_add(2).min(max_x),
+                            x: pac_position.x.saturating_add(4).min(max_x),
                             y: pac_position.y,
                         },
                         Direction::Left => Point {
@@ -336,7 +407,7 @@ impl Ghost {
                     }
                 }
                 GhostType::Clyde => {
-                    if distance(self.moveable.grid_position, pac_position) > 8 {
+                    if distance(self.moveable.grid_position, pac_position) > 64 {
                         pac_position
                     } else {
                         scatter_point(&self.gtype)
@@ -355,7 +426,7 @@ impl Ghost {
         let is_frightened = self.movement_mode == MovementMode::Frightened
             || self.movement_mode == MovementMode::FrightenedBlinking;
 
-        let mut best_distance = if is_frightened { 0 } else { u16::MAX };
+        let mut best_distance = if is_frightened { 0 } else { u32::MAX };
 
         for &d in possible_directions.iter() {
             if d == self.moveable.direction.opposite() {
@@ -390,9 +461,12 @@ impl Ghost {
     }
 }
 
+/// Strict Arcade Euclidean Distance Squared: (x1 - x2)^2 + (y1 - y2)^2
 #[inline(always)]
-const fn distance(p1: Point, p2: Point) -> u16 {
-    p1.x.abs_diff(p2.x) + p1.y.abs_diff(p2.y)
+fn distance(p1: Point, p2: Point) -> u32 {
+    let dx = (p1.x as i32) - (p2.x as i32);
+    let dy = (p1.y as i32) - (p2.y as i32);
+    (dx * dx + dy * dy) as u32
 }
 
 const fn scatter_point(g: &GhostType) -> Point {

@@ -1,11 +1,12 @@
 use numworks_utils::{
     eadk::{
-        display::{draw_string, push_rect_uniform, wait_for_vblank},
+        display::{draw_string, push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
+        timing::msleep,
         Color, Point, Rect,
     },
     graphical::tiling::Tileset,
     include_bytes_align_as,
-    utils::string_from_u16,
+    utils::{get_string_pixel_size, string_from_u16, string_from_u32, SMALL_CHAR_HEIGHT},
 };
 
 use crate::{
@@ -190,17 +191,6 @@ pub fn draw_ghost(
     }
 }
 
-/// UI stuff.
-pub fn draw_score(score: u16) {
-    draw_string(
-        &string_from_u16(score),
-        Point { x: 0, y: 0 },
-        false,
-        Color::WHITE,
-        Color::BLACK,
-    );
-}
-
 /// Draws a given grid space.
 pub fn draw_space(pos: Point, space: Space) {
     let tile_pos = match space {
@@ -257,6 +247,7 @@ pub fn draw_dead_pac(pac: &Player, ghost: &Ghost, grid: &Grid) {
             + offset,
     };
 
+    msleep(750);
     for y in 0..2 {
         for x in 2..8 {
             clear_moveable(
@@ -301,19 +292,129 @@ pub fn draw_dead_pac(pac: &Player, ghost: &Ghost, grid: &Grid) {
     );
 }
 
-/// Draws the entirety of the maze (walls, points) based on the built-in maze bytes.
-/// Used only at launch, does not need to be called again.
-pub fn draw_maze() {
+const UI_Y_OFFSET: u16 = 5;
+const UI_X_OFFSET: u16 = 2;
+pub fn draw_constant_ui(high_score: u32) {
+    draw_string(
+        "LEVEL\0",
+        Point {
+            x: UI_X_OFFSET,
+            y: UI_Y_OFFSET,
+        },
+        false,
+        Color::WHITE,
+        Color::BLACK,
+    );
+    draw_string(
+        "SCORE\0",
+        Point {
+            x: UI_X_OFFSET,
+            y: UI_Y_OFFSET + (SMALL_CHAR_HEIGHT + 2) * 2,
+        },
+        false,
+        Color::WHITE,
+        Color::BLACK,
+    );
+    draw_string(
+        "HIGH\0",
+        Point {
+            x: SCREEN_WIDTH - UI_X_OFFSET - get_string_pixel_size("HIGH\0", false),
+            y: UI_Y_OFFSET,
+        },
+        false,
+        Color::WHITE,
+        Color::BLACK,
+    );
+    let high_score_string = string_from_u32(high_score);
+    draw_string(
+        &high_score_string,
+        Point {
+            x: SCREEN_WIDTH - UI_X_OFFSET - get_string_pixel_size(&high_score_string, false),
+            y: UI_Y_OFFSET + SMALL_CHAR_HEIGHT + 2,
+        },
+        false,
+        Color::WHITE,
+        Color::BLACK,
+    );
+
+    draw_string(
+        "LIVES",
+        Point {
+            x: UI_X_OFFSET,
+            y: SCREEN_HEIGHT - UI_Y_OFFSET - TILE_SIZE * 2 - SMALL_CHAR_HEIGHT - 2,
+        },
+        false,
+        Color::WHITE,
+        Color::BLACK,
+    );
+}
+
+pub fn draw_score(score: u32) {
+    draw_string(
+        &string_from_u32(score),
+        Point {
+            x: UI_X_OFFSET,
+            y: UI_X_OFFSET + (SMALL_CHAR_HEIGHT + 2) * 3,
+        },
+        false,
+        Color::WHITE,
+        Color::BLACK,
+    );
+}
+
+pub fn draw_level(level: u16) {
+    draw_string(
+        &string_from_u16(level),
+        Point {
+            x: UI_X_OFFSET,
+            y: UI_Y_OFFSET + (SMALL_CHAR_HEIGHT + 2),
+        },
+        false,
+        Color::WHITE,
+        Color::BLACK,
+    );
+}
+
+pub fn draw_lives(lives: u8) {
+    let mut pos = Point {
+        x: 0,
+        y: SCREEN_HEIGHT - UI_Y_OFFSET - TILE_SIZE * 2,
+    };
+    push_rect_uniform(
+        Rect {
+            x: pos.x,
+            y: pos.y,
+            width: TILE_SIZE * 2 * 3,
+            height: TILE_SIZE * 2,
+        },
+        Color::BLACK,
+    );
+    for _ in 0..lives {
+        TILESET_SPRITES.draw_tile(pos, Point { x: 1, y: 0 }, 1, true);
+        pos.x += TILE_SIZE * 2;
+    }
+}
+
+/// Draws the maze based on the current grid state.
+/// Wall graphics are pulled from MAZE_TILE_CACHE, while items/empty spaces reflect the active Grid.
+pub fn draw_maze(grid: &Grid) {
     ensure_maze_tile_cache();
     for line in 0..GRID_HEIGHT as usize {
         wait_for_vblank();
         for col in 0..GRID_WIDTH as usize {
-            let pos = Point {
-                x: col as u16 * TILE_SIZE + X_GRID_OFFSET,
-                y: line as u16 * TILE_SIZE,
-            };
-            let tile_pos = unsafe { MAZE_TILE_CACHE[line * GRID_WIDTH as usize + col] };
-            TILESET_WALLS.draw_tile(pos, tile_pos, 1, false);
+            let idx = line * GRID_WIDTH as usize + col;
+            let pixel_pos = abs_from_pos(Point {
+                x: col as u16,
+                y: line as u16,
+            });
+
+            match grid[idx] {
+                Space::Wall => {
+                    let tile_pos = unsafe { MAZE_TILE_CACHE[idx] };
+                    TILESET_WALLS.draw_tile(pixel_pos, tile_pos, 1, false);
+                }
+                space => draw_space(pixel_pos, space),
+            }
         }
     }
 }
