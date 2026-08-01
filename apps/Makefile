@@ -1,4 +1,4 @@
-GAMES := snake connectfour solitaire tetris flappybird alltheapps
+GAMES := snake connectfour solitaire tetris flappybird pacman alltheapps
 
 ROOT_DIR := $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 
