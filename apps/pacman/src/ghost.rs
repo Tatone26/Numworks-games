@@ -54,7 +54,7 @@ impl Ghost {
 
         let door_position = Point {
             x: 14,
-            y: start.y.saturating_sub(2),
+            y: start.y.saturating_sub(1),
         };
 
         let (house_state, release_timer, initial_dir) = match gtype {
@@ -126,17 +126,26 @@ impl Ghost {
         }
     }
 
-    fn recalculate_speed(&mut self, config: &LevelConfig) {
-        let cur = self.moveable.grid_position;
-        let is_in_tunnel = (cur.x <= 5 || cur.x >= 22) && (cur.y == 12 || cur.y == 13);
+    fn is_frightened(&self) -> bool {
+        matches!(
+            self.movement_mode,
+            MovementMode::Frightened | MovementMode::FrightenedBlinking
+        )
+    }
 
+    fn is_in_tunnel(&self) -> bool {
+        let cur = self.moveable.grid_position;
+        (cur.x <= 5 || cur.x >= 22) && (cur.y == 12 || cur.y == 13)
+    }
+
+    fn recalculate_speed(&mut self, config: &LevelConfig) {
         self.moveable.speed = match self.movement_mode {
             MovementMode::Eaten => config.eaten_ghost_speed,
             MovementMode::Frightened | MovementMode::FrightenedBlinking => {
                 config.frightened_ghost_speed
             }
             MovementMode::Chase | MovementMode::Scatter => {
-                if is_in_tunnel {
+                if self.is_in_tunnel() {
                     config.tunnel_ghost_speed
                 } else {
                     config.ghost_speed
@@ -352,8 +361,8 @@ impl Ghost {
             return;
         }
 
-        let max_x = (GRID_WIDTH - 1) as u16;
-        let max_y = (GRID_HEIGHT - 1) as u16;
+        let max_x = GRID_WIDTH - 1;
+        let max_y = GRID_HEIGHT - 1;
 
         self.target_cell = match self.movement_mode {
             MovementMode::Scatter => scatter_point(&self.gtype),
@@ -423,8 +432,7 @@ impl Ghost {
             Direction::Right,
         ];
         let mut best_direction = self.moveable.direction.opposite();
-        let is_frightened = self.movement_mode == MovementMode::Frightened
-            || self.movement_mode == MovementMode::FrightenedBlinking;
+        let is_frightened = self.is_frightened();
 
         let mut best_distance = if is_frightened { 0 } else { u32::MAX };
 

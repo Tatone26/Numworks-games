@@ -10,7 +10,9 @@ use numworks_utils::{
 };
 
 use crate::{
-    game::{Grid, Space, GRID_HEIGHT, GRID_WIDTH, MAZE_BYTES, TILE_SIZE, X_GRID_OFFSET},
+    game::{
+        grid_index, Grid, Space, GRID_HEIGHT, GRID_WIDTH, MAZE_BYTES, TILE_SIZE, X_GRID_OFFSET,
+    },
     ghost::{Ghost, GhostType, HouseState, MovementMode},
     moveable::Direction,
     player::Player,
@@ -55,17 +57,46 @@ const fn abs_from_pos(pos: Point) -> Point {
     }
 }
 
-/// Draws Pac-Man.
-pub fn draw_player(pos: Point, steps: u8, dir: &Direction, frames: u32, wrapping: bool) {
+fn draw_house_door() {
+    let pixel_pos = abs_from_pos(Point { x: 14, y: 12 });
+    let door_x = pixel_pos.x + TILE_SIZE / 2 - 3;
+    let door_y = pixel_pos.y + 1;
+    push_rect_uniform(
+        Rect {
+            x: door_x,
+            y: door_y,
+            width: 6,
+            height: TILE_SIZE - 2,
+        },
+        Color::BLACK,
+    );
+    push_rect_uniform(
+        Rect {
+            x: door_x + 1,
+            y: door_y + 1,
+            width: 4,
+            height: TILE_SIZE - 4,
+        },
+        Color::WHITE,
+    );
+}
+
+fn sprite_draw_position(pos: Point, steps: u8, dir: Direction, extra_y: i16) -> Point {
     let np = abs_from_pos(pos);
-    let offset = match dir {
+    let dir_offset = match dir {
         Direction::Up | Direction::Down => 0,
         Direction::Right | Direction::Left => 1,
     };
-    let p = Point {
+    Point {
         x: (np.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
-        y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16 + offset,
-    };
+        y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1 + extra_y) as u16
+            + dir_offset,
+    }
+}
+
+/// Draws Pac-Man.
+pub fn draw_player(pos: Point, steps: u8, dir: Direction, frames: u32) {
+    let p = sprite_draw_position(pos, steps, dir, 0);
     let frame = ((frames / 2) % 4) as u16; // animation has four stages : closed, semi, open, semi
     TILESET_SPRITES.draw_tile(
         p,
@@ -88,7 +119,7 @@ pub fn draw_player(pos: Point, steps: u8, dir: &Direction, frames: u32, wrapping
 }
 
 /// Clear ghost or player by redrawing the maze tiles around it.
-pub fn clear_moveable(pos: Point, _steps: u8, _dir: &Direction, grid: &Grid, _is_ghost_home: bool) {
+pub fn clear_moveable(pos: Point, _steps: u8, _dir: Direction, grid: &Grid, _is_ghost_home: bool) {
     ensure_maze_tile_cache();
     for dy in -1..=1 {
         for dx in -1..=1 {
@@ -97,14 +128,13 @@ pub fn clear_moveable(pos: Point, _steps: u8, _dir: &Direction, grid: &Grid, _is
                 y: (pos.y as i16 + dy as i16).clamp(0, GRID_HEIGHT as i16 - 1) as u16,
             };
             let tile_pixel_pos = abs_from_pos(tile_pos);
-            match grid.get((tile_pos.x + tile_pos.y * GRID_WIDTH) as usize) {
+            match grid.get(grid_index(tile_pos)) {
                 Some(Space::Point) => draw_space(tile_pixel_pos, Space::Point),
                 Some(Space::Superball) => draw_space(tile_pixel_pos, Space::Superball),
                 Some(Space::Fruit) => draw_space(tile_pixel_pos, Space::Fruit),
                 Some(Space::Empty) | None => draw_space(tile_pixel_pos, Space::Empty),
                 Some(Space::Wall) => {
-                    let wall_tile_pos =
-                        unsafe { MAZE_TILE_CACHE[(tile_pos.x + tile_pos.y * GRID_WIDTH) as usize] };
+                    let wall_tile_pos = unsafe { MAZE_TILE_CACHE[grid_index(tile_pos)] };
                     TILESET_WALLS.draw_tile(tile_pixel_pos, wall_tile_pos, 1, false);
                 }
             }
@@ -116,26 +146,18 @@ pub fn clear_moveable(pos: Point, _steps: u8, _dir: &Direction, grid: &Grid, _is
 pub fn draw_ghost(
     pos: Point,
     steps: u8,
-    dir: &Direction,
+    dir: Direction,
     frames: u32,
-    wrapping: bool,
     gtype: &GhostType,
     house_state: HouseState,
     movement_mode: &MovementMode,
 ) {
-    let mut np = abs_from_pos(pos);
-    if house_state == HouseState::Inside {
-        np.y = np.y + TILE_SIZE / 2;
-    }
-
-    let offset = match dir {
-        Direction::Up | Direction::Down => 0,
-        Direction::Right | Direction::Left => 1,
+    let extra_y = if house_state == HouseState::Inside {
+        TILE_SIZE as i16 / 2
+    } else {
+        0
     };
-    let p = Point {
-        x: (np.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
-        y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1) as u16 + offset,
-    };
+    let p = sprite_draw_position(pos, steps, dir, extra_y);
     match movement_mode {
         MovementMode::Frightened => TILESET_SPRITES.draw_tile(
             p,
@@ -207,7 +229,7 @@ pub fn draw_fruit(grid_pos: Point, fruit_type: u8) {
         y: 8,
     };
     let mut abs_pos = abs_from_pos(grid_pos);
-    abs_pos.y = abs_pos.y - TILE_SIZE / 2;
+    abs_pos.y -= TILE_SIZE / 2;
     TILESET_SPRITES.draw_tile(abs_pos, tile_pos, 1, true);
 }
 
@@ -234,18 +256,12 @@ pub fn clear_potential_wrapping_stuff() {
 
 /// Death animation. Needs the killer ghost too.
 pub fn draw_dead_pac(pac: &Player, ghost: &Ghost, grid: &Grid) {
-    let np = abs_from_pos(pac.moveable.grid_position);
-    let offset = match pac.moveable.direction {
-        Direction::Up | Direction::Down => 0,
-        Direction::Right | Direction::Left => 1,
-    };
-    let p = Point {
-        x: (np.x as i16 - TILE_SIZE as i16 / 2
-            + pac.moveable.steps as i16 * pac.moveable.direction.to_vector().0) as u16,
-        y: (np.y as i16 - TILE_SIZE as i16 / 2
-            + pac.moveable.steps as i16 * pac.moveable.direction.to_vector().1) as u16
-            + offset,
-    };
+    let p = sprite_draw_position(
+        pac.moveable.grid_position,
+        pac.moveable.steps as u8,
+        pac.moveable.direction,
+        0,
+    );
 
     msleep(750);
     for y in 0..2 {
@@ -253,16 +269,15 @@ pub fn draw_dead_pac(pac: &Player, ghost: &Ghost, grid: &Grid) {
             clear_moveable(
                 pac.moveable.grid_position,
                 pac.moveable.steps as u8,
-                &pac.moveable.direction,
+                pac.moveable.direction,
                 grid,
                 false,
             );
             draw_ghost(
                 ghost.moveable.grid_position,
                 ghost.moveable.steps as u8,
-                &ghost.moveable.direction,
+                ghost.moveable.direction,
                 0,
-                ghost.moveable.wrapping,
                 &ghost.gtype,
                 ghost.house_state,
                 &ghost.movement_mode,
@@ -276,16 +291,15 @@ pub fn draw_dead_pac(pac: &Player, ghost: &Ghost, grid: &Grid) {
     clear_moveable(
         pac.moveable.grid_position,
         pac.moveable.steps as u8,
-        &pac.moveable.direction,
+        pac.moveable.direction,
         grid,
         false,
     );
     draw_ghost(
         ghost.moveable.grid_position,
         ghost.moveable.steps as u8,
-        &ghost.moveable.direction,
+        ghost.moveable.direction,
         0,
-        ghost.moveable.wrapping,
         &ghost.gtype,
         ghost.house_state,
         &ghost.movement_mode,
@@ -402,7 +416,10 @@ pub fn draw_maze(grid: &Grid) {
     for line in 0..GRID_HEIGHT as usize {
         wait_for_vblank();
         for col in 0..GRID_WIDTH as usize {
-            let idx = line * GRID_WIDTH as usize + col;
+            let idx = grid_index(Point {
+                x: col as u16,
+                y: line as u16,
+            });
             let pixel_pos = abs_from_pos(Point {
                 x: col as u16,
                 y: line as u16,
@@ -417,6 +434,7 @@ pub fn draw_maze(grid: &Grid) {
             }
         }
     }
+    draw_house_door();
 }
 
 /// For the maze, determines the tile position based on the character written in the .txt file.

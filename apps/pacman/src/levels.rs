@@ -1,4 +1,4 @@
-use crate::game::{Grid, Space, GRID_WIDTH};
+use crate::game::{grid_index, Grid, Space};
 use numworks_utils::eadk::Point;
 
 pub const TARGET_FPS: f32 = 45.0;
@@ -82,28 +82,20 @@ impl WaveTimings {
 
 #[derive(Clone, Copy)]
 pub struct LevelConfig {
-    pub level: u16,
-
-    // Speeds (steps per frame at 45 FPS)
     pub pac_speed: f32,
     pub ghost_speed: f32,
     pub frightened_ghost_speed: f32,
     pub tunnel_ghost_speed: f32,
     pub eaten_ghost_speed: f32,
 
-    // Frightened state mechanics
     pub frightened_duration_ms: u64,
     pub blink_window_ms: u64,
-    pub flash_count: u8, // Number of warning blinks
 
-    // House release delays for ghosts (Inky and Clyde)
     pub inky_release_ms: u64,
     pub clyde_release_ms: u64,
 
-    // Active fruit index (0 to 7)
     pub fruit_id: u8,
 
-    // AI Wave timings
     pub wave_timings: WaveTimings,
 }
 
@@ -116,7 +108,8 @@ impl LevelConfig {
             _ => (0.90, 0.95, 0.60, 0.50), // Level 21+ Pac-Man slows slightly
         };
 
-        let (fright_ms, flashes) = match level {
+        // Second argument (number of flashes) is unused because... beh.
+        let (fright_ms, _) = match level {
             1 => (6000, 5),
             2 => (5000, 5),
             3 => (4000, 5),
@@ -141,8 +134,6 @@ impl LevelConfig {
         };
 
         Self {
-            level,
-
             pac_speed: pac_pct * FPS_SCALE,
             ghost_speed: ghost_pct * FPS_SCALE,
             frightened_ghost_speed: fright_ghost_pct * FPS_SCALE,
@@ -151,7 +142,6 @@ impl LevelConfig {
 
             frightened_duration_ms: fright_ms,
             blink_window_ms: blink_window,
-            flash_count: flashes,
 
             inky_release_ms: inky_release,
             clyde_release_ms: clyde_release,
@@ -212,7 +202,7 @@ impl LevelManager {
             self.fruit_active = true;
             self.despawn_until = now + FRUIT_DESPAWN_TIME_MS;
 
-            let idx = (self.fruit_spawn_pos.x + self.fruit_spawn_pos.y * GRID_WIDTH) as usize;
+            let idx = grid_index(self.fruit_spawn_pos);
             grid[idx] = Space::Fruit;
         }
     }
@@ -222,7 +212,7 @@ impl LevelManager {
             self.fruit_active = false;
             self.despawn_until = 0;
 
-            let idx = (self.fruit_spawn_pos.x + self.fruit_spawn_pos.y * GRID_WIDTH) as usize;
+            let idx = grid_index(self.fruit_spawn_pos);
             if grid[idx] == Space::Fruit {
                 grid[idx] = Space::Empty;
             }
@@ -234,7 +224,7 @@ impl LevelManager {
         self.fruit_eaten = true;
         self.despawn_until = 0;
 
-        let idx = (self.fruit_spawn_pos.x + self.fruit_spawn_pos.y * GRID_WIDTH) as usize;
+        let idx = grid_index(self.fruit_spawn_pos);
         grid[idx] = Space::Empty;
 
         FRUIT_SCORES[self.config.fruit_id as usize]

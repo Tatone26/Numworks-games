@@ -21,6 +21,7 @@ use crate::{
     pac_ui::{
         clear_moveable, clear_potential_wrapping_stuff, draw_constant_ui, draw_dead_pac,
         draw_fruit, draw_ghost, draw_level, draw_lives, draw_maze, draw_player, draw_score,
+        draw_space,
     },
     player::{Player, SuperballEvent},
 };
@@ -32,19 +33,43 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 };
 
 fn vis_addon() {
+    for x in 0..=4 {
+        draw_space(
+            Point {
+                x: X_GRID_OFFSET + 8 * TILE_SIZE + x * TILE_SIZE as u16,
+                y: 8 * TILE_SIZE,
+            },
+            Space::Point,
+        );
+    }
+    draw_space(
+        Point {
+            x: 13 * TILE_SIZE + X_GRID_OFFSET,
+            y: 8 * TILE_SIZE,
+        },
+        Space::Superball,
+    );
+    draw_fruit(Point { x: 20, y: 8 }, 0);
     draw_player(
-        Point { x: 10, y: 10 },
+        Point { x: 6, y: 8 },
         0,
-        &crate::moveable::Direction::Right,
+        crate::moveable::Direction::Right,
         3,
-        false,
     );
     draw_ghost(
-        Point { x: 15, y: 10 },
+        Point { x: 16, y: 8 },
         0,
-        &crate::moveable::Direction::Right,
+        crate::moveable::Direction::Left,
         3,
-        false,
+        &GhostType::Blinky,
+        HouseState::Outside,
+        &MovementMode::Scatter,
+    );
+    draw_ghost(
+        Point { x: 2, y: 8 },
+        0,
+        crate::moveable::Direction::Right,
+        3,
         &GhostType::Clyde,
         HouseState::Outside,
         &MovementMode::Scatter,
@@ -154,6 +179,10 @@ pub enum Space {
 
 pub type Grid = [Space; ARRAY_SIZE];
 
+pub(crate) fn grid_index(pos: Point) -> usize {
+    (pos.x + pos.y * GRID_WIDTH) as usize
+}
+
 fn read_file(maze_file: &str) -> [Space; ARRAY_SIZE] {
     let mut grid: [Space; ARRAY_SIZE] = [Space::Empty; ARRAY_SIZE];
     for (line, s) in maze_file
@@ -204,17 +233,21 @@ fn apply_speed_multiplier(config: &mut LevelConfig, mult: f32) {
     config.eaten_ghost_speed *= mult;
 }
 
+fn make_ghosts(config: &LevelConfig) -> [Ghost; 4] {
+    [
+        Ghost::new(Point { x: 13, y: 13 }, GhostType::Blinky, config),
+        Ghost::new(Point { x: 14, y: 13 }, GhostType::Pinky, config),
+        Ghost::new(Point { x: 12, y: 13 }, GhostType::Inky, config),
+        Ghost::new(Point { x: 15, y: 13 }, GhostType::Clyde, config),
+    ]
+}
+
 fn reset_level_positions(pac: &mut Player, ghosts: &mut [Ghost; 4], level_mgr: &LevelManager) {
     let saved_dots = pac.dots_eaten;
     *pac = Player::new(&level_mgr.config);
     pac.dots_eaten = saved_dots;
 
-    *ghosts = [
-        Ghost::new(Point { x: 13, y: 13 }, GhostType::Blinky, &level_mgr.config),
-        Ghost::new(Point { x: 14, y: 13 }, GhostType::Pinky, &level_mgr.config),
-        Ghost::new(Point { x: 12, y: 13 }, GhostType::Inky, &level_mgr.config),
-        Ghost::new(Point { x: 15, y: 13 }, GhostType::Clyde, &level_mgr.config),
-    ];
+    *ghosts = make_ghosts(&level_mgr.config);
 }
 
 fn apply_eaten_item(
@@ -316,61 +349,87 @@ fn update_ghosts(ghosts: &mut [Ghost; 4], pac: &Player, grid: &mut Grid, level_m
     }
 }
 
-fn render_frame(
-    player_before: &Player,
-    pac: &Player,
-    ghosts: &[Ghost; 4],
-    ghost_snapshots: &[GhostSnapshot; 4],
-    level_mgr: &LevelManager,
+struct FrameRenderContext<'a> {
+    player_before: &'a Player,
+    pac: &'a Player,
+    ghosts: &'a [Ghost; 4],
+    ghost_snapshots: &'a [GhostSnapshot; 4],
+    level_mgr: &'a LevelManager,
     frames: u32,
     score: u32,
-    grid: &Grid,
-) {
-    clear_moveable(
-        player_before.moveable.grid_position,
-        player_before.moveable.steps as u8,
-        &player_before.moveable.direction,
-        grid,
-        false,
-    );
-    for (index, ghost) in ghosts.iter().enumerate() {
-        let snapshot = ghost_snapshots[index];
-        clear_moveable(
-            snapshot.position,
-            snapshot.steps,
-            &ghost.moveable.direction,
-            grid,
-            snapshot.house_state == HouseState::Inside,
-        );
-    }
+    grid: &'a Grid,
+}
 
-    if level_mgr.fruit_active {
-        draw_fruit(level_mgr.fruit_spawn_pos, level_mgr.config.fruit_id);
-    }
-
-    for ghost in ghosts.iter() {
-        draw_ghost(
-            ghost.moveable.grid_position,
-            ghost.moveable.steps as u8,
-            &ghost.moveable.direction,
+impl<'a> FrameRenderContext<'a> {
+    fn new(
+        player_before: &'a Player,
+        pac: &'a Player,
+        ghosts: &'a [Ghost; 4],
+        ghost_snapshots: &'a [GhostSnapshot; 4],
+        level_mgr: &'a LevelManager,
+        frames: u32,
+        score: u32,
+        grid: &'a Grid,
+    ) -> Self {
+        Self {
+            player_before,
+            pac,
+            ghosts,
+            ghost_snapshots,
+            level_mgr,
             frames,
-            ghost.moveable.wrapping,
-            &ghost.gtype,
-            ghost.house_state,
-            &ghost.movement_mode,
-        );
+            score,
+            grid,
+        }
     }
-    draw_player(
-        pac.moveable.grid_position,
-        pac.moveable.steps as u8,
-        &pac.moveable.direction,
-        frames,
-        pac.moveable.wrapping,
-    );
 
-    clear_potential_wrapping_stuff();
+    fn render(&self) {
+        clear_moveable(
+            self.player_before.moveable.grid_position,
+            self.player_before.moveable.steps as u8,
+            self.player_before.moveable.direction,
+            self.grid,
+            false,
+        );
+        for (index, ghost) in self.ghosts.iter().enumerate() {
+            let snapshot = self.ghost_snapshots[index];
+            clear_moveable(
+                snapshot.position,
+                snapshot.steps,
+                ghost.moveable.direction,
+                self.grid,
+                snapshot.house_state == HouseState::Inside,
+            );
+        }
 
-    draw_score(score);
+        if self.level_mgr.fruit_active {
+            draw_fruit(
+                self.level_mgr.fruit_spawn_pos,
+                self.level_mgr.config.fruit_id,
+            );
+        }
+
+        for ghost in self.ghosts.iter() {
+            draw_ghost(
+                ghost.moveable.grid_position,
+                ghost.moveable.steps as u8,
+                ghost.moveable.direction,
+                self.frames,
+                &ghost.gtype,
+                ghost.house_state,
+                &ghost.movement_mode,
+            );
+        }
+        draw_player(
+            self.pac.moveable.grid_position,
+            self.pac.moveable.steps as u8,
+            self.pac.moveable.direction,
+            self.frames,
+        );
+
+        clear_potential_wrapping_stuff();
+        draw_score(self.score);
+    }
 }
 
 fn advance_game_state(
@@ -391,6 +450,12 @@ fn advance_game_state(
         }
     }
     None
+}
+
+fn draw_hud(high_score: u32, level: u16, lives: u8) {
+    draw_constant_ui(high_score);
+    draw_level(level);
+    draw_lives(lives);
 }
 
 fn game_over_screen(score: u32, high_score: &mut u32) -> u8 {
@@ -458,12 +523,7 @@ pub fn game(
 
     let mut pac = Player::new(&level_mgr.config);
 
-    let mut ghosts: [Ghost; 4] = [
-        Ghost::new(Point { x: 13, y: 13 }, GhostType::Blinky, &level_mgr.config),
-        Ghost::new(Point { x: 14, y: 13 }, GhostType::Pinky, &level_mgr.config),
-        Ghost::new(Point { x: 12, y: 13 }, GhostType::Inky, &level_mgr.config),
-        Ghost::new(Point { x: 15, y: 13 }, GhostType::Clyde, &level_mgr.config),
-    ];
+    let mut ghosts = make_ghosts(&level_mgr.config);
 
     let mut frames: u32 = 0;
     let mut score: u32 = 0;
@@ -473,9 +533,7 @@ pub fn game(
 
     fill_screen(Color::BLACK);
     draw_maze(&grid);
-    draw_constant_ui(*high_score);
-    draw_level(level_mgr.current_level);
-    draw_lives(lives);
+    draw_hud(*high_score, level_mgr.current_level, lives);
 
     loop {
         if !extra_life_awarded && score >= 10000 {
@@ -489,21 +547,22 @@ pub fn game(
             let answer = pause_menu(&COLOR_CONFIG, 50);
             if answer != 0 {
                 return answer;
-            } else {
-                draw_maze(&grid);
-                let ghosts_snapshots = capture_ghost_snapshots(&ghosts);
-                render_frame(
-                    &pac,
-                    &pac,
-                    &ghosts,
-                    &ghosts_snapshots,
-                    &level_mgr,
-                    frames,
-                    score,
-                    &grid,
-                );
-                msleep(300);
             }
+
+            draw_maze(&grid);
+            let ghosts_snapshots = capture_ghost_snapshots(&ghosts);
+            FrameRenderContext::new(
+                &pac,
+                &pac,
+                &ghosts,
+                &ghosts_snapshots,
+                &level_mgr,
+                frames,
+                score,
+                &grid,
+            )
+            .render();
+            msleep(300);
         }
 
         let now = timing::millis();
@@ -530,12 +589,10 @@ pub fn game(
                 reset_level_positions(&mut pac, &mut ghosts, &level_mgr);
 
                 draw_maze(&grid);
-                draw_constant_ui(*high_score);
-                draw_level(level_mgr.current_level);
-                draw_lives(lives);
+                draw_hud(*high_score, level_mgr.current_level, lives);
 
                 let ghost_snapshots = capture_ghost_snapshots(&ghosts);
-                render_frame(
+                FrameRenderContext::new(
                     &pac,
                     &pac,
                     &ghosts,
@@ -544,7 +601,8 @@ pub fn game(
                     frames,
                     score,
                     &grid,
-                );
+                )
+                .render();
                 msleep(1500);
                 continue;
             } else {
@@ -574,21 +632,14 @@ pub fn game(
             pac = Player::new(&level_mgr.config);
 
             // Reset ghosts with new LevelConfig timings and speeds
-            ghosts = [
-                Ghost::new(Point { x: 13, y: 13 }, GhostType::Blinky, &level_mgr.config),
-                Ghost::new(Point { x: 14, y: 13 }, GhostType::Pinky, &level_mgr.config),
-                Ghost::new(Point { x: 12, y: 13 }, GhostType::Inky, &level_mgr.config),
-                Ghost::new(Point { x: 15, y: 13 }, GhostType::Clyde, &level_mgr.config),
-            ];
+            ghosts = make_ghosts(&level_mgr.config);
 
             // Redraw screen, HUD, and new level indicator
             draw_maze(&grid);
-            draw_constant_ui(*high_score);
-            draw_level(level_mgr.current_level);
-            draw_lives(lives);
+            draw_hud(*high_score, level_mgr.current_level, lives);
 
             let new_snapshots = capture_ghost_snapshots(&ghosts);
-            render_frame(
+            FrameRenderContext::new(
                 &pac,
                 &pac,
                 &ghosts,
@@ -597,14 +648,15 @@ pub fn game(
                 frames,
                 score,
                 &grid,
-            );
+            )
+            .render();
 
             msleep(1500);
             continue;
         }
 
         wait_for_vblank();
-        render_frame(
+        FrameRenderContext::new(
             &player_before,
             &pac,
             &ghosts,
@@ -613,7 +665,8 @@ pub fn game(
             frames,
             score,
             &grid,
-        );
+        )
+        .render();
 
         frames = frames.wrapping_add(1);
     }

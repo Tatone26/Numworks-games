@@ -1,7 +1,7 @@
 use numworks_utils::eadk::{key, keyboard, timing, Point};
 
 use crate::{
-    game::{Grid, Space, GRID_WIDTH, STEPS_PER_CELL},
+    game::{grid_index, Grid, Space, STEPS_PER_CELL},
     levels::LevelConfig,
     moveable::{can_go_to, Direction, Moveable},
 };
@@ -39,6 +39,17 @@ impl Player {
             dots_eaten: 0,
             just_ate: false,
             blink_at: 0,
+        }
+    }
+
+    fn consume_item(&mut self, grid: &mut Grid, threshold: f32) -> bool {
+        if self.moveable.steps >= threshold {
+            let idx = grid_index(self.moveable.destination);
+            grid[idx] = Space::Empty;
+            self.just_ate = true;
+            true
+        } else {
+            false
         }
     }
 
@@ -85,43 +96,28 @@ impl Player {
 
         if self.just_ate {
             self.just_ate = false;
-            return (None, event); // FIXED: Pass through event instead of swallowing it
+            return (None, event);
         }
 
         let on = self.moveable.move_moveable(grid, false);
         let eaten = match on {
             Space::Superball => {
-                if self.moveable.steps >= 3.0 * (STEPS_PER_CELL / 4.0) {
-                    let idx = (self.moveable.destination.x
-                        + self.moveable.destination.y * GRID_WIDTH)
-                        as usize;
-                    grid[idx] = Space::Empty;
+                if self.consume_item(grid, 3.0 * (STEPS_PER_CELL / 4.0)) {
                     self.activate_superball(config);
-                    self.just_ate = true;
                     Some(Space::Superball)
                 } else {
                     None
                 }
             }
             Space::Point => {
-                if self.moveable.steps >= STEPS_PER_CELL / 4.0 {
-                    let idx = (self.moveable.destination.x
-                        + self.moveable.destination.y * GRID_WIDTH)
-                        as usize;
-                    grid[idx] = Space::Empty;
-                    self.just_ate = true;
+                if self.consume_item(grid, STEPS_PER_CELL / 4.0) {
                     Some(Space::Point)
                 } else {
                     None
                 }
             }
             Space::Fruit => {
-                if self.moveable.steps >= STEPS_PER_CELL / 4.0 {
-                    let idx = (self.moveable.destination.x
-                        + self.moveable.destination.y * GRID_WIDTH)
-                        as usize;
-                    grid[idx] = Space::Empty;
-                    self.just_ate = true;
+                if self.consume_item(grid, STEPS_PER_CELL / 4.0) {
                     Some(Space::Fruit)
                 } else {
                     None

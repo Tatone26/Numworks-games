@@ -1,6 +1,6 @@
 use numworks_utils::eadk::Point;
 
-use crate::game::{Grid, Space, GRID_HEIGHT, GRID_WIDTH, STEPS_PER_CELL};
+use crate::game::{grid_index, Grid, Space, GRID_HEIGHT, GRID_WIDTH, STEPS_PER_CELL};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum Direction {
@@ -65,19 +65,18 @@ impl Moveable {
             self.grid_position = self.destination;
             let (next_pos, wrap) = next_pos(self.grid_position, &self.direction);
             self.wrapping = wrap;
-            (self.destination, self.steps) =
-                match grid.get((next_pos.x + next_pos.y * GRID_WIDTH) as usize) {
-                    Some(Space::Wall) => (self.grid_position, 0.0),
-                    Some(_) => (next_pos, self.steps % STEPS_PER_CELL as f32),
-                    _ => (self.grid_position, 0.0),
-                };
+            (self.destination, self.steps) = match grid.get(grid_index(next_pos)) {
+                Some(Space::Wall) => (self.grid_position, 0.0),
+                Some(_) => (next_pos, self.steps % STEPS_PER_CELL),
+                _ => (self.grid_position, 0.0),
+            };
             if ignore_walls {
                 self.destination = next_pos;
-                self.steps = self.steps % STEPS_PER_CELL as f32;
+                self.steps %= STEPS_PER_CELL;
             }
         };
         *grid
-            .get((self.destination.x + self.destination.y * GRID_WIDTH) as usize)
+            .get(grid_index(self.destination))
             .unwrap_or(&Space::Empty)
     }
 
@@ -106,7 +105,7 @@ impl Moveable {
 
 pub fn can_go_to(from: Point, dir: &Direction, grid: &Grid) -> bool {
     let (next, _) = next_pos(from, dir);
-    match grid.get((next.x + next.y * GRID_WIDTH) as usize) {
+    match grid.get(grid_index(next)) {
         Some(Space::Wall) => false,
         Some(_) => true,
         None => true,

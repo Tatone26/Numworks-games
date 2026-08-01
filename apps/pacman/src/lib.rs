@@ -64,24 +64,22 @@ pub fn thumbnail(_: Point) {
     draw_ghost(
         Point { x: 8, y: 8 },
         0,
-        &Direction::Right,
+        Direction::Right,
         0,
-        false,
         &GhostType::Blinky,
         HouseState::Outside,
         &MovementMode::Chase,
     );
 
-    draw_player(Point { x: 11, y: 8 }, 0, &Direction::Right, 2, false);
+    draw_player(Point { x: 11, y: 8 }, 0, Direction::Right, 2);
 
     draw_fruit(Point { x: 14, y: 8 }, 0);
 
     draw_ghost(
         Point { x: 19, y: 8 },
         0,
-        &Direction::Left,
+        Direction::Left,
         0,
-        false,
         &GhostType::Inky,
         HouseState::Outside,
         &MovementMode::Frightened,
