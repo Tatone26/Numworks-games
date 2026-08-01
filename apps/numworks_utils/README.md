@@ -14,6 +14,15 @@ Utils.rs contains some useful functions which we don't have access to since we a
 
 ### Graphical
 Graphical.rs contains some functions useful for everything UI-related. It allows drawing images or do some fading.
+Tiling.rs allows working very efficiently with Tilemaps to draw stuff.
 
 ### Tiling
 Tiling.rs is a more precise graphical lib. It allows using a simple Tileset and draw those tiles. Useful to make code simpler.
+
+### Storage
+Storage.rs contains functions allowing the use of the external data app. Most of the code is not from me
+See https://framagit.org/Yaya.Cout/numworks-extapp-storage
+copyright (c) 2021-2022 Numworks
+
+### Widgets
+Widgets.rs contains some little "widgets", a bit like html elements : an number input for exemple. 

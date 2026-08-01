@@ -1,0 +1,26 @@
+#![no_std]
+#![no_main]
+
+mod game;
+mod ghost;
+mod levels;
+mod moveable;
+mod pac_ui;
+mod player;
+
+#[used]
+#[link_section = ".rodata.eadk_app_name"]
+pub static EADK_APP_NAME: [u8; 7] = *b"PACMAN\0";
+
+#[used]
+#[link_section = ".rodata.eadk_api_level"]
+pub static EADK_APP_API_LEVEL: u32 = 0;
+
+#[used]
+#[link_section = ".rodata.eadk_app_icon"]
+pub static EADK_APP_ICON: [u8; 1998] = *include_bytes!("../target/icon.nwi");
+
+#[no_mangle]
+pub fn main() {
+    game::start();
+}

@@ -81,16 +81,6 @@ pub fn find_best_move(
         c,
     );
 
-    push_rect_uniform(
-        numworks_utils::eadk::Rect {
-            x: 0,
-            y: 0,
-            width: 50,
-            height: 100,
-        },
-        Color::WHITE,
-    );
-
     clear_thinking_ai(c);
     if col.is_none() {
         if get_valid_moves(table, nb_players)[3] {
