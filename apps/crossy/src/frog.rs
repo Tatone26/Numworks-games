@@ -1,6 +1,7 @@
+use crate::world::{GRID_HEIGHT, GRID_WIDTH};
 use numworks_utils::eadk::{key, timing, Point, State};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum Direction {
     Up,
     Down,
@@ -18,23 +19,31 @@ impl Direction {
         }
     }
 
-    pub fn add_to_point(&self, point: Point) -> Point {
-        let vector = self.to_vector();
-        Point {
-            x: (point.x as i16 + vector[0] as i16).max(0) as u16,
-            y: (point.y as i16 + vector[1] as i16).max(0) as u16,
+    /// Calculates target coordinates and clamps strictly within grid bounds
+    pub fn try_move(&self, point: Point) -> Option<Point> {
+        let vec = self.to_vector();
+        let nx = point.x as i16 + vec[0] as i16;
+        let ny = point.y as i16 + vec[1] as i16;
+
+        if nx >= 0 && nx < GRID_WIDTH as i16 && ny >= 0 && ny < GRID_HEIGHT as i16 {
+            Some(Point {
+                x: nx as u16,
+                y: ny as u16,
+            })
+        } else {
+            None // Block movement past screen edges
         }
     }
 }
 
-const JUMP_DURATION_MS: u64 = 500; // duration of the jump in milliseconds
+const JUMP_DURATION_MS: u64 = 500;
 
 pub struct Frog {
     grid_pos: Point,
     speed: f32,
     direction: Direction,
     is_landed: bool,
-    lands_at: u64, // timing
+    lands_at: u64,
 }
 
 impl Frog {
@@ -56,7 +65,6 @@ impl Frog {
         self.direction
     }
 
-    // called every frame
     pub fn update(&mut self) {
         if !self.is_landed && timing::millis() >= self.lands_at {
             self.is_landed = true;
@@ -80,18 +88,18 @@ impl Frog {
         }
     }
 
-    pub fn jump(&mut self, direction: Direction) {
-        let vector = direction.to_vector();
-        let temp_pos: [i16; 2] = [
-            self.grid_pos.x as i16 + vector[0] as i16,
-            self.grid_pos.y as i16 + vector[1] as i16,
-        ];
-        if temp_pos[0] < 0 || temp_pos[1] < 0 {
-            return;
-        }
-        self.grid_pos.x = temp_pos[0] as u16;
-        self.grid_pos.y = temp_pos[1] as u16;
+    /// Triggers jump cooldown without changing grid position (used during scrolling)
+    pub fn start_cooldown(&mut self) {
+        self.direction = Direction::Up;
         self.is_landed = false;
         self.lands_at = timing::millis() + JUMP_DURATION_MS;
+    }
+
+    pub fn jump(&mut self, direction: Direction) {
+        if let Some(new_pos) = direction.try_move(self.grid_pos) {
+            self.grid_pos = new_pos;
+            self.direction = direction;
+            self.start_cooldown();
+        }
     }
 }

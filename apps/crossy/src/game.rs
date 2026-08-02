@@ -1,30 +1,31 @@
 use heapless::Vec;
 use numworks_utils::{
     eadk::{
-        display::{self, push_rect_uniform, wait_for_vblank},
-        key, keyboard, timing, Color, Point, Rect,
+        display::{push_rect_uniform, wait_for_vblank},
+        key, keyboard, Color, Point, Rect,
     },
-    graphical::{draw_centered_string, draw_string_cfg, fill_screen, tiling::Tileset, ColorConfig},
-    include_bytes_align_as,
+    graphical::ColorConfig,
     menu::{
         pause_menu,
         settings::{write_values_to_file, Setting},
         start_menu,
     },
-    utils::{string_from_u16, string_from_u32, wait_for_no_keydown, CENTER},
 };
 
 use crate::{
-    frog::{self, Frog},
-    world::{self, World},
+    frog::{Direction, Frog},
+    frogger_ui::ScrollController,
+    world::World,
 };
 
-// This dictates the principal colors that will be used
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
     bckgrd: Color::WHITE,
     alt: Color::RED,
 };
+
+/// Row threshold where scrolling begins (middle of screen)
+pub const SCROLL_THRESHOLD_Y: u16 = 10;
 
 static mut EXEMPLE: bool = false;
 
@@ -39,7 +40,7 @@ fn vis_addon() {
         Color::BLACK,
     );
 }
-/// Menu, Options and Game start
+
 pub fn start() {
     let mut opt: [&mut Setting; 2] = [
         &mut Setting {
@@ -52,11 +53,11 @@ pub fn start() {
         },
         &mut Setting {
             name: "High-score option !\0",
-            choice: 0,                                       // forced
-            values: Vec::from_slice(&[0, 0, 1000]).unwrap(), // default value, min, max
+            choice: 0,
+            values: Vec::from_slice(&[0, 0, 1000]).unwrap(),
             texts: Vec::new(),
-            fixed_values: false,    // allows using any value
-            user_modifiable: false, // will not appear in "setting" page
+            fixed_values: false,
+            user_modifiable: false,
         },
     ];
     loop {
@@ -66,30 +67,22 @@ pub fn start() {
             &COLOR_CONFIG,
             vis_addon,
             include_str!("./data/model_controls.txt"),
-            "frogger", // filename to store settings
+            "frogger",
         );
-        // The menu does everything itself !
         if start == 0 {
             unsafe {
-                EXEMPLE = opt[0].get_setting_value() != 0; // You could use mutable statics, but you shouldn't
+                EXEMPLE = opt[0].get_setting_value() != 0;
             }
-            // exemple of a way to have a stored value modified by the game (like a high_score)
             let mut high_score: u32 = opt[1].get_setting_value();
             loop {
-                // a loop where the game is played again and again, which means it should be 100% contained after the menu
-                // calling the game based on the parameters is better
                 let action = game(opt[0].get_setting_value() != 0, &mut high_score);
-                // necessary to store the high_score (or other similar data):
                 opt[1].set_value(high_score);
                 write_values_to_file(&mut opt, "model");
-                // this shoudln't change
                 if action == 2 {
-                    // 2 means quitting
                     return;
                 } else if action == 1 {
-                    // 1 means back to menu
                     break;
-                } // if action == 0 : rejouer
+                }
             }
         } else {
             return;
@@ -97,12 +90,12 @@ pub fn start() {
     }
 }
 
-/// The entire game is here.
 pub fn game(_exemple: bool, high_score: &mut u32) -> u8 {
     let mut world = World::new();
-    world.draw_world();
+    world.draw_world(0);
 
-    let mut frog = Frog::new(Point { x: 5, y: 9 });
+    let mut frog = Frog::new(Point { x: 5, y: 15 });
+    let mut scroll_ctrl = ScrollController::new();
 
     loop {
         let scan = keyboard::scan();
@@ -113,20 +106,43 @@ pub fn game(_exemple: bool, high_score: &mut u32) -> u8 {
             }
         }
 
-        frog.update();
-        // will also update the moveables when they exist.
+        if scroll_ctrl.is_scrolling() {
+            if let Some(y_offset) = scroll_ctrl.current_y_offset() {
+                wait_for_vblank();
+                world.draw_world(y_offset);
+                frog.draw_frog();
 
-        if let Some(direction) = frog.read_input(scan) {
-            let next_position = direction.add_to_point(frog.grid_pos());
-            if let Some(tile) = world.get_tile_at(next_position) {
-                if !tile.has_obstacle {
-                    frog.jump(direction);
+                scroll_ctrl.advance();
+
+                if !scroll_ctrl.is_scrolling() {
+                    world.shift_down();
+                    world.draw_world(0);
+                    frog.draw_frog();
                 }
             }
+        } else {
+            if let Some(direction) = frog.read_input(scan) {
+                // Determine target tile with strict grid boundary clamping
+                if let Some(target_pos) = direction.try_move(frog.grid_pos()) {
+                    if let Some(tile) = world.get_tile_at(target_pos) {
+                        if !tile.has_obstacle {
+                            // Check if moving UP at or above the camera threshold
+                            if direction == Direction::Up && frog.grid_pos().y <= SCROLL_THRESHOLD_Y
+                            {
+                                scroll_ctrl.trigger_scroll();
+                                frog.start_cooldown(); // Lock input during jump/scroll
+                            } else {
+                                frog.jump(direction);
+                            }
+                        }
+                    }
+                }
+            }
+
+            wait_for_vblank();
+            frog.draw_frog();
         }
 
-        frog.draw_frog();
-        // will also draw the moveables when they exist.
+        frog.update();
     }
-    1
 }
