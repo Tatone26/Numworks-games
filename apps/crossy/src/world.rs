@@ -14,16 +14,9 @@ pub const GRID_HEIGHT: usize = (SCREEN_HEIGHT / TILE_SIZE) as usize;
 #[derive(Copy, Clone)]
 pub struct Tile {
     pub grid_point: Point,
-    pub is_safe: bool,
     pub is_killer: bool,
     pub has_obstacle: bool,
-    tileset_index: Point,
-}
-
-impl Tile {
-    pub fn tileset_index(&self) -> Point {
-        self.tileset_index
-    }
+    pub tileset_index: Point,
 }
 
 pub struct World {
@@ -36,7 +29,6 @@ impl World {
     pub fn new() -> Self {
         let mut grid = [[Tile {
             grid_point: Point { x: 0, y: 0 },
-            is_safe: true,
             is_killer: false,
             has_obstacle: false,
             tileset_index: Point { x: 0, y: 0 },
@@ -49,7 +41,6 @@ impl World {
                         x: x as u16,
                         y: y as u16,
                     },
-                    is_safe: true,
                     is_killer: false,
                     has_obstacle: false,
                     tileset_index: Point {
@@ -82,7 +73,6 @@ impl World {
             // new tiles creation TODO
             self.grid[0][x] = Tile {
                 grid_point: Point { x: x as u16, y: 0 },
-                is_safe: true,
                 is_killer: false,
                 has_obstacle: false,
                 tileset_index: Point {

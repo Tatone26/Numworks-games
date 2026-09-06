@@ -23,7 +23,7 @@ impl Tile {
                 x: self.grid_point.x * TILE_SIZE + X_GRID_OFFSET,
                 y: self.grid_point.y * TILE_SIZE + y_offset,
             },
-            self.tileset_index(),
+            self.tileset_index,
             1,
             false,
         );

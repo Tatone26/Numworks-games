@@ -5,6 +5,7 @@ mod frog;
 mod frogger_ui;
 mod game;
 mod moveable_obstacle;
+mod tiles_data;
 mod world;
 
 #[used]

@@ -9,6 +9,7 @@ pub use game::start;
 mod frog;
 mod frogger_ui;
 mod moveable_obstacle;
+mod tiles_data;
 mod world;
 
 /// Function that draws something to represent the game in the multiple apps packages
