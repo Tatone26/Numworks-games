@@ -1,0 +1,15 @@
+[package]
+name = "num_engine"
+version = "0.0.1"
+edition = "2021"
+
+[lib]
+name = "num_engine"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+heapless = "0.8.0"
+numworks_utils = { path = "../numworks_utils", version = "*" }
+
+[build-dependencies]
+cc = "*"
