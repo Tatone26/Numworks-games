@@ -23,6 +23,7 @@ version = "0.1.7"
 dependencies = [
  "heapless",
  "nppm_decoder",
+ "num_engine",
  "numworks_utils",
 ]
 
@@ -48,6 +49,15 @@ dependencies = [
 [[package]]
 name = "nppm_decoder"
 version = "0.1.0"
+
+[[package]]
+name = "num_engine"
+version = "0.0.1"
+dependencies = [
+ "cc",
+ "heapless",
+ "numworks_utils",
+]
 
 [[package]]
 name = "numworks_utils"

@@ -1,7 +1,6 @@
 #![no_std]
 #![no_main]
 
-mod bird;
 mod flappy_ui;
 mod game;
 mod pipes;

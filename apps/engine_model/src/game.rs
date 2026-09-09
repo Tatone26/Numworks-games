@@ -1,15 +1,18 @@
 use heapless::{String, Vec};
 use num_engine::{
-    compositor::Renderable,
+    ascii_tilemap,
+    compositor::{InterlaceMode, Renderable},
+    define_anim,
     engine::Engine,
+    spawn_sprite,
     sprite::Sprite,
-    texture::{Animation, FrameCoord, TextureDescriptor, MAX_LENGTH_ANIMATION},
-    tilemap::Tilemap,
+    tile_span,
+    tilemap::{Parallax, Tilemap},
 };
 use numworks_utils::{
     eadk::{
-        display::{SCREEN_HEIGHT, SCREEN_WIDTH},
-        key, keyboard, Color, Point,
+        display::{push_rect, SCREEN_HEIGHT, SCREEN_WIDTH},
+        key, keyboard, Color, Rect,
     },
     graphical::{draw_centered_string, fading, tiling::Tileset, ColorConfig},
     include_bytes_align_as,
@@ -18,24 +21,61 @@ use numworks_utils::{
         settings::{write_values_to_file, Setting},
         start_menu, MenuConfig,
     },
-    utils::{string_from_u16, LARGE_CHAR_HEIGHT},
+    utils::{randint, string_from_u16, LARGE_CHAR_HEIGHT},
 };
 
 // -----------------------------------------------------------------------------
-// Engine Dimension Config
+// Engine Dimension & World Constants
 // -----------------------------------------------------------------------------
 const TILE_SIZE: usize = 20;
 const CELL_AREA: usize = TILE_SIZE * TILE_SIZE; // 400
-const SCREEN_COLS: usize = SCREEN_WIDTH as usize / TILE_SIZE; // 16
-const SCREEN_ROWS: usize = SCREEN_HEIGHT as usize / TILE_SIZE; // 12
+
+const VIEW_SCREEN_X: u16 = 0;
+const VIEW_SCREEN_Y: u16 = 40;
+const VIEW_SCREEN_W: u16 = SCREEN_WIDTH;
+const VIEW_SCREEN_H: u16 = SCREEN_HEIGHT - VIEW_SCREEN_Y; // 200
+
+const SCREEN_COLS: usize = VIEW_SCREEN_W as usize / TILE_SIZE; // 16
+const SCREEN_ROWS: usize = VIEW_SCREEN_H as usize / TILE_SIZE; // 10
+
+const WORLD_COLS: usize = 32;
+const WORLD_ROWS: usize = 24;
+const WORLD_TILES: usize = WORLD_COLS * WORLD_ROWS;
+const WORLD_WIDTH_PX: i32 = (WORLD_COLS * TILE_SIZE) as i32; // 640
+const WORLD_HEIGHT_PX: i32 = (WORLD_ROWS * TILE_SIZE) as i32; // 480
+
+// Midground hills layer (32x6 tiles)
+const HILLS_COLS: usize = 32;
+const HILLS_ROWS: usize = 6;
+const HILLS_TILES: usize = HILLS_COLS * HILLS_ROWS;
+
+// Deadzone bounds inside the 320x200 viewport window
+const DEADZONE_LEFT: i32 = 70;
+const DEADZONE_RIGHT: i32 = (VIEW_SCREEN_W as i32) - 100 - (TILE_SIZE as i32);
+const DEADZONE_TOP: i32 = 40;
+const DEADZONE_BOTTOM: i32 = (VIEW_SCREEN_H as i32) - 40 - (TILE_SIZE as i32);
+
+const DEBUG_MODE: bool = true;
+const NUM_SWARM: usize = 16;
+const NUM_CLOUDS: usize = 4;
 
 const IMAGE_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/image.nppm");
 static TILESET: Tileset = Tileset::new(TILE_SIZE as u16, 4, IMAGE_BYTES);
 
-type GameEngine<'a> = Engine<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS>;
-type GameTilemap<'a> = Tilemap<'a, TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS>;
+type GameEngine = Engine<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS, DEBUG_MODE>;
+type GameTilemap<'a> = Tilemap<'a, TILE_SIZE, CELL_AREA>;
 type GameSprite<'a> = Sprite<'a, TILE_SIZE, CELL_AREA>;
-type GameRenderable<'r, 'a> = Renderable<'r, 'a, TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS>;
+type GameRenderable<'r, 'a> = Renderable<'r, 'a, TILE_SIZE, CELL_AREA>;
+
+const MAX_CHUNKS: usize = if SCREEN_COLS > SCREEN_ROWS {
+    SCREEN_COLS
+} else {
+    SCREEN_ROWS
+};
+const SCRATCH_PIXELS: usize = CELL_AREA + (MAX_CHUNKS * CELL_AREA);
+static mut SCRATCH_BUFFER: [Color; SCRATCH_PIXELS] = [Color::BLACK; SCRATCH_PIXELS];
+
+const HUD_BG_COLOR: Color = Color::from_rgb888(220, 220, 220);
 
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
@@ -44,10 +84,84 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
 };
 
 fn vis_addon() {}
+
+// -----------------------------------------------------------------------------
+// Declarative Animations Stored in Flash (ROM)
+// -----------------------------------------------------------------------------
+
+// Player flying: 1x1 tile (20x20 px), transparent, 6 ticks/frame
+define_anim!(ANIM_PLAYER_FLY, &TILESET, 1, 1, true, 6, [(0, 0), (3, 0)]);
+
+// Player dead: 1x1 tile, transparent, static frame
+define_anim!(ANIM_PLAYER_DEAD, &TILESET, 1, 1, true, 1, [(0, 3)]);
+
+// Cloud sprite: 2x1 tiles (40x20 px), transparent, static frame
+define_anim!(ANIM_CLOUD, &TILESET, 2, 1, true, 1, [(1, 3)]);
+
+// UI Reticle: 1x1 tile, transparent, static frame
+define_anim!(ANIM_RETICLE, &TILESET, 1, 1, true, 1, [(1, 4)]);
+
+// Swarm enemy: 1x1 tile, transparent, static frame
+define_anim!(ANIM_SWARM, &TILESET, 1, 1, true, 1, [(0, 3)]);
+
+// -----------------------------------------------------------------------------
+// Visual ASCII Tilemap Layouts
+// -----------------------------------------------------------------------------
+
+// 32 cols x 6 rows: Midground rolling hills
+const HILLS_LAYOUT: &str = "\
+................................
+................................
+HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+GGGGGGGGGGGGGGGGGGGGGGGGGGGGGGGG
+................................
+................................";
+
+// 32 cols x 24 rows: Foreground obstacles at columns 5, 10, 15, 20, 25, 30
+const PIPE_LAYOUT: &str = "\
+.....AB...AB...AB...AB...AB...AB
+.....AB...AB...AB...AB...AB...AB
+.....AB...AB...AB...AB...AB...AB
+.....AB...AB...AB...AB...AB...AB
+.....CD...CD...CD...CD...CD...CD
+................................
+................................
+................................
+................................
+................................
+................................
+................................
+................................
+................................
+................................
+................................
+.....EF...EF...EF...EF...EF...EF
+.....AB...AB...AB...AB...AB...AB
+.....AB...AB...AB...AB...AB...AB
+.....AB...AB...AB...AB...AB...AB
+.....AB...AB...AB...AB...AB...AB
+.....AB...AB...AB...AB...AB...AB
+.....AB...AB...AB...AB...AB...AB";
+
+/// Clears the dedicated top HUD rectangle outside the game viewport
+fn clear_hud_bar() {
+    let fill_row = [HUD_BG_COLOR; SCREEN_WIDTH as usize];
+    for y in 0..VIEW_SCREEN_Y {
+        push_rect(
+            Rect {
+                x: 0,
+                y,
+                width: SCREEN_WIDTH,
+                height: 1,
+            },
+            &fill_row,
+        );
+    }
+}
+
 // -----------------------------------------------------------------------------
 // Menu & Options Entry Point
 // -----------------------------------------------------------------------------
-#[no_mangle]
 pub fn start() {
     let mut opt: [&mut Setting; 3] = [
         &mut Setting {
@@ -78,12 +192,12 @@ pub fn start() {
 
     loop {
         let start_choice = start_menu(
-            "FLAPPY BIRD\0",
+            "NUM-ENGINE DEMO\0",
             &mut opt,
             &COLOR_CONFIG,
-            vis_addon, // Optional preview addon
+            vis_addon,
             include_str!("data/model_controls.txt"),
-            "flappy",
+            "num_engine_demo",
         );
 
         if start_choice == 0 {
@@ -95,14 +209,13 @@ pub fn start() {
                 let action = game(speed, has_hazards, &mut high_score);
 
                 opt[2].set_value(high_score);
-                write_values_to_file(&mut opt, "flappy");
+                write_values_to_file(&mut opt, "num_engine_demo");
 
                 if action == 2 {
-                    return; // Exit game
+                    return;
                 } else if action == 1 {
-                    break; // Return to start_menu
+                    break;
                 }
-                // action == 0: loops and restarts game immediately
             }
         } else {
             return;
@@ -114,73 +227,126 @@ pub fn start() {
 // Main Game Engine Loop
 // -----------------------------------------------------------------------------
 pub fn game(speed_factor: f32, has_hazards: bool, high_score: &mut u32) -> u8 {
-    // 1. Background Tilemap: Sky + Floor (Z = 0, Opaque)
-    let mut bg_data: [[Option<[u8; 2]>; SCREEN_ROWS]; SCREEN_COLS] =
-        [[Some([3, 3]); SCREEN_ROWS]; SCREEN_COLS];
-    for x in 0..SCREEN_COLS {
-        bg_data[x][11] = Some([0, 4]);
+    clear_hud_bar();
+
+    let mut engine = GameEngine::new_with_window(
+        Color::from_rgb888(135, 206, 235),
+        VIEW_SCREEN_X,
+        VIEW_SCREEN_Y,
+        VIEW_SCREEN_W,
+        VIEW_SCREEN_H,
+        Some(InterlaceMode::Rows),
+    );
+
+    // Tile storage buffers owned on stack
+    let mut bg_data = [Some([3u8, 3u8]); WORLD_TILES];
+    let mut hills_data = [None::<[u8; 2]>; HILLS_TILES];
+    let mut pipe_data = [None::<[u8; 2]>; WORLD_TILES];
+
+    // 1. Base Layer (Opaque: bypasses buffer.fill(clear_color))
+    let ground_row = WORLD_ROWS - 1;
+    let mut bg_map = GameTilemap::new(
+        &TILESET,
+        &mut bg_data,
+        WORLD_COLS,
+        WORLD_ROWS,
+        &[],
+        0,
+        false,
+        Parallax::FOREGROUND,
+        false,
+    );
+    tile_span!(bg_map, row: ground_row, cols: 0..WORLD_COLS, tile: Some([0, 4]));
+
+    // 2. Parallax Hills Layer from ASCII layout (0.5x speed, repeats infinitely)
+    let mut hills_map = ascii_tilemap!(
+        tileset: &TILESET,
+        buffer: &mut hills_data,
+        cols: HILLS_COLS,
+        rows: HILLS_ROWS,
+        z: 2,
+        transparent: true,
+        parallax: Parallax::from_distance(2),
+        wrap: true,
+        mapping: {
+            b'.' => None,
+            b'H' => Some([1, 2]),
+            b'G' => Some([1, 0]),
+        },
+        layout: HILLS_LAYOUT,
+    );
+    hills_map.set_origin(0, (WORLD_HEIGHT_PX - (HILLS_ROWS * TILE_SIZE) as i32) - 20);
+
+    // 3. Foreground Obstacles from ASCII layout
+    let pipe_map = ascii_tilemap!(
+        tileset: &TILESET,
+        buffer: &mut pipe_data,
+        cols: WORLD_COLS,
+        rows: WORLD_ROWS,
+        z: 10,
+        transparent: true,
+        parallax: Parallax::FOREGROUND,
+        wrap: false,
+        mapping: {
+            b'.' => None,
+            b'A' => Some([1, 0]),
+            b'B' => Some([2, 0]),
+            b'C' => Some([1, 1]),
+            b'D' => Some([2, 1]),
+            b'E' => Some([1, 2]),
+            b'F' => Some([2, 2]),
+        },
+        layout: PIPE_LAYOUT,
+    );
+
+    // 4. Sprites (Spawned instantly from ROM animations)
+    let mut player = spawn_sprite!(&ANIM_PLAYER_FLY, [100, 140], 20);
+    let mut ui_marker = spawn_sprite!(&ANIM_RETICLE, [8, 8], 25);
+
+    // Multi-tile drifting clouds
+    let mut clouds: Vec<GameSprite, NUM_CLOUDS> = Vec::new();
+    let mut cloud_speeds = [0.0f32; NUM_CLOUDS];
+
+    for i in 0..NUM_CLOUDS {
+        let cx = (i as i16 * 160) + randint(10, 40) as i16;
+        let cy = randint(15, 90) as i16;
+        let mut c = spawn_sprite!(&ANIM_CLOUD, [cx, cy], 3);
+        let drift_speed = -((randint(20, 50) as f32) / 100.0);
+        c.set_speed([drift_speed, 0.0]);
+        cloud_speeds[i] = drift_speed;
+        let _ = clouds.push(c);
     }
-    let bg_tilemap = GameTilemap::new(&TILESET, bg_data, 0, false);
 
-    // 2. Foreground Tilemap: Transparent Pipes (Z = 8, Transparent None cells)
-    let mut pipe_data: [[Option<[u8; 2]>; SCREEN_ROWS]; SCREEN_COLS] =
-        [[None; SCREEN_ROWS]; SCREEN_COLS];
-    // Hanging ceiling pipe at column 12
-    pipe_data[12][0] = Some([1, 0]);
-    pipe_data[12][1] = Some([1, 0]);
-    pipe_data[12][2] = Some([1, 1]);
-    // Floor pipe at column 5
-    pipe_data[5][8] = Some([1, 2]);
-    pipe_data[5][9] = Some([1, 0]);
-    pipe_data[5][10] = Some([1, 0]);
-    let pipe_tilemap = GameTilemap::new(&TILESET, pipe_data, 8, true);
+    // Swarm Entities
+    let active_swarm_count = if has_hazards { NUM_SWARM } else { 0 };
+    let mut swarm_vel = [[0.0f32; 2]; NUM_SWARM];
+    let mut swarm: Vec<GameSprite, NUM_SWARM> = Vec::new();
 
-    let mut engine = GameEngine::new(Color::from_rgb888(135, 206, 235));
+    for i in 0..active_swarm_count {
+        let spawn_x = randint(60, (WORLD_WIDTH_PX - 60) as u32) as i16;
+        let spawn_y = randint(40, (WORLD_HEIGHT_PX - 80) as u32) as i16;
 
-    // 3. Sprites Setup
-    // Background cloud (Z = 2, behind pipes)
-    let cloud_desc = TextureDescriptor::new(&TILESET, 2, 1, 1, true);
-    let mut cloud_frames = Vec::<FrameCoord, MAX_LENGTH_ANIMATION>::new();
-    let _ = cloud_frames.push(FrameCoord { tx: 1, ty: 3 });
-    let mut cloud_anim = Animation::new(cloud_desc, cloud_frames, 1);
-    let mut cloud = GameSprite::new(&mut cloud_anim, Point::new(180, 30), 2);
-    cloud.speed = [-0.4 * speed_factor, 0.0];
+        let raw_vx = (randint(0, 300) as i32 - 150) as f32 / 100.0 * speed_factor;
+        let raw_vy = (randint(0, 300) as i32 - 150) as f32 / 100.0 * speed_factor;
 
-    // Player (Z = 10, flies in front of pipes)
-    let player_desc = TextureDescriptor::new(&TILESET, 1, 1, 1, true);
-    let mut player_frames = Vec::<FrameCoord, MAX_LENGTH_ANIMATION>::new();
-    let _ = player_frames.push(FrameCoord { tx: 0, ty: 0 });
-    let _ = player_frames.push(FrameCoord { tx: 3, ty: 0 });
-    let mut player_anim = Animation::new(player_desc, player_frames, 8);
-    let mut player = GameSprite::new(&mut player_anim, Point::new(40, 80), 10);
+        swarm_vel[i] = [
+            if raw_vx == 0.0 { 1.0 } else { raw_vx },
+            if raw_vy == 0.0 { -1.0 } else { raw_vy },
+        ];
 
-    // Hazard (Z = 6, flies behind pipes)
-    let dead_desc = TextureDescriptor::new(&TILESET, 1, 1, 1, true);
-    let mut dead_frames = Vec::<FrameCoord, MAX_LENGTH_ANIMATION>::new();
-    let _ = dead_frames.push(FrameCoord { tx: 0, ty: 2 });
-    let mut dead_anim = Animation::new(dead_desc, dead_frames, 1);
-    let mut dead_bird = GameSprite::new(&mut dead_anim, Point::new(160, 40), 6);
-    dead_bird.speed = [0.8 * speed_factor, 1.2 * speed_factor];
-
-    // Mark initial regions dirty to stamp entities on frame 0
-    engine
-        .compositor
-        .grid
-        .mark_rect(cloud.position, cloud.pixel_width(), cloud.pixel_height());
-    engine
-        .compositor
-        .grid
-        .mark_rect(player.position, player.pixel_width(), player.pixel_height());
-    if has_hazards {
-        engine.compositor.grid.mark_rect(
-            dead_bird.position,
-            dead_bird.pixel_width(),
-            dead_bird.pixel_height(),
-        );
+        let s = spawn_sprite!(&ANIM_SWARM, [spawn_x, spawn_y], 15);
+        let _ = swarm.push(s);
     }
+
+    engine.mark_all_dirty();
 
     let mut score: u16 = 0;
+    let mut prev_score: u16 = u16::MAX;
+    let mut is_dead = false;
 
+    // -------------------------------------------------------------------------
+    // Main Simulation Loop
+    // -------------------------------------------------------------------------
     loop {
         let keyboard_state = keyboard::scan();
 
@@ -189,95 +355,212 @@ pub fn game(speed_factor: f32, has_hazards: bool, high_score: &mut u32) -> u8 {
             if action != 0 {
                 return action;
             }
-            // If resume, redraw all layers
+            clear_hud_bar();
             engine.mark_all_dirty();
+            prev_score = u16::MAX;
         }
 
-        // --- Controls ---
-        let mut mx = 0.0;
-        let mut my = 0.0;
+        let frame = engine.get_frame();
+
+        // 1. Cloud Drifting & Wrapping
+        for i in 0..NUM_CLOUDS {
+            clouds[i].set_speed([cloud_speeds[i], 0.0]);
+            clouds[i].update(frame);
+
+            if clouds[i].position[0] < -40 {
+                let new_y = randint(15, 90) as i16;
+                clouds[i].set_position([WORLD_WIDTH_PX as i16, new_y], None);
+            }
+        }
+
+        // 2. 4-Directional Player Movement
+        let move_speed = 2.0 * speed_factor;
+        let mut p_vx = 0.0f32;
+        let mut p_vy = 0.0f32;
+
         if keyboard_state.key_down(key::LEFT) {
-            mx -= 1.5 * speed_factor;
+            p_vx -= move_speed;
         }
         if keyboard_state.key_down(key::RIGHT) {
-            mx += 1.5 * speed_factor;
+            p_vx += move_speed;
         }
         if keyboard_state.key_down(key::UP) {
-            my -= 1.5 * speed_factor;
+            p_vy -= move_speed;
         }
         if keyboard_state.key_down(key::DOWN) {
-            my += 1.5 * speed_factor;
-        }
-        player.speed = [mx, my];
-
-        // --- Entity Logic ---
-        if cloud.position.x <= 20 {
-            cloud.set_position(
-                Point::new((SCREEN_WIDTH - 30) as u16, cloud.position.y),
-                None,
-            );
+            p_vy += move_speed;
         }
 
-        if has_hazards {
-            if dead_bird.position.x <= 10 || dead_bird.position.x >= (SCREEN_WIDTH - 30) as u16 {
-                dead_bird.speed[0] = -dead_bird.speed[0];
-            }
-            if dead_bird.position.y <= 10 || dead_bird.position.y >= (SCREEN_HEIGHT - 50) as u16 {
-                dead_bird.speed[1] = -dead_bird.speed[1];
-            }
-            dead_bird.update(engine.frame);
+        player.set_speed([p_vx, p_vy]);
+        player.update(frame);
+
+        // Clamping to World horizontal and top boundaries
+        let clamped_px = player.position[0].clamp(0, (WORLD_WIDTH_PX - TILE_SIZE as i32) as i16);
+        let mut clamped_py = player.position[1];
+        if clamped_py < 0 {
+            clamped_py = 0;
         }
 
-        player.update(engine.frame);
-        cloud.update(engine.frame);
+        if clamped_px != player.position[0] || clamped_py != player.position[1] {
+            player.set_position([clamped_px, clamped_py], None);
+        }
 
-        // Survival score increment
-        if engine.frame % 30 == 0 {
+        // 3. Ground Collision (Exclusive Death Condition)
+        let ground_pixel_y = (ground_row * TILE_SIZE) as i32;
+        if (player.position[1] as i32) + (TILE_SIZE as i32) >= ground_pixel_y {
+            is_dead = true;
+        }
+
+        if frame % 30 == 0 {
             score = score.saturating_add(1);
         }
 
-        // --- Collision Check (Game Over Condition) ---
-        let px = player.position.x + 4;
-        let py = player.position.y + 4;
-        let p_cx = (px as usize) / TILE_SIZE;
-        let p_cy = (py as usize) / TILE_SIZE;
+        // 4. Viewport Tracking (Deadzone)
+        {
+            let viewport = engine.get_mut_viewport();
+            let screen_px = (player.position[0] as i32) - viewport.x;
+            let screen_py = (player.position[1] as i32) - viewport.y;
 
-        let hit_pipe = pipe_tilemap.get_tile(p_cx, p_cy).is_some();
-        let hit_floor = player.position.y >= (11 * TILE_SIZE - 16) as u16;
+            let mut cam_dx = 0;
+            let mut cam_dy = 0;
 
-        if hit_pipe || hit_floor {
-            break;
+            if screen_px < DEADZONE_LEFT {
+                cam_dx = screen_px - DEADZONE_LEFT;
+            } else if screen_px > DEADZONE_RIGHT {
+                cam_dx = screen_px - DEADZONE_RIGHT;
+            }
+
+            if screen_py < DEADZONE_TOP {
+                cam_dy = screen_py - DEADZONE_TOP;
+            } else if screen_py > DEADZONE_BOTTOM {
+                cam_dy = screen_py - DEADZONE_BOTTOM;
+            }
+
+            if cam_dx != 0 || cam_dy != 0 {
+                viewport.move_by(cam_dx, cam_dy);
+                viewport.clamp(0, WORLD_WIDTH_PX, 0, WORLD_HEIGHT_PX);
+            }
         }
 
-        // --- Render Pass ---
-        if has_hazards {
-            let mut render_list: [GameRenderable; 5] = [
-                Renderable::Tilemap(&bg_tilemap),
-                Renderable::Tilemap(&pipe_tilemap),
-                Renderable::Sprite(&cloud),
-                Renderable::Sprite(&dead_bird),
-                Renderable::Sprite(&player),
-            ];
-            engine.render_frame(&mut render_list);
-        } else {
-            let mut render_list: [GameRenderable; 4] = [
-                Renderable::Tilemap(&bg_tilemap),
-                Renderable::Tilemap(&pipe_tilemap),
-                Renderable::Sprite(&cloud),
-                Renderable::Sprite(&player),
-            ];
-            engine.render_frame(&mut render_list);
+        // 5. UI Reticle Update
+        ui_marker.set_speed([0.0, 0.0]);
+        ui_marker.update(frame);
+
+        // 6. Swarm Movement & Boundaries (Demo entities bounce inside play bounds)
+        for i in 0..active_swarm_count {
+            swarm[i].set_speed(swarm_vel[i]);
+            swarm[i].update(frame);
+
+            let mut cur_x = swarm[i].position[0];
+            let mut cur_y = swarm[i].position[1];
+            let mut bounced = false;
+
+            if cur_x <= 0 {
+                cur_x = 1;
+                swarm_vel[i][0] = -swarm_vel[i][0];
+                bounced = true;
+            } else if cur_x >= (WORLD_WIDTH_PX - TILE_SIZE as i32) as i16 {
+                cur_x = (WORLD_WIDTH_PX - TILE_SIZE as i32 - 1) as i16;
+                swarm_vel[i][0] = -swarm_vel[i][0];
+                bounced = true;
+            }
+
+            if cur_y <= 0 {
+                cur_y = 1;
+                swarm_vel[i][1] = -swarm_vel[i][1];
+                bounced = true;
+            } else if cur_y >= (ground_pixel_y - TILE_SIZE as i32) as i16 {
+                cur_y = (ground_pixel_y - TILE_SIZE as i32 - 1) as i16;
+                swarm_vel[i][1] = -swarm_vel[i][1];
+                bounced = true;
+            }
+
+            if bounced {
+                swarm[i].set_position([cur_x, cur_y], None);
+            }
         }
 
-        // --- Advance State ---
+        // 7. Standalone HUD Refresh
+        if score != prev_score {
+            let mut hud_text: String<32> = String::new();
+            hud_text.push_str("SCORE: ").unwrap();
+            hud_text
+                .push_str(
+                    string_from_u16(score)
+                        .as_str()
+                        .split_terminator('\0')
+                        .next()
+                        .unwrap(),
+                )
+                .unwrap();
+            hud_text.push_str(" | NUMWORKS 2D\0").unwrap();
+
+            draw_centered_string(
+                &hud_text,
+                12,
+                false,
+                &ColorConfig {
+                    text: Color::BLACK,
+                    bckgrd: HUD_BG_COLOR,
+                    alt: Color::from_rgb888(50, 150, 50),
+                },
+                true,
+            );
+            prev_score = score;
+        }
+
+        // 8. Assemble Render List
+        {
+            let mut render_list: Vec<GameRenderable, { NUM_SWARM + NUM_CLOUDS + 5 }> = Vec::new();
+
+            let _ = render_list.push(Renderable::Tilemap(&bg_map));
+            let _ = render_list.push(Renderable::Tilemap(&hills_map));
+
+            for c in clouds.iter() {
+                let _ = render_list.push(Renderable::Sprite(c));
+            }
+
+            let _ = render_list.push(Renderable::Tilemap(&pipe_map));
+
+            let _ = render_list.push(Renderable::Sprite(&player));
+            for s in swarm.iter() {
+                let _ = render_list.push(Renderable::Sprite(s));
+            }
+            let _ = render_list.push(Renderable::UiSprite(&ui_marker));
+
+            let scratch = unsafe { &mut *(&raw mut SCRATCH_BUFFER) };
+            engine.render_frame(&mut render_list, scratch);
+        }
+
+        // 9. Frame Commits
         player.commit_frame();
-        cloud.commit_frame();
-        if has_hazards {
-            dead_bird.commit_frame();
+        ui_marker.commit_frame();
+        for c in clouds.iter_mut() {
+            c.commit_frame();
+        }
+        for s in swarm.iter_mut() {
+            s.commit_frame();
+        }
+
+        // Handle Death Sequence
+        if is_dead {
+            player.set_animation(&ANIM_PLAYER_DEAD);
+            player.update(frame + 1);
+
+            let mut death_list: Vec<GameRenderable, 2> = Vec::new();
+            let _ = death_list.push(Renderable::Tilemap(&pipe_map));
+            let _ = death_list.push(Renderable::Sprite(&player));
+            let scratch = unsafe { &mut *(&raw mut SCRATCH_BUFFER) };
+            engine.render_frame(&mut death_list, scratch);
+
+            fading(300);
+            break;
         }
     }
 
-    // --- Game Over Screen ---
+    // -------------------------------------------------------------------------
+    // Game Over Screen & Score Processing
+    // -------------------------------------------------------------------------
     draw_centered_string(
         " GAME OVER! \0",
         SCREEN_HEIGHT / 3 - LARGE_CHAR_HEIGHT,
@@ -308,9 +591,6 @@ pub fn game(speed_factor: f32, has_hazards: bool, high_score: &mut u32) -> u8 {
     pause_menu(score, true, high_score)
 }
 
-// -----------------------------------------------------------------------------
-// In-Engine Pause and Game-Over Popup
-// -----------------------------------------------------------------------------
 fn pause_menu(points: u16, death: bool, high_score: &u32) -> u8 {
     let mut string_points: String<16> = String::new();
     string_points.push_str(" Score : ").unwrap();

@@ -1,3 +1,4 @@
+use num_engine::{define_anim, define_repeating_anim};
 use numworks_utils::{
     eadk::{
         display::{draw_string, push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
@@ -5,7 +6,6 @@ use numworks_utils::{
     },
     graphical::tiling::Tileset,
     include_bytes_align_as,
-    numbers::ceil,
     utils::{get_string_pixel_size, string_from_u16, CENTER},
 };
 
@@ -19,82 +19,19 @@ pub static TILESET: Tileset = Tileset::new(TILESET_TILE_SIZE, 4, IMAGE_BYTES);
 pub const BACKGROUND: Color = Color::from_rgb888(128, 212, 255);
 pub const UI_BACKGROUND: Color = Color::from_rgb888(50, 50, 50);
 
-/// A Cloud is a simple visual object that will be drawn in the background.
-pub struct Cloud {
-    posx: f32,
-    posy: u16,
-    last_pos: u16,
-    speed: f32,
-}
+define_anim!(pub ANIM_BIRD_FLAP_UP, &TILESET, 1, 1, false, 1, [(3, 0)]);
+define_anim!(pub ANIM_BIRD_FALL, &TILESET, 1, 1, false, 1, [(0, 0)]);
+define_anim!(pub ANIM_BIRD_DEAD, &TILESET, 1, 1, true, 1, [(0, 3)]);
 
-impl Cloud {
-    pub fn new(pos: Point, speed: f32) -> Self {
-        Cloud {
-            posx: pos.x as f32,
-            posy: pos.y,
-            last_pos: pos.x,
-            speed,
-        }
-    }
+// Cloud: 2x1 tiles (40x20 px)
+define_anim!(pub ANIM_CLOUD, &TILESET, 2, 1, true, 1, [(1, 3)]);
 
-    pub fn action(&mut self) -> u16 {
-        let p = self.posx as u16;
-        self.last_pos = p;
-        if p <= self.speed as u16 {
-            self.posx = (SCREEN_WIDTH - WINDOW_SIZE - TILESET_TILE_SIZE * 2) as f32;
-        } else {
-            self.posx -= self.speed;
-        }
-        0
-    }
+// Entrance Lips: 4x1 tiles (80x20 px)
+define_anim!(pub ANIM_PIPE_LIP_TOP, &TILESET, 4, 1, true, 1, [(0, 1)]);
+define_anim!(pub ANIM_PIPE_LIP_BOT, &TILESET, 4, 1, true, 1, [(0, 2)]);
 
-    pub fn draw_self(&self) {
-        let pos_x = self.posx as u16;
-        TILESET.draw_tile(
-            Point {
-                x: pos_x,
-                y: self.posy,
-            },
-            Point { x: 1, y: 3 },
-            1,
-            false,
-        );
-        TILESET.draw_tile(
-            Point {
-                x: pos_x + TILESET_TILE_SIZE,
-                y: self.posy,
-            },
-            Point { x: 2, y: 3 },
-            1,
-            false,
-        );
-    }
-
-    pub fn clear_old_self(&self) {
-        if self.last_pos <= WINDOW_SIZE {
-            push_rect_uniform(
-                Rect {
-                    x: self.last_pos,
-                    y: self.posy,
-                    width: TILESET_TILE_SIZE * 2,
-                    height: TILESET_TILE_SIZE,
-                },
-                BACKGROUND,
-            );
-        } else {
-            let moving = ceil(self.speed) as u16;
-            push_rect_uniform(
-                Rect {
-                    x: self.last_pos + TILESET_TILE_SIZE * 2 - moving,
-                    y: self.posy,
-                    width: moving,
-                    height: TILESET_TILE_SIZE,
-                },
-                BACKGROUND,
-            );
-        }
-    }
-}
+// Repeating Shafts: 2x11 tiles (40x220 px), repeats 2x1 sheet tile (1, 0)
+define_repeating_anim!(pub ANIM_PIPE_SHAFT, &TILESET, 2, 11, 2, 1, false, 1, [(1, 0)]);
 
 pub fn draw_constant_ui(high_score: u16) {
     push_rect_uniform(
@@ -108,7 +45,25 @@ pub fn draw_constant_ui(high_score: u16) {
     );
     push_rect_uniform(
         Rect {
+            x: 0,
+            y: SCREEN_HEIGHT - TILESET_TILE_SIZE / 2,
+            width: SCREEN_WIDTH - 2 * WINDOW_SIZE,
+            height: TILESET_TILE_SIZE / 2,
+        },
+        UI_BACKGROUND,
+    );
+    push_rect_uniform(
+        Rect {
             x: SCREEN_WIDTH - WINDOW_SIZE,
+            y: WINDOW_SIZE,
+            width: TILESET_TILE_SIZE,
+            height: SCREEN_HEIGHT,
+        },
+        UI_BACKGROUND,
+    );
+    push_rect_uniform(
+        Rect {
+            x: 0,
             y: WINDOW_SIZE,
             width: TILESET_TILE_SIZE,
             height: SCREEN_HEIGHT,
@@ -157,32 +112,8 @@ pub fn draw_constant_ui(high_score: u16) {
     );
 }
 
-/// Draws the two vertical lines of the UI and the score.
+/// Draws  the score.
 pub fn draw_ui(score: u16) {
-    // Ground clearing on the right
-    push_rect_uniform(
-        // This seems to be too late to be mega-clean :(
-        Rect {
-            x: SCREEN_WIDTH - WINDOW_SIZE,
-            y: SCREEN_HEIGHT - WINDOW_SIZE,
-            width: TILESET_TILE_SIZE,
-            height: TILESET_TILE_SIZE / 2,
-        },
-        UI_BACKGROUND,
-    );
-    // Right vertical line (needed to keep clear of the upcoming pipes)
-    // Right vertical line moved to pipe.draw_self because that means it is not called every time but more importantly it is called just after the pipe drawing
-    // Left vertical line (needed to keep clear of the last pipe) -> should be drawn only when necessary, but takes care of the ground too !
-    push_rect_uniform(
-        Rect {
-            x: 0,
-            y: WINDOW_SIZE,
-            width: WINDOW_SIZE,
-            height: SCREEN_HEIGHT - WINDOW_SIZE,
-        },
-        UI_BACKGROUND,
-    );
-
     draw_string(
         &string_from_u16(score),
         Point {
@@ -193,161 +124,6 @@ pub fn draw_ui(score: u16) {
         Color::WHITE,
         UI_BACKGROUND,
     );
-}
-
-/// No scaling and no transparency -> fast, no need to store in RAM.
-pub fn draw_bird(pos: Point, frame: u8) {
-    TILESET.draw_tile(
-        pos,
-        Point {
-            x: frame as u16 * 3,
-            y: 0,
-        },
-        1,
-        false,
-    );
-}
-
-#[inline]
-/// Draws the dead bird. Transparency for nicer collisions !
-pub fn draw_dead_bird(pos: Point) {
-    TILESET.draw_tile(pos, Point { x: 0, y: 3 }, 1, true);
-}
-
-#[inline]
-/// Draws the shaft of the pipe and the entrance on top.
-pub fn draw_pipe(posx: u16, interval: (u16, u16), top: bool) {
-    draw_full_pipe(posx, interval, top);
-    draw_pipe_entrance(
-        posx,
-        if top {
-            interval.0 - TILESET_TILE_SIZE
-        } else {
-            interval.1
-        },
-        top,
-    );
-}
-
-#[inline]
-/// Does NOT clear the entirety of a pipe, only the small part on the right that moves.
-pub fn clear_moving_pipe(last_pos_x: u16, interval: (u16, u16), speed: u16, top: bool) {
-    push_rect_uniform(
-        Rect {
-            x: last_pos_x + TILESET_TILE_SIZE * 2 - speed,
-            y: if top { WINDOW_SIZE } else { interval.1 },
-            width: speed + 5,
-            height: if top {
-                interval.0 - WINDOW_SIZE
-            } else {
-                SCREEN_HEIGHT - WINDOW_SIZE - interval.1
-            },
-        },
-        BACKGROUND,
-    );
-}
-
-/// Draws the top part, with the small transparent parts and all.
-///
-/// left_tile and right_tile are the tiles with transparency.
-pub fn draw_pipe_entrance(posx: u16, posy: u16, top: bool) {
-    if posx > WINDOW_SIZE {
-        // don't need to try to draw if it is in the UI
-        TILESET.draw_tile(
-            Point {
-                x: posx - TILESET_TILE_SIZE,
-                y: posy,
-            },
-            if top {
-                Point { x: 0, y: 1 }
-            } else {
-                Point { x: 0, y: 2 }
-            },
-            1,
-            true,
-        );
-    }
-    TILESET.draw_tile(
-        Point { x: posx, y: posy },
-        Point {
-            x: 1,
-            y: if top { 1 } else { 2 },
-        },
-        1,
-        false,
-    );
-    TILESET.draw_tile(
-        Point {
-            x: posx + TILESET_TILE_SIZE,
-            y: posy,
-        },
-        Point {
-            x: 2,
-            y: if top { 1 } else { 2 },
-        },
-        1,
-        false,
-    );
-    if posx < SCREEN_WIDTH - WINDOW_SIZE - TILESET_TILE_SIZE * 2 {
-        // Same, don't need to draw if in the UI
-        TILESET.draw_tile(
-            Point {
-                x: posx + 2 * TILESET_TILE_SIZE,
-                y: posy,
-            },
-            if top {
-                Point { x: 3, y: 1 }
-            } else {
-                Point { x: 3, y: 2 }
-            },
-            1,
-            true,
-        );
-    }
-}
-
-pub fn draw_full_pipe(posx: u16, interval: (u16, u16), top: bool) {
-    let start_pos = if top {
-        WINDOW_SIZE
-    } else {
-        SCREEN_HEIGHT - WINDOW_SIZE - TILESET_TILE_SIZE
-    };
-    TILESET.draw_tile(
-        Point {
-            x: posx,
-            y: start_pos,
-        },
-        Point { x: 1, y: 0 },
-        1,
-        false,
-    );
-    TILESET.draw_tile(
-        Point {
-            x: posx + TILESET_TILE_SIZE,
-            y: start_pos,
-        },
-        Point { x: 2, y: 0 },
-        1,
-        false,
-    );
-    for i in (if top {
-        (interval.0 % TILESET_TILE_SIZE + WINDOW_SIZE)..(interval.0 - 2 * TILESET_TILE_SIZE + 1)
-    } else {
-        (interval.1 + TILESET_TILE_SIZE)..(SCREEN_HEIGHT - WINDOW_SIZE - TILESET_TILE_SIZE)
-    })
-    .step_by(TILESET_TILE_SIZE as usize)
-    {
-        TILESET.draw_tile(Point { x: posx, y: i }, Point { x: 1, y: 0 }, 1, false);
-        TILESET.draw_tile(
-            Point {
-                x: posx + TILESET_TILE_SIZE,
-                y: i,
-            },
-            Point { x: 2, y: 0 },
-            1,
-            false,
-        );
-    }
 }
 
 pub fn countdown(pos: Point) {
@@ -368,24 +144,18 @@ pub fn countdown(pos: Point) {
     }
 }
 
-pub fn draw_ground(frame_counter: u16) {
-    TILESET.reverse_half_tiling(
-        Point {
-            x: WINDOW_SIZE - frame_counter % TILESET_TILE_SIZE,
-            y: SCREEN_HEIGHT - WINDOW_SIZE,
-        },
-        (
-            (SCREEN_WIDTH - 2 * WINDOW_SIZE + TILESET_TILE_SIZE) / TILESET_TILE_SIZE,
-            1,
-        ),
-        Point { x: 0, y: 4 },
-        false,
-    );
-}
-
 pub fn menu_vis_addon() {
-    draw_pipe_entrance(CENTER.x + 10, 97 + 10 - TILESET_TILE_SIZE, false);
-    draw_bird(
+    // Draw a pipe entrance preview directly on the menu background
+    ANIM_PIPE_LIP_BOT.draw_at(
+        Point {
+            x: CENTER.x + 10,
+            y: 97 + 10 - TILESET_TILE_SIZE,
+        },
+        0,
+    );
+
+    // Draw a static bird preview using the fallback frame
+    ANIM_BIRD_FALL.draw_at(
         Point {
             x: CENTER.x - 35,
             y: 15 + TILESET_TILE_SIZE + TILESET_TILE_SIZE,

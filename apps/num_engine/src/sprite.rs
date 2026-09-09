@@ -1,27 +1,44 @@
+//! Moving and animated multi-tile entity representation.
+
 use numworks_utils::{
-    eadk::{
-        display::{SCREEN_HEIGHT, SCREEN_WIDTH},
-        Color, Point,
-    },
+    eadk::{Color, Point},
     graphical::TRANSPARENCY_COLOR,
 };
 
-use crate::texture::Animation;
+use crate::texture::{Animation, FrameCoord};
 
+/// Describes an active, animated game entity in world or UI space.
+///
+/// Supports sub-pixel fractional velocity accumulation and multi-tile dimensional footprints.
+///
+/// # Generics
+/// * `TILE_SIZE` - Width and height of one standard tile.
+/// * `CELL_AREA` - Total pixels per tile (`TILE_SIZE * TILE_SIZE`).
 pub struct Sprite<'a, const TILE_SIZE: usize, const CELL_AREA: usize> {
-    pub animation: &'a mut Animation<'a>,
-    pub position: Point,
-    pub prev_position: Point,
-    pub moved: bool,
-    pub speed: [f32; 2],
-    pub in_pixel_offset: [f32; 2],
-    pub z: u8,
+    /// Active animation metadata and frame table.
+    animation: &'a Animation<'a>,
+    /// Currently displayed frame index in `animation.frames`.
+    pub current_frame_index: usize,
+    /// Current integer pixel position `[x, y]`.
+    pub position: [i16; 2],
+    /// Position during the previous frame, used to compute dirty invalidation rects.
+    pub(crate) prev_position: [i16; 2],
+    /// Flag indicating whether the sprite moved or changed frame this tick.
+    pub(crate) moved: bool,
+    /// Velocity in pixels per frame `[vx, vy]`.
+    speed: [f32; 2],
+    /// Accumulated fractional sub-pixel offsets `[fx, fy]`.
+    in_pixel_offset: [f32; 2],
+    /// Depth layer for render sorting.
+    pub(crate) z: u8,
 }
 
 impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Sprite<'a, TILE_SIZE, CELL_AREA> {
-    pub fn new(animation: &'a mut Animation<'a>, position: Point, z: u8) -> Self {
+    /// Constructs a sprite instance bound to an animation at an initial position.
+    pub const fn new(animation: &'a Animation<'a>, position: [i16; 2], z: u8) -> Self {
         Self {
             animation,
+            current_frame_index: 0,
             position,
             prev_position: position,
             moved: true,
@@ -31,12 +48,78 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Sprite<'a, TILE_SIZE, C
         }
     }
 
-    /// Advances animation and movement with boundary clamping.
+    /// Returns the active animation frame coordinates `(tx, ty)` on the tileset grid.
+    #[inline(always)]
+    pub fn current_frame(&self) -> Option<FrameCoord> {
+        self.animation.get_frame(self.current_frame_index)
+    }
+
+    /// Changes the animation of the sprite. Resets the current frame to 0.
+    #[inline(always)]
+    pub fn set_animation(&mut self, animation: &'a Animation<'a>) {
+        self.animation = animation;
+        self.current_frame_index = 0;
+        self.moved = true;
+    }
+
+    /// Returns the full physical pixel width (`desc.width * tile_size`).
+    #[inline(always)]
+    pub fn pixel_width(&self) -> u16 {
+        self.animation.desc.pixel_width()
+    }
+
+    /// Returns the full physical pixel height (`desc.height * tile_size`).
+    #[inline(always)]
+    pub fn pixel_height(&self) -> u16 {
+        self.animation.desc.pixel_height()
+    }
+
+    /// Locks current position into `prev_position` and clears `moved`.
+    ///
+    /// Must be invoked at the end of every game frame after `render_frame`.
+    #[inline(always)]
+    pub fn commit_frame(&mut self) {
+        self.prev_position = self.position;
+        self.moved = false;
+    }
+
+    /// Explicitly overrides the sprite's position and optional sub-pixel accumulator.
+    ///
+    /// Flags `moved = true` if the new position differs from the current position.
+    pub fn set_position(&mut self, pos: [i16; 2], offset: Option<[f32; 2]>) {
+        if self.position[0] != pos[0] || self.position[1] != pos[1] {
+            self.position = pos;
+            self.moved = true;
+        }
+        if let Some(off) = offset {
+            self.in_pixel_offset = off;
+        }
+    }
+
+    /// Returns the current speed `[vx, vy]`.
+    #[inline(always)]
+    pub fn get_speed(&self) -> [f32; 2] {
+        self.speed
+    }
+
+    /// Sets the directional velocity in pixels per frame.
+    #[inline(always)]
+    pub fn set_speed(&mut self, speed: [f32; 2]) {
+        self.speed = speed;
+    }
+
+    /// Advances the animation frame and integrates velocity into integer coordinates.
+    ///
+    /// Automatically flags `moved = true` when frames change or integer pixels advance.
+    ///
+    /// # Arguments
+    /// * `frames_counter` - Monotonic engine frame number (`engine.get_frame()`).
     pub fn update(&mut self, frames_counter: u32) {
         self.moved = false;
 
-        self.animation.update(frames_counter);
-        if self.animation.changed {
+        let next_frame_idx = self.animation.calculate_frame_index(frames_counter);
+        if next_frame_idx != self.current_frame_index {
+            self.current_frame_index = next_frame_idx;
             self.moved = true;
         }
 
@@ -47,85 +130,53 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Sprite<'a, TILE_SIZE, C
         let delta_y = self.in_pixel_offset[1] as i32;
 
         if delta_x != 0 {
-            let max_x = (SCREEN_WIDTH as i32).saturating_sub(self.pixel_width() as i32);
-            let new_x = ((self.position.x as i32) + delta_x).clamp(0, max_x.max(0));
-
-            if new_x as u16 != self.position.x {
-                self.position.x = new_x as u16;
-                self.moved = true;
-            }
+            let new_x = ((self.position[0] as i32) + delta_x)
+                .clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+            self.position[0] = new_x;
+            self.moved = true;
             self.in_pixel_offset[0] -= delta_x as f32;
         }
 
         if delta_y != 0 {
-            let max_y = (SCREEN_HEIGHT as i32).saturating_sub(self.pixel_height() as i32);
-            let new_y = ((self.position.y as i32) + delta_y).clamp(0, max_y.max(0));
-
-            if new_y as u16 != self.position.y {
-                self.position.y = new_y as u16;
-                self.moved = true;
-            }
+            let new_y = ((self.position[1] as i32) + delta_y)
+                .clamp(i16::MIN as i32, i16::MAX as i32) as i16;
+            self.position[1] = new_y;
+            self.moved = true;
             self.in_pixel_offset[1] -= delta_y as f32;
         }
     }
 
-    #[inline(always)]
-    pub fn commit_frame(&mut self) {
-        self.prev_position = self.position;
-        self.moved = false;
-    }
-
-    #[inline(always)]
-    pub fn pixel_width(&self) -> u16 {
-        self.animation.desc.pixel_width()
-    }
-
-    #[inline(always)]
-    pub fn pixel_height(&self) -> u16 {
-        self.animation.desc.pixel_height()
-    }
-
-    pub fn set_position(&mut self, pos: Point, offset: Option<[f32; 2]>) {
-        if self.position.x != pos.x || self.position.y != pos.y {
-            self.position = pos;
-            self.moved = true;
-        }
-        if let Some(off) = offset {
-            self.in_pixel_offset = off;
-        }
-    }
-
-    pub fn set_speed(&mut self, speed: [f32; 2]) {
-        self.speed = speed;
-    }
-
-    /// Blits the clipped visible region of this sprite into a 16x16 cell buffer.
-    pub fn blit_to_cell(&self, cell_buf: &mut [Color; CELL_AREA], cell_x: i16, cell_y: i16) {
+    /// Rasterizes the intersecting bounds of this sprite directly into a screen cell buffer.
+    ///
+    /// Handles transparency color-keying, multi-tile lookups, and repeating pattern tiling.
+    ///
+    /// # Arguments
+    /// * `cell_buf` - Target scratch cell pixel buffer.
+    /// * `cell_x` - Top-left screen X of the destination cell.
+    /// * `cell_y` - Top-left screen Y of the destination cell.
+    /// * `screen_x` - Resolved top-left screen X of the sprite.
+    /// * `screen_y` - Resolved top-left screen Y of the sprite.
+    pub(crate) fn blit_to_cell_at(
+        &self,
+        cell_buf: &mut [Color; CELL_AREA],
+        cell_x: i16,
+        cell_y: i16,
+        screen_x: i16,
+        screen_y: i16,
+    ) {
         let spr_w = self.pixel_width() as i16;
         let spr_h = self.pixel_height() as i16;
 
-        let rel_x = self.position.x as i16 - cell_x;
-        let rel_y = self.position.y as i16 - cell_y;
+        let x_start = screen_x.max(cell_x);
+        let x_end = (screen_x + spr_w).min(cell_x + TILE_SIZE as i16);
+        let y_start = screen_y.max(cell_y);
+        let y_end = (screen_y + spr_h).min(cell_y + TILE_SIZE as i16);
 
-        // Bounding box overlap inside sprite-local pixel coordinates
-        let sx0 = if rel_x < 0 { -rel_x } else { 0 } as usize;
-        let sy0 = if rel_y < 0 { -rel_y } else { 0 } as usize;
-        let sx1 = if rel_x + spr_w > TILE_SIZE as i16 {
-            (TILE_SIZE as i16 - rel_x).max(0)
-        } else {
-            spr_w
-        } as usize;
-        let sy1 = if rel_y + spr_h > TILE_SIZE as i16 {
-            (TILE_SIZE as i16 - rel_y).max(0)
-        } else {
-            spr_h
-        } as usize;
-
-        if sx1 <= sx0 || sy1 <= sy0 {
+        if x_start >= x_end || y_start >= y_end {
             return;
         }
 
-        let frame = match self.animation.current_frame() {
+        let frame = match self.current_frame() {
             Some(f) => f,
             None => return,
         };
@@ -133,69 +184,37 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Sprite<'a, TILE_SIZE, C
         let desc = &self.animation.desc;
         let tileset = desc.tileset;
         let tile_size = tileset.tile_size as usize;
+        let sheet_w = desc.sheet_w.max(1) as usize;
+        let sheet_h = desc.sheet_h.max(1) as usize;
 
-        let min_tx = sx0 / tile_size;
-        let max_tx = (sx1 - 1) / tile_size;
-        let min_ty = sy0 / tile_size;
-        let max_ty = (sy1 - 1) / tile_size;
+        for cur_y in y_start..y_end {
+            let cell_local_y = (cur_y - cell_y) as usize;
+            let spr_local_y = (cur_y - screen_y) as usize;
 
-        for ty in min_ty..=max_ty {
-            let tile_top_y = ty * tile_size;
-            let local_y0 = sy0.saturating_sub(tile_top_y).min(tile_size);
-            let local_y1 = sy1.saturating_sub(tile_top_y).min(tile_size);
+            let tile_y_offset = (spr_local_y / tile_size) % sheet_h;
+            let row_in_tile = spr_local_y % tile_size;
 
-            if local_y1 <= local_y0 {
-                continue;
-            }
+            for cur_x in x_start..x_end {
+                let cell_local_x = (cur_x - cell_x) as usize;
+                let spr_local_x = (cur_x - screen_x) as usize;
 
-            for tx in min_tx..=max_tx {
-                let tile_left_x = tx * tile_size;
-                let local_x0 = sx0.saturating_sub(tile_left_x).min(tile_size);
-                let local_x1 = sx1.saturating_sub(tile_left_x).min(tile_size);
+                let tile_x_offset = (spr_local_x / tile_size) % sheet_w;
+                let col_in_tile = spr_local_x % tile_size;
 
-                if local_x1 <= local_x0 {
-                    continue;
-                }
-                let blit_w = local_x1 - local_x0;
-
-                let tile_slice = tileset.get_tile(Point {
-                    x: frame.tx as u16 + tx as u16,
-                    y: frame.ty as u16 + ty as u16,
+                let tile = tileset.get_tile(Point {
+                    x: frame.tx as u16 + tile_x_offset as u16,
+                    y: frame.ty as u16 + tile_y_offset as u16,
                 });
 
-                for row in local_y0..local_y1 {
-                    let dst_y = (rel_y + (tile_top_y + row) as i16) as usize;
-                    let dst_x = (rel_x + (tile_left_x + local_x0) as i16) as usize;
+                let pixel = tile[row_in_tile * tile_size + col_in_tile];
+                let dst_idx = cell_local_y * TILE_SIZE + cell_local_x;
 
-                    let dst_idx = dst_y * TILE_SIZE + dst_x;
-                    let src_idx = row * tile_size + local_x0;
-
-                    blit_row_span(
-                        &mut cell_buf[dst_idx..],
-                        &tile_slice[src_idx..],
-                        blit_w,
-                        desc.transparency,
-                    );
+                if dst_idx < CELL_AREA
+                    && (!desc.transparency || pixel.rgb565 != TRANSPARENCY_COLOR.rgb565)
+                {
+                    cell_buf[dst_idx] = pixel;
                 }
             }
-        }
-    }
-}
-
-/// Blits a horizontal contiguous pixel span with optional color-key transparency.
-#[inline(always)]
-fn blit_row_span(dst: &mut [Color], src: &[Color], width: usize, has_transparency: bool) {
-    if !has_transparency {
-        dst[..width].copy_from_slice(&src[..width]);
-        return;
-    }
-
-    let d = &mut dst[..width];
-    let s = &src[..width];
-    for i in 0..width {
-        let p = s[i];
-        if p.rgb565 != TRANSPARENCY_COLOR.rgb565 {
-            d[i] = p;
         }
     }
 }

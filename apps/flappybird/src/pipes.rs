@@ -1,132 +1,107 @@
-use numworks_utils::{
-    eadk::{
-        display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
-        Rect,
-    },
-    numbers::{abs, ceil, floor},
-    utils::randint,
-};
+use num_engine::spawn_sprite;
+use numworks_utils::utils::randint;
 
 use crate::{
-    flappy_ui::{clear_moving_pipe, draw_pipe, BACKGROUND, TILESET_TILE_SIZE, UI_BACKGROUND},
-    game::WINDOW_SIZE,
+    flappy_ui::{ANIM_PIPE_LIP_BOT, ANIM_PIPE_LIP_TOP, ANIM_PIPE_SHAFT, TILESET_TILE_SIZE},
+    game::{GameSprite, SCREEN_ROWS, TILE_SIZE, VIEW_SCREEN_W, VIEW_SCREEN_X},
 };
 
-/// A [Pipes] represent a pair of pipes, between which the bird need to pass.
-///
-/// An inactive pipe will not be drawn and is waiting for its turn to start moving
-pub struct Pipes {
-    pub interval: (u16, u16),
-    pub x_pos: u16,
+const SHAFT_HEIGHT_PX: i16 = (SCREEN_ROWS * TILE_SIZE) as i16; // 220 px
+
+pub struct PipePair<'a> {
+    pub gap_y: i16,
+    pub gap_size: i16,
     pub active: bool,
-    pub speed: f32,
-    pub true_pos: f32,
-    last_pos: u16,
-    clear: bool,
-    pub has_moved: bool,
+    pub scored: bool,
+    pub spr_top_shaft: GameSprite<'a>,
+    pub spr_top_lip: GameSprite<'a>,
+    pub spr_bot_lip: GameSprite<'a>,
+    pub spr_bot_shaft: GameSprite<'a>,
 }
 
-impl Pipes {
-    /// Last problem : with 4 pipes on the screen, it can't !
-    pub fn draw_self(&self) {
-        if self.active && self.has_moved {
-            draw_pipe(self.x_pos, self.interval, false);
-            draw_pipe(self.x_pos, self.interval, true);
-            if self.x_pos >= SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - WINDOW_SIZE - 10 {
-                // 10 is probably overkilled but that doesn't change anything
-                // I tried not to put any UI drawing here, but it was necessary optimisation wise.
-                push_rect_uniform(
-                    Rect {
-                        x: SCREEN_WIDTH - WINDOW_SIZE,
-                        y: WINDOW_SIZE,
-                        width: TILESET_TILE_SIZE / 2,
-                        height: SCREEN_HEIGHT - WINDOW_SIZE * 2,
-                    },
-                    UI_BACKGROUND,
-                );
-            }
-        }
-    }
+impl<'a> PipePair<'a> {
+    pub fn new(gap_size: i16, speed: f32) -> Self {
+        let spawn_x = (VIEW_SCREEN_X + VIEW_SCREEN_W) as i16;
+        let gap_y = Self::random_gap(gap_size);
+        let collar_x = spawn_x - TILESET_TILE_SIZE as i16;
 
-    /// If self.clear == true, will clear the pipe considering it is on the left only !
-    pub fn clear_old_self(&self) {
-        if self.has_moved {
-            if self.clear {
-                push_rect_uniform(
-                    Rect {
-                        x: WINDOW_SIZE,
-                        y: WINDOW_SIZE,
-                        width: TILESET_TILE_SIZE * 2,
-                        height: SCREEN_HEIGHT - WINDOW_SIZE * 2,
-                    },
-                    BACKGROUND,
-                );
-            } else if self.active
-                && self.last_pos <= SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - WINDOW_SIZE
-            {
-                clear_moving_pipe(self.last_pos, self.interval, ceil(self.speed) as u16, false);
-                clear_moving_pipe(self.last_pos, self.interval, ceil(self.speed) as u16, true);
-            }
-        }
-    }
+        let mut spr_top_shaft = spawn_sprite!(
+            &ANIM_PIPE_SHAFT,
+            [spawn_x, (gap_y - 20) - SHAFT_HEIGHT_PX],
+            10
+        );
+        let mut spr_top_lip = spawn_sprite!(&ANIM_PIPE_LIP_TOP, [collar_x, gap_y - 20], 11);
+        let mut spr_bot_lip = spawn_sprite!(&ANIM_PIPE_LIP_BOT, [collar_x, gap_y + gap_size], 11);
+        let mut spr_bot_shaft =
+            spawn_sprite!(&ANIM_PIPE_SHAFT, [spawn_x, gap_y + gap_size + 20], 10);
 
-    pub fn new(speed: f32, interval_size: u16) -> Self {
+        let s = [-speed, 0.0];
+        spr_top_shaft.set_speed(s);
+        spr_top_lip.set_speed(s);
+        spr_bot_lip.set_speed(s);
+        spr_bot_shaft.set_speed(s);
+
         Self {
-            interval: Self::random_interval(interval_size),
-            x_pos: SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - TILESET_TILE_SIZE / 2,
-            true_pos: (SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - TILESET_TILE_SIZE / 2) as f32,
+            gap_y,
+            gap_size,
             active: false,
-            clear: false,
-            has_moved: false,
-            speed,
-            last_pos: SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - TILESET_TILE_SIZE / 2,
+            scored: false,
+            spr_top_shaft,
+            spr_top_lip,
+            spr_bot_lip,
+            spr_bot_shaft,
         }
     }
 
-    fn random_interval(interval_size: u16) -> (u16, u16) {
-        let up = randint(
-            (WINDOW_SIZE + TILESET_TILE_SIZE) as u32,
-            (SCREEN_HEIGHT - WINDOW_SIZE - TILESET_TILE_SIZE - interval_size) as u32,
-        ) as u16;
-        (up, up + interval_size)
+    fn random_gap(gap_size: i16) -> i16 {
+        // Gap begins between y=20 and y=180 - gap_size in world space
+        randint(20, (200 - 20 - gap_size) as u32) as i16
     }
 
-    pub fn increase_speed(&mut self) {
-        self.speed *= 1.15;
+    pub fn warp_to(&mut self, target_x: i16) {
+        self.gap_y = Self::random_gap(self.gap_size);
+        self.scored = false;
+
+        let collar_x = target_x - TILESET_TILE_SIZE as i16;
+
+        self.spr_top_shaft.set_position(
+            [target_x, (self.gap_y - 20) - SHAFT_HEIGHT_PX],
+            Some([0.0, 0.0]),
+        );
+        self.spr_top_lip
+            .set_position([collar_x, self.gap_y - 20], Some([0.0, 0.0]));
+        self.spr_bot_lip
+            .set_position([collar_x, self.gap_y + self.gap_size], Some([0.0, 0.0]));
+        self.spr_bot_shaft.set_position(
+            [target_x, self.gap_y + self.gap_size + 20],
+            Some([0.0, 0.0]),
+        );
     }
 
-    pub fn action(&mut self) -> u16 {
-        let mut result = 0;
-        self.clear = false;
-        if self.active {
-            // which means that the decimal part exceeded one
-            self.move_pipe(-self.speed);
-            if self.x_pos != self.last_pos {
-                self.has_moved = true;
-                if self.x_pos <= ceil(self.speed) as u16 {
-                    self.interval = Self::random_interval(self.interval.1 - self.interval.0);
-                    self.x_pos = SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - TILESET_TILE_SIZE / 2;
-                    self.true_pos = self.x_pos as f32;
-                    self.active = false;
-                    self.clear = true;
-
-                    result = 1;
-                }
-            }
-        } else {
-            self.last_pos = SCREEN_WIDTH;
-        }
-        result
+    pub fn set_speed(&mut self, speed: f32) {
+        let s = [-speed, 0.0];
+        self.spr_top_shaft.set_speed(s);
+        self.spr_top_lip.set_speed(s);
+        self.spr_bot_lip.set_speed(s);
+        self.spr_bot_shaft.set_speed(s);
     }
 
-    /// Offset the position by a given number.
-    ///
-    /// Used to make all pipes move on the same frame !
-    ///
-    /// And also to clean up a bit the action function.
-    pub fn move_pipe(&mut self, offset: f32) {
-        self.last_pos = self.x_pos;
-        self.true_pos += offset;
-        self.x_pos = abs(floor(self.true_pos) as i32) as u16;
+    pub fn update(&mut self, frame: u32) {
+        self.spr_top_shaft.update(frame);
+        self.spr_top_lip.update(frame);
+        self.spr_bot_lip.update(frame);
+        self.spr_bot_shaft.update(frame);
+    }
+
+    pub fn commit_frame(&mut self) {
+        self.spr_top_shaft.commit_frame();
+        self.spr_top_lip.commit_frame();
+        self.spr_bot_lip.commit_frame();
+        self.spr_bot_shaft.commit_frame();
+    }
+
+    #[inline(always)]
+    pub fn x(&self) -> i16 {
+        self.spr_top_shaft.position[0]
     }
 }
