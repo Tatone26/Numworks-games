@@ -48,7 +48,7 @@ pub const CELL_AREA: usize = 400; // 20 * 20 px
 pub const WINDOW_COLS: usize = 14; // 280 / 20
 pub const WINDOW_ROWS: usize = 11; // 220 / 20
 
-const DEBUG_MODE: bool = true;
+const DEBUG_MODE: bool = false;
 
 // 1. Solid Ground Layer: 1 row high (row 10), placed at Y = 200 px
 pub const GROUND_COLS: usize = 15;
