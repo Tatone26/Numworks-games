@@ -9,9 +9,9 @@ use numworks_utils::{
     utils::{get_string_pixel_size, string_from_u16, CENTER},
 };
 
-use crate::game::WINDOW_SIZE;
+use crate::game::{GameEngine, GameWorld, TILE_SIZE, WINDOW_SIZE};
 
-pub const TILESET_TILE_SIZE: u16 = 20;
+pub const TILESET_TILE_SIZE: u16 = TILE_SIZE as u16;
 
 const IMAGE_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/image.nppm");
 pub static TILESET: Tileset = Tileset::new(TILESET_TILE_SIZE, 4, IMAGE_BYTES);
@@ -112,7 +112,6 @@ pub fn draw_constant_ui(high_score: u16) {
     );
 }
 
-/// Draws  the score.
 pub fn draw_ui(score: u16) {
     draw_string(
         &string_from_u16(score),
@@ -126,26 +125,23 @@ pub fn draw_ui(score: u16) {
     );
 }
 
-pub fn countdown(pos: Point) {
-    wait_for_vblank();
+/// Presents a synchronous 3-2-1 countdown directly over the rendered game world.
+pub fn countdown(pos: Point, engine: &mut GameEngine, world: &mut GameWorld) {
     for n in (1..=3).rev() {
-        TILESET.draw_tile(pos, Point { x: n, y: 4 }, 2, true);
-        timing::msleep(900);
+        engine.mark_all_dirty();
+        engine.render_progressive(world);
+
         wait_for_vblank();
-        push_rect_uniform(
-            Rect {
-                x: pos.x,
-                y: pos.y,
-                width: TILESET_TILE_SIZE * 2,
-                height: TILESET_TILE_SIZE * 2,
-            },
-            BACKGROUND,
-        );
+        TILESET.draw_tile(pos, Point { x: n, y: 4 }, 2, true);
+
+        timing::msleep(800);
     }
+
+    engine.mark_all_dirty();
+    engine.render_progressive(world);
 }
 
 pub fn menu_vis_addon() {
-    // Draw a pipe entrance preview directly on the menu background
     ANIM_PIPE_LIP_BOT.draw_at(
         Point {
             x: CENTER.x + 10,
@@ -154,7 +150,6 @@ pub fn menu_vis_addon() {
         0,
     );
 
-    // Draw a static bird preview using the fallback frame
     ANIM_BIRD_FALL.draw_at(
         Point {
             x: CENTER.x - 35,

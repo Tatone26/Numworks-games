@@ -1,9 +1,9 @@
 //! Low-level rasterizer, layer sorter, reverse-Z occlusion culler, and display batcher.
 
-use crate::dirty_grid::DirtyGrid;
-use crate::sprite::Sprite;
-use crate::tilemap::Tilemap;
-use crate::viewport::Viewport;
+use crate::graphics::dirty_grid::DirtyGrid;
+use crate::graphics::sprite::Sprite;
+use crate::graphics::tilemap::Tilemap;
+use crate::graphics::viewport::Viewport;
 use numworks_utils::eadk::{display, Color, Rect};
 
 const MAX_RENDER_ITEMS: usize = 36;

@@ -1,11 +1,14 @@
 use heapless::Vec;
 
 use num_engine::{
-    compositor::{InterlaceMode, Renderable},
-    engine::Engine,
-    spawn_sprite,
-    sprite::Sprite,
-    tilemap::{Parallax, Tilemap},
+    define_scratch_buffer, define_tilemap_buffer,
+    graphics::{
+        compositor::InterlaceMode,
+        tilemap::{Parallax, WrapMode},
+    },
+    init_engine_window, inset_hitbox, tile_span,
+    world::World,
+    world_fill_tilemap, world_spawn, world_tilemap, Engine,
 };
 use numworks_utils::{
     eadk::{
@@ -26,48 +29,53 @@ use crate::{
         countdown, draw_constant_ui, draw_ui, menu_vis_addon, ANIM_BIRD_DEAD, ANIM_BIRD_FALL,
         ANIM_BIRD_FLAP_UP, ANIM_CLOUD, BACKGROUND, TILESET, TILESET_TILE_SIZE, UI_BACKGROUND,
     },
-    pipes::PipePair,
+    pipes::PipePool,
 };
 
+// =============================================================================
+// Display & Layout Metrics
+// =============================================================================
 pub const WINDOW_SIZE: u16 = 20;
 
-// Sub-screen Viewport Window on physical display
 pub const VIEW_SCREEN_X: u16 = 20;
 pub const VIEW_SCREEN_Y: u16 = 20;
 pub const VIEW_SCREEN_W: u16 = 280;
 pub const VIEW_SCREEN_H: u16 = 220;
 
-// -----------------------------------------------------------------------------
-// Engine Generics
-// -----------------------------------------------------------------------------
 pub const TILE_SIZE: usize = 20;
-pub const CELL_AREA: usize = 400; // 20 * 20
-pub const SCREEN_COLS: usize = 14; // 280 / 20
-pub const SCREEN_ROWS: usize = 11; // 220 / 20
+pub const CELL_AREA: usize = 400; // 20 * 20 px
+
+pub const WINDOW_COLS: usize = 14; // 280 / 20
+pub const WINDOW_ROWS: usize = 11; // 220 / 20
+
 const DEBUG_MODE: bool = true;
 
-const WINDOW_TILES: usize = SCREEN_COLS * SCREEN_ROWS; // 154
+// 1. Solid Ground Layer: 1 row high (row 10), placed at Y = 200 px
+pub const GROUND_COLS: usize = 15;
+pub const GROUND_ROWS: usize = 1;
+pub const GROUND_ROW_INDEX: usize = WINDOW_ROWS - 1; // row 10
+pub const GROUND_Y: i16 = (GROUND_ROW_INDEX * TILE_SIZE) as i16; // 200 px
 
-// Ground tilemap: 15 cols x 11 rows (Row 10 is the ground line [0, 4])
-const GROUND_COLS: usize = 15;
-const GROUND_ROWS: usize = SCREEN_ROWS; // 11
-const GROUND_TILES: usize = GROUND_COLS * GROUND_ROWS;
+// 2. Foreground Decor Layer: 3 rows high (rows 7, 8, 9), placed at Y = 140 px (No collision)
+pub const DECOR_COLS: usize = 15;
+pub const DECOR_ROWS: usize = 3;
+pub const DECOR_START_ROW: usize = GROUND_ROW_INDEX - DECOR_ROWS; // row 7
+pub const DECOR_Y: i16 = (DECOR_START_ROW * TILE_SIZE) as i16; // 140 px
 
-const MAX_PIPES_ON_SCREEN: usize = 6;
+pub const MAX_PIPES_ON_SCREEN: usize = 6;
 const NUM_CLOUDS: usize = 2;
 
-pub type GameEngine = Engine<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS, DEBUG_MODE>;
-pub type GameTilemap<'a> = Tilemap<'a, TILE_SIZE, CELL_AREA>;
-pub type GameSprite<'a> = Sprite<'a, TILE_SIZE, CELL_AREA>;
-pub type GameRenderable<'r, 'a> = Renderable<'r, 'a, TILE_SIZE, CELL_AREA>;
+const WORLD_ENT_CAP: usize = 16;
+const WORLD_MAP_CAP: usize = 3;
 
-const MAX_CHUNKS: usize = if SCREEN_COLS > SCREEN_ROWS {
-    SCREEN_COLS
-} else {
-    SCREEN_ROWS
-};
-const SCRATCH_PIXELS: usize = CELL_AREA + (MAX_CHUNKS * CELL_AREA);
-static mut SCRATCH_BUFFER: [Color; SCRATCH_PIXELS] = [Color::BLACK; SCRATCH_PIXELS];
+pub type GameEngine<'s> = Engine<'s, TILE_SIZE, CELL_AREA, WINDOW_COLS, WINDOW_ROWS, DEBUG_MODE>;
+pub type GameWorld<'a> = World<'a, TILE_SIZE, CELL_AREA, WORLD_ENT_CAP, WORLD_MAP_CAP>;
+
+// Static off-stack memory buffers
+define_scratch_buffer!(SCRATCH_BUFFER, CELL_AREA, WINDOW_COLS, WINDOW_ROWS);
+define_tilemap_buffer!(BG_DATA, WINDOW_COLS, WINDOW_ROWS);
+define_tilemap_buffer!(DECOR_DATA, DECOR_COLS, DECOR_ROWS);
+define_tilemap_buffer!(GROUND_DATA, GROUND_COLS, GROUND_ROWS);
 
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
@@ -75,11 +83,8 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
     alt: Color::from_rgb888(255, 140, 65),
 };
 
-const NICE_COLLISION_MARGIN: i16 = 2;
+const NICE_COLLISION_MARGIN: u16 = 2;
 
-// -----------------------------------------------------------------------------
-// Menu & Options Entry Point
-// -----------------------------------------------------------------------------
 pub fn start() {
     let mut opt: [&mut Setting; 7] = [
         &mut Setting {
@@ -185,9 +190,6 @@ pub fn start() {
     }
 }
 
-// -----------------------------------------------------------------------------
-// Main Game Engine Loop
-// -----------------------------------------------------------------------------
 pub fn game(
     starting_speed: f32,
     density: u16,
@@ -201,94 +203,126 @@ pub fn game(
     draw_constant_ui(*high_score as u16);
     draw_ui(0);
 
-    let mut engine: GameEngine = GameEngine::new_with_window(
-        BACKGROUND,
-        VIEW_SCREEN_X,
-        VIEW_SCREEN_Y,
-        VIEW_SCREEN_W,
-        VIEW_SCREEN_H,
-        Some(InterlaceMode::None),
+    // -------------------------------------------------------------------------
+    // 1. Engine & Scene Setup
+    // -------------------------------------------------------------------------
+    let mut engine: GameEngine = init_engine_window!(
+        color: BACKGROUND,
+        window: [VIEW_SCREEN_X, VIEW_SCREEN_Y, VIEW_SCREEN_W, VIEW_SCREEN_H],
+        interlace: Some(InterlaceMode::None),
+        scratch: SCRATCH_BUFFER,
     );
 
-    // 1. Sky Background (Z = 0)
-    let mut bg_data: [Option<[u8; 2]>; WINDOW_TILES] = [Some([3u8, 3u8]); WINDOW_TILES];
-    let mut bg_map: GameTilemap = GameTilemap::new(
-        &TILESET,
-        &mut bg_data,
-        SCREEN_COLS,
-        SCREEN_ROWS,
-        &[],
-        0,
-        false,
-        Parallax::FIXED,
-        num_engine::tilemap::WrapMode::None,
+    let mut world: GameWorld = GameWorld::new();
+
+    // -------------------------------------------------------------------------
+    // 2. Tilemap Registration
+    // -------------------------------------------------------------------------
+    let _ = world_fill_tilemap!(
+        world: world,
+        tileset: &TILESET,
+        buffer: BG_DATA,
+        cols: WINDOW_COLS,
+        rows: WINDOW_ROWS,
+        z: 0,
+        tile: [3u8, 3u8],
+        parallax: Parallax::FIXED,
+        wrap: WrapMode::None,
     );
 
-    // 2. Ground Tilemap (Z = 15, row 10 is [0, 4])
-    let mut ground_data: [Option<[u8; 2]>; GROUND_TILES] = [None; GROUND_TILES];
-    let ground_row = SCREEN_ROWS - 1;
-    for col in 0..GROUND_COLS {
-        ground_data[ground_row * GROUND_COLS + col] = Some([0, 4]);
-    }
-    let mut ground_map: GameTilemap = GameTilemap::new(
-        &TILESET,
-        &mut ground_data,
-        GROUND_COLS,
-        GROUND_ROWS,
-        &[],
-        15,
-        true,
-        Parallax::FOREGROUND,
-        num_engine::tilemap::WrapMode::Horizontal,
-    );
+    let decor_map_id = world_tilemap!(
+        world: world,
+        tileset: &TILESET,
+        buffer: DECOR_DATA,
+        cols: DECOR_COLS,
+        rows: DECOR_ROWS,
+        offset: [0, DECOR_Y],
+        z: 14,
+        transparent: true,
+        parallax: Parallax::FOREGROUND,
+        wrap: WrapMode::Horizontal,
+    )
+    .unwrap();
 
-    // 3. Cloud Sprites (Z = 2) - in world space [0..280]
-    let mut clouds: Vec<GameSprite, NUM_CLOUDS> = Vec::new();
+    let ground_map_id = world_tilemap!(
+        world: world,
+        tileset: &TILESET,
+        buffer: GROUND_DATA,
+        cols: GROUND_COLS,
+        rows: GROUND_ROWS,
+        offset: [0, GROUND_Y],
+        z: 15,
+        transparent: true,
+        parallax: Parallax::FOREGROUND,
+        wrap: WrapMode::Horizontal,
+    )
+    .unwrap();
+
+    tile_span!(world.tilemap_mut(ground_map_id), row: 0, cols: 0..GROUND_COLS, tile: [0, 4]);
+
+    // Set scroll velocity directly on tilemaps: they will step themselves in world.update()
+    world
+        .tilemap_mut(decor_map_id)
+        .set_horizontal_speed(starting_speed);
+    world
+        .tilemap_mut(ground_map_id)
+        .set_horizontal_speed(starting_speed);
+
+    // -------------------------------------------------------------------------
+    // 3. Entity Instantiation
+    // -------------------------------------------------------------------------
+    let mut cloud_ids: Vec<usize, NUM_CLOUDS> = Vec::new();
     for i in 0..NUM_CLOUDS {
         let cx = (VIEW_SCREEN_W as i16 - 40) - (i as i16 * 130);
         let cy = 5 + (i as i16 * 20);
-        let mut c: GameSprite = spawn_sprite!(&ANIM_CLOUD, [cx, cy], 2);
-        c.set_speed([-0.20, 0.0]);
-        let _ = clouds.push(c);
+        let id = world_spawn!(
+            world: world,
+            anim: &ANIM_CLOUD,
+            pos: [cx as f32, cy as f32],
+            z: 2,
+        )
+        .unwrap();
+        world[id].set_vx(-0.20);
+        let _ = cloud_ids.push(id);
     }
 
-    // 4. Pipe Spacing & Pool
-    let pipe_spacing: i16 = match density {
-        3 => 75,
-        2 => 105,
-        _ => 145,
-    };
+    let mut pipes = PipePool::new(density, starting_speed, &mut world);
 
-    let mut pipes: Vec<PipePair, MAX_PIPES_ON_SCREEN> = Vec::new();
-    for _ in 0..MAX_PIPES_ON_SCREEN {
-        let _ = pipes.push(PipePair::new(75, starting_speed));
-    }
-    pipes[0].active = true;
-    pipes[0].warp_to(VIEW_SCREEN_W as i16);
-
-    // 5. Bird Sprite (Z = 20) - in world space
     let bird_x: i16 = 60;
-    let mut bird_sprite: GameSprite = spawn_sprite!(&ANIM_BIRD_FALL, [bird_x, 90], 20);
+    let bird_id = world_spawn!(
+        world: world,
+        anim: &ANIM_BIRD_FALL,
+        pos: [bird_x as f32, 90.0],
+        z: 20,
+        hitbox: inset_hitbox!(TILESET_TILE_SIZE, TILESET_TILE_SIZE, NICE_COLLISION_MARGIN),
+    )
+    .unwrap();
 
     let mut current_speed = starting_speed;
     let mut score: u16 = 0;
     let mut can_increase_speed = true;
     let mut frame_counter: u16 = 0;
-    let mut ground_scroll: f32 = 0.0;
     let mut started = false;
     let mut jump_latched = false;
 
-    countdown(Point {
-        x: CENTER.x - TILESET_TILE_SIZE,
-        y: CENTER.y - TILESET_TILE_SIZE * 2,
-    });
+    // -------------------------------------------------------------------------
+    // 4. Initial World Presentation & Countdown
+    // -------------------------------------------------------------------------
+    countdown(
+        Point {
+            x: CENTER.x - TILESET_TILE_SIZE,
+            y: CENTER.y - TILESET_TILE_SIZE * 2,
+        },
+        &mut engine,
+        &mut world,
+    );
 
     draw_constant_ui(*high_score as u16);
     draw_ui(0);
 
-    // -------------------------------------------------------------------------
-    // Frame Simulation Loop
-    // -------------------------------------------------------------------------
+    // =========================================================================
+    // Simulation Loop
+    // =========================================================================
     'gameloop: loop {
         let scan = keyboard::scan();
 
@@ -298,13 +332,14 @@ pub fn game(
                 return action;
             } else {
                 fill_screen(BACKGROUND);
-                draw_constant_ui(*high_score as u16);
-                draw_ui(score);
-                engine.mark_all_dirty();
-                countdown(Point {
-                    x: CENTER.x - TILESET_TILE_SIZE,
-                    y: CENTER.y - TILESET_TILE_SIZE * 3,
-                });
+                countdown(
+                    Point {
+                        x: CENTER.x - TILESET_TILE_SIZE,
+                        y: CENTER.y - TILESET_TILE_SIZE * 2,
+                    },
+                    &mut engine,
+                    &mut world,
+                );
                 draw_constant_ui(*high_score as u16);
                 draw_ui(score);
                 continue;
@@ -313,191 +348,97 @@ pub fn game(
 
         let frame = engine.get_frame();
 
-        // 1. Bird Physics
+        // 1. Bird Input & Dynamics
         let jump_pressed = scan.key_down(key::OK) || scan.key_down(key::UP);
         if !started && (jump_pressed || frame_counter > 20) {
             started = true;
         }
 
+        let bird = &mut world[bird_id];
         if started {
-            let [_, mut vy] = bird_sprite.get_speed();
-
             if jump_pressed && !jump_latched {
-                vy = -jump_power;
+                bird.set_vy(-jump_power);
                 jump_latched = true;
             } else if !jump_pressed {
                 jump_latched = false;
             }
 
-            vy = (vy + 0.7).min(8.0);
-            bird_sprite.set_speed([0.0, vy]);
-            bird_sprite.update(frame);
+            bird.set_vy((bird.vy() + 0.7).min(8.0));
 
-            // Ceiling clamp (world y = 0)
-            if bird_sprite.position[1] <= 0 {
-                bird_sprite.set_position([bird_x, 0], None);
-                bird_sprite.set_speed([0.0, 0.7]);
+            // World-space ceiling collision
+            if bird.y() <= 0.0 {
+                bird.set_y(0.0);
+                bird.set_vy(0.7);
             }
 
-            // Floor collision check (top of row 10 is world y = 200)
-            let floor_y = 200 - TILESET_TILE_SIZE as i16;
-            if bird_sprite.position[1] >= floor_y {
-                bird_sprite.set_position([bird_x, floor_y], None);
-                bird_sprite.set_speed([0.0, 0.1]);
-                if killer_floor && !no_collisions {
-                    break 'gameloop;
-                }
-            }
-
-            if bird_sprite.get_speed()[1] < 0.0 {
-                bird_sprite.set_animation(&ANIM_BIRD_FLAP_UP);
+            if bird.vy() < 0.0 {
+                bird.set_animation(&ANIM_BIRD_FLAP_UP);
             } else {
-                bird_sprite.set_animation(&ANIM_BIRD_FALL);
-            }
-        } else {
-            bird_sprite.update(frame);
-        }
-
-        // 2. Pipes Movement & Reliable Queue Spawning
-        for p in pipes.iter_mut().filter(|p| p.active) {
-            p.update(frame);
-        }
-
-        let mut rightmost_x = VIEW_SCREEN_W as i16;
-        for p in pipes.iter().filter(|p| p.active) {
-            if p.x() > rightmost_x {
-                rightmost_x = p.x();
+                bird.set_animation(&ANIM_BIRD_FALL);
             }
         }
 
-        if rightmost_x <= VIEW_SCREEN_W as i16 {
-            if let Some(inactive) = pipes.iter_mut().find(|p| !p.active) {
-                inactive.active = true;
-                let target_x = rightmost_x + pipe_spacing;
-                inactive.warp_to(target_x);
-                rightmost_x = target_x;
+        // 2. Scene Simulation Tick (Steps bodies, sprite offsets, anims, AND tilemap scrolls)
+        world.update(frame);
+
+        // 3. Clouds Horizontal Wrap
+        for &c_id in cloud_ids.iter() {
+            let cloud = &mut world[c_id];
+            if cloud.x() < -40.0 {
+                cloud.set_pos(VIEW_SCREEN_W as f32, randint(5, 45) as f32);
             }
         }
 
-        for p in pipes.iter_mut().filter(|p| p.active) {
-            let px = p.x();
-
-            if !p.scored && (px + (TILESET_TILE_SIZE as i16 * 2)) < bird_x {
-                p.scored = true;
-                score += 1;
-                can_increase_speed = true;
-                draw_ui(score);
-            }
-
-            // Left exit in world space: -80px is offscreen left
-            if px < -80 {
-                let target_x = rightmost_x.max(VIEW_SCREEN_W as i16) + pipe_spacing;
-                p.warp_to(target_x);
-                rightmost_x = target_x;
-            }
+        // 4. Pipe Queue, Spawning & Scoring
+        if pipes.update(&mut world, bird_x) {
+            score += 1;
+            can_increase_speed = true;
+            draw_ui(score);
         }
 
-        // 3. Exact Collision Checks
+        // 5. Collision Checks
         if !no_collisions {
-            let bx = bird_sprite.position[0];
-            let by = bird_sprite.position[1];
-            let bw = TILESET_TILE_SIZE as i16;
-            let bh = TILESET_TILE_SIZE as i16;
+            if pipes.collides(&world, bird_id) {
+                break 'gameloop;
+            }
 
-            for p in pipes.iter().filter(|p| p.active) {
-                let px = p.x();
-                let pw = (TILESET_TILE_SIZE * 2) as i16;
-
-                let h_overlap = (bx + bw - NICE_COLLISION_MARGIN) > px
-                    && (bx + NICE_COLLISION_MARGIN) < (px + pw);
-
-                if h_overlap {
-                    let in_gap = (by + NICE_COLLISION_MARGIN) >= p.gap_y
-                        && (by + bh - NICE_COLLISION_MARGIN) <= (p.gap_y + p.gap_size);
-
-                    if !in_gap {
-                        break 'gameloop;
-                    }
+            if world.collides_tilemap(bird_id, ground_map_id) {
+                if killer_floor {
+                    break 'gameloop;
+                } else {
+                    let floor_surface_y = (GROUND_Y - TILESET_TILE_SIZE as i16) as f32;
+                    let bird = &mut world[bird_id];
+                    bird.set_y(floor_surface_y);
+                    bird.set_vy(0.1);
                 }
             }
         }
 
-        // 4. Ground Scrolling
-        ground_scroll -= current_speed;
-        ground_map.set_origin(ground_scroll as i32, 0);
-        engine.mark_row_dirty(ground_row);
-
-        // 5. Cloud Drifting
-        for c in clouds.iter_mut() {
-            c.update(frame);
-            if c.position[0] < -40 {
-                let rx = VIEW_SCREEN_W as i16;
-                let ry = randint(5, 45) as i16;
-                c.set_position([rx, ry], None);
-            }
-        }
-
-        // 6. Dynamic Speed Progression
+        // 6. Dynamic Speed Scaling
         if can_increase_speed && score != 0 && score.is_multiple_of(speed_increase) {
             current_speed *= 1.15;
-            for p in pipes.iter_mut() {
-                p.set_speed(current_speed);
-            }
+            pipes.set_speed(&mut world, current_speed);
+            world
+                .tilemap_mut(decor_map_id)
+                .set_horizontal_speed(current_speed);
+            world
+                .tilemap_mut(ground_map_id)
+                .set_horizontal_speed(current_speed);
             can_increase_speed = false;
         }
 
-        // 7. Assemble Engine Render List (using Renderable::Sprite for world space entities!)
-        {
-            let mut render_list: Vec<GameRenderable, 36> = Vec::new();
+        // 7. Hardware Render (Sparse invalidation automatically tracks moving ground & decor tiles)
+        engine.render(&mut world);
 
-            let _ = render_list.push(Renderable::Tilemap(&mut bg_map));
-
-            for c in clouds.iter_mut() {
-                let _ = render_list.push(Renderable::Sprite(c));
-            }
-
-            for p in pipes.iter_mut().filter(|p| p.active) {
-                let _ = render_list.push(Renderable::Sprite(&mut p.spr_top_shaft));
-                let _ = render_list.push(Renderable::Sprite(&mut p.spr_top_lip));
-                let _ = render_list.push(Renderable::Sprite(&mut p.spr_bot_lip));
-                let _ = render_list.push(Renderable::Sprite(&mut p.spr_bot_shaft));
-            }
-
-            let _ = render_list.push(Renderable::Tilemap(&mut ground_map));
-            let _ = render_list.push(Renderable::Sprite(&mut bird_sprite));
-
-            let scratch = unsafe { &mut *(&raw mut SCRATCH_BUFFER) };
-            engine.render_frame(&mut render_list, scratch);
-        }
+        // can also use (it is the same):
+        //        world.render_to_engine(&mut engine, progressive);
 
         frame_counter = frame_counter.wrapping_add(1);
     }
 
-    // Switch the player sprite to the dead bird animation and render one final frame
-    bird_sprite.set_animation(&ANIM_BIRD_DEAD);
-
-    {
-        let mut render_list: Vec<GameRenderable, 36> = Vec::new();
-
-        let _ = render_list.push(Renderable::Tilemap(&mut bg_map));
-
-        for c in clouds.iter_mut() {
-            let _ = render_list.push(Renderable::Sprite(c));
-        }
-
-        for p in pipes.iter_mut().filter(|p| p.active) {
-            let _ = render_list.push(Renderable::Sprite(&mut p.spr_top_shaft));
-            let _ = render_list.push(Renderable::Sprite(&mut p.spr_top_lip));
-            let _ = render_list.push(Renderable::Sprite(&mut p.spr_bot_lip));
-            let _ = render_list.push(Renderable::Sprite(&mut p.spr_bot_shaft));
-        }
-
-        let _ = render_list.push(Renderable::Tilemap(&mut ground_map));
-        let _ = render_list.push(Renderable::Sprite(&mut bird_sprite));
-
-        let scratch = unsafe { &mut *(&raw mut SCRATCH_BUFFER) };
-        engine.render_frame_progressive(&mut render_list, scratch);
-    }
+    // Death Presentation
+    world[bird_id].set_animation(&ANIM_BIRD_DEAD);
+    engine.render_progressive(&mut world);
 
     draw_centered_string("GAME OVER\0", 70, true, &COLOR_CONFIG, true);
 

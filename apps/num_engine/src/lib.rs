@@ -34,14 +34,13 @@
 #![no_std]
 #![no_main]
 
-pub mod compositor;
 pub mod debug;
-pub mod dirty_grid;
 pub mod engine;
-pub mod sprite;
-pub mod texture;
-pub mod tilemap;
-pub mod viewport;
+pub mod graphics;
+pub mod physics;
+pub mod world;
 
 #[macro_use]
 pub mod macros;
+
+pub use engine::Engine;

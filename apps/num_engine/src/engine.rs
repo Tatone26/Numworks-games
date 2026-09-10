@@ -9,26 +9,19 @@ use numworks_utils::{
 };
 
 use crate::{
-    compositor::{Compositor, InterlaceMode, Renderable},
     debug::DebugStats,
-    viewport::Viewport,
+    graphics::compositor::{Compositor, InterlaceMode, Renderable},
+    graphics::viewport::Viewport,
+    world::World,
 };
 
-/// Target budget ceiling for 40-45 Hz display hardware (~22.2-25.0 ms period).
-/// Leaves 5.5 ms of headroom for game logic and keyboard scanning before VBlank.
 const RENDER_BUDGET_CEILING_US: u32 = 19_500;
-
-/// Normalized full-frame threshold for disengaging interlacing.
-/// Requiring estimated full-frame duration (measured * 2) < 16_000 us ensures stable hysteresis.
 const RENDER_BUDGET_FLOOR_US: u32 = 16_000;
-
-/// Number of consecutive cool frames required before returning to progressive rendering.
 const INTERLACE_COOLDOWN_FRAMES: u8 = 10;
-
-/// Number of initial frames ignored during level startup to let the pipeline stabilize.
 const WARMUP_FRAMES: u32 = 5;
 
 pub struct Engine<
+    's,
     const TILE_SIZE: usize,
     const CELL_AREA: usize,
     const SCREEN_COLS: usize,
@@ -37,6 +30,7 @@ pub struct Engine<
 > {
     compositor: Compositor<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS>,
     viewport: Viewport,
+    scratch: &'s mut [Color],
     frame: u32,
     debug_stats: DebugStats,
     pub auto_interlace: bool,
@@ -44,24 +38,29 @@ pub struct Engine<
     smoothed_render_us: u32,
     is_interlacing_engaged: bool,
     cooldown_frames: u8,
-    /// Hardware timestamp in milliseconds of the previous frame completion.
     prev_frame_end_ms: u64,
 }
 
 impl<
+        's,
         const TILE_SIZE: usize,
         const CELL_AREA: usize,
         const SCREEN_COLS: usize,
         const SCREEN_ROWS: usize,
         const DEBUG: bool,
-    > Engine<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS, DEBUG>
+    > Engine<'s, TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS, DEBUG>
 {
-    pub fn new(clear_color: Color, interlace_mode: Option<InterlaceMode>) -> Self {
+    pub fn new(
+        clear_color: Color,
+        interlace_mode: Option<InterlaceMode>,
+        scratch: &'s mut [Color],
+    ) -> Self {
         fill_screen(clear_color);
 
         Self {
             compositor: Compositor::new(clear_color),
             viewport: Viewport::fixed(),
+            scratch,
             frame: 0,
             debug_stats: DebugStats::new(),
             auto_interlace: true,
@@ -80,6 +79,7 @@ impl<
         screen_w: u16,
         screen_h: u16,
         interlace_mode: Option<InterlaceMode>,
+        scratch: &'s mut [Color],
     ) -> Self {
         push_rect_uniform(
             Rect {
@@ -94,6 +94,7 @@ impl<
         Self {
             compositor: Compositor::new(clear_color),
             viewport: Viewport::new_window(0, 0, screen_x, screen_y, screen_w, screen_h),
+            scratch,
             frame: 0,
             debug_stats: DebugStats::new(),
             auto_interlace: true,
@@ -103,6 +104,36 @@ impl<
             cooldown_frames: 0,
             prev_frame_end_ms: 0,
         }
+    }
+
+    /// Primary render entry point: auto-dispatches the world's tilemaps and entities.
+    #[inline(always)]
+    pub fn render<
+        'a,
+        const ENT_CAP: usize,
+        const MAP_CAP: usize,
+        const PARTS: usize,
+        const R_CAP: usize,
+    >(
+        &mut self,
+        world: &mut World<'a, TILE_SIZE, CELL_AREA, ENT_CAP, MAP_CAP, PARTS, R_CAP>,
+    ) {
+        world.render_to_engine(self, false);
+    }
+
+    /// Renders without interlacing (for menus, transitions, or Game Over screen).
+    #[inline(always)]
+    pub fn render_progressive<
+        'a,
+        const ENT_CAP: usize,
+        const MAP_CAP: usize,
+        const PARTS: usize,
+        const R_CAP: usize,
+    >(
+        &mut self,
+        world: &mut World<'a, TILE_SIZE, CELL_AREA, ENT_CAP, MAP_CAP, PARTS, R_CAP>,
+    ) {
+        world.render_to_engine(self, true);
     }
 
     #[inline(always)]
@@ -220,7 +251,6 @@ impl<
             return self.interlace_mode;
         }
 
-        // Sub-pixel hardware scrolling trigger: always interlace while camera glides horizontally
         if viewport_moved && sub_x != 0 {
             return self.interlace_mode;
         }
@@ -253,49 +283,30 @@ impl<
         }
     }
 
-    #[inline(always)]
-    pub fn render_frame<'a>(
-        &mut self,
-        items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
-        scratch: &mut [Color],
-    ) {
+    pub fn render_frame<'a>(&mut self, items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>]) {
         let viewport_moved = self.viewport.moved();
         let sub_x = self.viewport.x.rem_euclid(TILE_SIZE as i32);
         let active_interlace = self.resolve_interlace_mode(viewport_moved, sub_x);
 
-        self.render_pipeline(items, scratch, viewport_moved, active_interlace);
+        self.render_pipeline(items, viewport_moved, active_interlace);
     }
 
-    #[inline(always)]
     pub fn render_frame_progressive<'a>(
         &mut self,
         items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
-        scratch: &mut [Color],
     ) {
         let viewport_moved = self.viewport.moved();
-        self.render_pipeline(items, scratch, viewport_moved, InterlaceMode::None);
-    }
-
-    pub fn render_frame_full<'a>(
-        &mut self,
-        items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
-        scratch: &mut [Color],
-    ) {
-        self.mark_all_dirty();
-        self.render_pipeline(items, scratch, true, InterlaceMode::None);
+        self.render_pipeline(items, viewport_moved, InterlaceMode::None);
     }
 
     fn render_pipeline<'a>(
         &mut self,
         items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
-        scratch: &mut [Color],
         viewport_moved: bool,
         active_interlace: InterlaceMode,
     ) {
-        // 1. In-Place Frustum Culling
         let visible_count = self.cull_offscreen_items(items);
 
-        // 2. Invalidate moving entities and viewports
         if viewport_moved {
             self.compositor.grid.mark_all();
         } else {
@@ -353,10 +364,10 @@ impl<
             });
         }
 
-        // 3. Hardware synchronization and timing capture
         wait_for_vblank();
         let t_render_start = timing::millis();
 
+        let scratch = &mut *self.scratch;
         self.compositor.render(
             &mut items[..visible_count],
             &self.viewport,
@@ -369,7 +380,6 @@ impl<
         let render_duration_ms = t_now.saturating_sub(t_render_start);
         let render_duration_us = (render_duration_ms as u32).saturating_mul(1000);
 
-        // Total frame duration measured from previous completion (Logic + VBlank Wait + Render)
         let total_frame_duration_us = if self.prev_frame_end_ms > 0 {
             (t_now.saturating_sub(self.prev_frame_end_ms) as u32).saturating_mul(1000)
         } else {
@@ -377,7 +387,6 @@ impl<
         };
         self.prev_frame_end_ms = t_now;
 
-        // 4. Update Exponential Moving Average: EMA = (3 * prev + 1 * curr) / 4
         if self.frame >= WARMUP_FRAMES {
             self.smoothed_render_us = ((self.smoothed_render_us * 3) + render_duration_us) >> 2;
         }
@@ -392,12 +401,10 @@ impl<
             self.debug_stats.draw_overlay();
         }
 
-        // 5. Commit viewport position and advance frame sequence
         self.viewport.commit_frame();
         self.frame = self.frame.wrapping_add(1);
         self.compositor.set_frame(self.frame);
 
-        // 6. Automatic commit across all items submitted to the frame
         for item in items.iter_mut() {
             item.commit_frame();
         }
