@@ -1,8 +1,18 @@
 use heapless::Vec;
 
+use num_engine::{
+    define_scratch_buffer, define_tilemap_buffer,
+    graphics::{
+        compositor::InterlaceMode,
+        tilemap::{Parallax, WrapMode},
+    },
+    init_engine_window, inset_hitbox, tile_span,
+    world::World,
+    world_fill_tilemap, world_spawn, world_tilemap, Engine,
+};
 use numworks_utils::{
     eadk::{
-        display::{self, SCREEN_HEIGHT, SCREEN_WIDTH},
+        display::{SCREEN_HEIGHT, SCREEN_WIDTH},
         key, keyboard, Color, Point,
     },
     graphical::{draw_centered_string, fill_screen, ColorConfig},
@@ -11,18 +21,61 @@ use numworks_utils::{
         settings::{write_values_to_file, Setting},
         start_menu, MenuConfig,
     },
-    numbers::floor,
-    utils::{CENTER, LARGE_CHAR_HEIGHT},
+    utils::{randint, CENTER, LARGE_CHAR_HEIGHT},
 };
 
 use crate::{
-    bird::Player,
     flappy_ui::{
-        countdown, draw_constant_ui, draw_dead_bird, draw_ground, draw_ui, menu_vis_addon, Cloud,
-        BACKGROUND, TILESET_TILE_SIZE, UI_BACKGROUND,
+        countdown, draw_constant_ui, draw_ui, menu_vis_addon, ANIM_BIRD_DEAD, ANIM_BIRD_FALL,
+        ANIM_BIRD_FLAP_UP, ANIM_CLOUD, BACKGROUND, TILESET, TILESET_TILE_SIZE, UI_BACKGROUND,
     },
-    pipes::Pipes,
+    pipes::PipePool,
 };
+
+// =============================================================================
+// Display & Layout Metrics
+// =============================================================================
+pub const WINDOW_SIZE: u16 = 20;
+
+pub const VIEW_SCREEN_X: u16 = 20;
+pub const VIEW_SCREEN_Y: u16 = 20;
+pub const VIEW_SCREEN_W: u16 = 280;
+pub const VIEW_SCREEN_H: u16 = 220;
+
+pub const TILE_SIZE: usize = 20;
+pub const CELL_AREA: usize = 400; // 20 * 20 px
+
+pub const WINDOW_COLS: usize = 14; // 280 / 20
+pub const WINDOW_ROWS: usize = 11; // 220 / 20
+
+const DEBUG_MODE: bool = false;
+
+// 1. Solid Ground Layer: 1 row high (row 10), placed at Y = 200 px
+pub const GROUND_COLS: usize = 15;
+pub const GROUND_ROWS: usize = 1;
+pub const GROUND_ROW_INDEX: usize = WINDOW_ROWS - 1; // row 10
+pub const GROUND_Y: i16 = (GROUND_ROW_INDEX * TILE_SIZE) as i16; // 200 px
+
+// 2. Foreground Decor Layer: 3 rows high (rows 7, 8, 9), placed at Y = 140 px (No collision)
+pub const DECOR_COLS: usize = 15;
+pub const DECOR_ROWS: usize = 3;
+pub const DECOR_START_ROW: usize = GROUND_ROW_INDEX - DECOR_ROWS; // row 7
+pub const DECOR_Y: i16 = (DECOR_START_ROW * TILE_SIZE) as i16; // 140 px
+
+pub const MAX_PIPES_ON_SCREEN: usize = 6;
+const NUM_CLOUDS: usize = 2;
+
+const WORLD_ENT_CAP: usize = 16;
+const WORLD_MAP_CAP: usize = 3;
+
+pub type GameEngine<'s> = Engine<'s, TILE_SIZE, CELL_AREA, WINDOW_COLS, WINDOW_ROWS, DEBUG_MODE>;
+pub type GameWorld<'a> = World<'a, TILE_SIZE, CELL_AREA, WORLD_ENT_CAP, WORLD_MAP_CAP>;
+
+// Static off-stack memory buffers
+define_scratch_buffer!(SCRATCH_BUFFER, CELL_AREA, WINDOW_COLS, WINDOW_ROWS);
+define_tilemap_buffer!(BG_DATA, WINDOW_COLS, WINDOW_ROWS);
+define_tilemap_buffer!(DECOR_DATA, DECOR_COLS, DECOR_ROWS);
+define_tilemap_buffer!(GROUND_DATA, GROUND_COLS, GROUND_ROWS);
 
 const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
@@ -30,12 +83,13 @@ const COLOR_CONFIG: ColorConfig = ColorConfig {
     alt: Color::from_rgb888(255, 140, 65),
 };
 
-/// Menu, Options and Game start
+const NICE_COLLISION_MARGIN: u16 = 2;
+
 pub fn start() {
     let mut opt: [&mut Setting; 7] = [
         &mut Setting {
             name: "Starting speed\0",
-            choice: 1, // 0.5, 0.75, 1.0
+            choice: 1,
             values: Vec::from_slice(&[0.5_f32.to_bits(), 0.75_f32.to_bits(), 1.0_f32.to_bits()])
                 .unwrap(),
             texts: Vec::from_slice(&["Slow\0", "Normal\0", "Fast\0"]).unwrap(),
@@ -98,8 +152,8 @@ pub fn start() {
             fixed_values: false,
         },
     ];
+
     loop {
-        // This call is REALLY powerful as it does everything
         let start = start_menu(
             "FLAPPY BIRD\0",
             &mut opt,
@@ -120,29 +174,21 @@ pub fn start() {
                     opt[5].get_setting_value() != 0,
                     &mut high_score,
                 );
-                // since there is a high score-like value, this is needed
+
                 opt[6].set_value(high_score);
                 write_values_to_file(&mut opt, "flappybird");
 
                 if action == 2 {
-                    // 2 means quitting
                     return;
                 } else if action == 1 {
-                    // 1 means back to menu
                     break;
-                } // if action == 0 : play again
+                }
             }
         } else {
             return;
         }
     }
 }
-
-/// number of pixels of the window border.
-pub const WINDOW_SIZE: u16 = 20;
-
-/// max number of pipes on screen (before the calculator cannot follow)
-const MAX_PIPES_ON_SCREEN: usize = 4;
 
 pub fn game(
     starting_speed: f32,
@@ -153,178 +199,249 @@ pub fn game(
     no_collisions: bool,
     high_score: &mut u32,
 ) -> u8 {
-    let mut cloud = Cloud::new(
-        Point {
-            x: SCREEN_WIDTH - WINDOW_SIZE - TILESET_TILE_SIZE * 2,
-            y: WINDOW_SIZE + 5,
-        },
-        0.20,
+    fill_screen(BACKGROUND);
+    draw_constant_ui(*high_score as u16);
+    draw_ui(0);
+
+    // -------------------------------------------------------------------------
+    // 1. Engine & Scene Setup
+    // -------------------------------------------------------------------------
+    let mut engine: GameEngine = init_engine_window!(
+        color: BACKGROUND,
+        window: [VIEW_SCREEN_X, VIEW_SCREEN_Y, VIEW_SCREEN_W, VIEW_SCREEN_H],
+        interlace: Some(InterlaceMode::None),
+        scratch: SCRATCH_BUFFER,
     );
 
-    let mut pipes_list: Vec<Pipes, MAX_PIPES_ON_SCREEN> = Vec::new();
-    for _ in 0..MAX_PIPES_ON_SCREEN {
-        let _ = pipes_list.push(Pipes::new(starting_speed, 75));
+    let mut world: GameWorld = GameWorld::new();
+
+    // -------------------------------------------------------------------------
+    // 2. Tilemap Registration
+    // -------------------------------------------------------------------------
+    let _ = world_fill_tilemap!(
+        world: world,
+        tileset: &TILESET,
+        buffer: BG_DATA,
+        cols: WINDOW_COLS,
+        rows: WINDOW_ROWS,
+        z: 0,
+        tile: [3u8, 3u8],
+        parallax: Parallax::FIXED,
+        wrap: WrapMode::None,
+    );
+
+    let decor_map_id = world_tilemap!(
+        world: world,
+        tileset: &TILESET,
+        buffer: DECOR_DATA,
+        cols: DECOR_COLS,
+        rows: DECOR_ROWS,
+        offset: [0, DECOR_Y],
+        z: 14,
+        transparent: true,
+        parallax: Parallax::FOREGROUND,
+        wrap: WrapMode::Horizontal,
+    )
+    .unwrap();
+
+    let ground_map_id = world_tilemap!(
+        world: world,
+        tileset: &TILESET,
+        buffer: GROUND_DATA,
+        cols: GROUND_COLS,
+        rows: GROUND_ROWS,
+        offset: [0, GROUND_Y],
+        z: 15,
+        transparent: true,
+        parallax: Parallax::FOREGROUND,
+        wrap: WrapMode::Horizontal,
+    )
+    .unwrap();
+
+    tile_span!(world.tilemap_mut(ground_map_id), row: 0, cols: 0..GROUND_COLS, tile: [0, 4]);
+
+    // Set scroll velocity directly on tilemaps: they will step themselves in world.update()
+    world
+        .tilemap_mut(decor_map_id)
+        .set_horizontal_speed(starting_speed);
+    world
+        .tilemap_mut(ground_map_id)
+        .set_horizontal_speed(starting_speed);
+
+    // -------------------------------------------------------------------------
+    // 3. Entity Instantiation
+    // -------------------------------------------------------------------------
+    let mut cloud_ids: Vec<usize, NUM_CLOUDS> = Vec::new();
+    for i in 0..NUM_CLOUDS {
+        let cx = (VIEW_SCREEN_W as i16 - 40) - (i as i16 * 130);
+        let cy = 5 + (i as i16 * 20);
+        let id = world_spawn!(
+            world: world,
+            anim: &ANIM_CLOUD,
+            pos: [cx as f32, cy as f32],
+            z: 2,
+        )
+        .unwrap();
+        world[id].set_vx(-0.20);
+        let _ = cloud_ids.push(id);
     }
-    pipes_list[0].active = true;
-    pipes_list[0].has_moved = true;
 
-    let mut bird = Player::new(jump_power);
+    let mut pipes = PipePool::new(density, starting_speed, &mut world);
 
-    display::wait_for_vblank();
-    fill_screen(BACKGROUND);
-    cloud.draw_self();
-    for p in pipes_list.iter() {
-        p.draw_self(); // technically, only the first is necessary, and only the first will be called.
-    }
-    bird.draw_self();
+    let bird_x: i16 = 60;
+    let bird_id = world_spawn!(
+        world: world,
+        anim: &ANIM_BIRD_FALL,
+        pos: [bird_x as f32, 90.0],
+        z: 20,
+        hitbox: inset_hitbox!(TILESET_TILE_SIZE, TILESET_TILE_SIZE, NICE_COLLISION_MARGIN),
+    )
+    .unwrap();
 
-    draw_ground(0);
+    let mut current_speed = starting_speed;
+    let mut score: u16 = 0;
+    let mut can_increase_speed = true;
+    let mut frame_counter: u16 = 0;
+    let mut started = false;
+    let mut jump_latched = false;
+
+    // -------------------------------------------------------------------------
+    // 4. Initial World Presentation & Countdown
+    // -------------------------------------------------------------------------
+    countdown(
+        Point {
+            x: CENTER.x - TILESET_TILE_SIZE,
+            y: CENTER.y - TILESET_TILE_SIZE * 2,
+        },
+        &mut engine,
+        &mut world,
+    );
 
     draw_constant_ui(*high_score as u16);
     draw_ui(0);
 
-    let mut score: u16 = 0;
-    let mut can_increase_speed: bool = true; // if true, can check for speed increase (true as soon as a point is won)
-
-    let mut frame_counter: u16 = 0;
-    let mut ground_position: f32 = 0.0;
-    let mut start: bool = false;
-
-    let mut previous_pipe_active: bool = true; // used to know if a given pipe can start
-    let mut previous_pipe_x_pos: u16 = 0; // Used to know if a given pipe can start
-    let mut previous_pipe_decimal_offset: f32 = 0.0; // Used to align all pipes
-
-    let mut right_most_pipe: usize = 0;
-
-    countdown(Point {
-        x: CENTER.x - TILESET_TILE_SIZE,
-        y: CENTER.y - TILESET_TILE_SIZE * 2,
-    });
-
+    // =========================================================================
+    // Simulation Loop
+    // =========================================================================
     'gameloop: loop {
-        // By optimising the s*** out of my graphical methods, I was able to draw all 4 double pipes, the cloud, the floor and the bird every SINGLE frame !!
-        // I compute everything during the frame time, and I draw eveything during the vblank time (which is short so it's difficult)
-        // Need to make sure the game logic is fast enough and that I draw NOTHING unnecessary !!
         let scan = keyboard::scan();
 
-        // Pause
         if scan.key_down(key::BACK) {
             let action = flappy_pause(false);
             if action != 0 {
                 return action;
             } else {
-                display::wait_for_vblank();
                 fill_screen(BACKGROUND);
-                cloud.draw_self();
-                for p in pipes_list.iter() {
-                    p.draw_self();
-                }
-                bird.draw_self();
-
-                draw_ground(ground_position as u16);
-
+                countdown(
+                    Point {
+                        x: CENTER.x - TILESET_TILE_SIZE,
+                        y: CENTER.y - TILESET_TILE_SIZE * 2,
+                    },
+                    &mut engine,
+                    &mut world,
+                );
                 draw_constant_ui(*high_score as u16);
                 draw_ui(score);
-                countdown(Point {
-                    x: CENTER.x - TILESET_TILE_SIZE,
-                    y: CENTER.y - TILESET_TILE_SIZE * 3,
-                });
                 continue;
             }
         }
 
-        // Moving the bird (and checking the floor collision)
-        if start || frame_counter > 20 || scan.key_down(key::OK) {
-            start = true;
-            if bird.action_function(scan, killer_floor && (!no_collisions)) {
-                break;
-            }
-        }
-        // Moving every pipe
-        for pipe in pipes_list.iter_mut() {
-            // if pipe active :
-            if pipe.action() > 0 {
-                can_increase_speed = true;
-                score += 1;
-            }
-            // if pipe not active : try to activate it
-            if !pipe.active
-                && previous_pipe_active
-                && previous_pipe_x_pos
-                    < SCREEN_WIDTH
-                        - SCREEN_WIDTH / (density + 1)
-                        - TILESET_TILE_SIZE * (MAX_PIPES_ON_SCREEN as u16 + 1 - density)
-                        - TILESET_TILE_SIZE / 2
-            {
-                pipe.active = true;
-                pipe.move_pipe(previous_pipe_decimal_offset); // aligning all the pipes onto the same moving frame
-            }
-            // that's for the next pipe
-            previous_pipe_active = pipe.active;
-            previous_pipe_x_pos = pipe.x_pos;
-            previous_pipe_decimal_offset = pipe.true_pos - floor(pipe.true_pos);
-        }
-        cloud.action();
+        let frame = engine.get_frame();
 
-        // collisions -> game over
-        for pipe in pipes_list.iter().filter(|p| p.active) {
-            if !no_collisions && bird_collide_with(&bird, pipe) {
+        // 1. Bird Input & Dynamics
+        let jump_pressed = scan.key_down(key::OK) || scan.key_down(key::UP);
+        if !started && (jump_pressed || frame_counter > 20) {
+            started = true;
+        }
+
+        let bird = &mut world[bird_id];
+        if started {
+            if jump_pressed && !jump_latched {
+                bird.set_vy(-jump_power);
+                jump_latched = true;
+            } else if !jump_pressed {
+                jump_latched = false;
+            }
+
+            bird.set_vy((bird.vy() + 0.7).min(8.0));
+
+            // World-space ceiling collision
+            if bird.y() <= 0.0 {
+                bird.set_y(0.0);
+                bird.set_vy(0.7);
+            }
+
+            if bird.vy() < 0.0 {
+                bird.set_animation(&ANIM_BIRD_FLAP_UP);
+            } else {
+                bird.set_animation(&ANIM_BIRD_FALL);
+            }
+        }
+
+        // 2. Scene Simulation Tick (Steps bodies, sprite offsets, anims, AND tilemap scrolls)
+        world.update(frame);
+
+        // 3. Clouds Horizontal Wrap
+        for &c_id in cloud_ids.iter() {
+            let cloud = &mut world[c_id];
+            if cloud.x() < -40.0 {
+                cloud.set_pos(VIEW_SCREEN_W as f32, randint(5, 45) as f32);
+            }
+        }
+
+        // 4. Pipe Queue, Spawning & Scoring
+        if pipes.update(&mut world, bird_x) {
+            score += 1;
+            can_increase_speed = true;
+            draw_ui(score);
+        }
+
+        // 5. Collision Checks
+        if !no_collisions {
+            if pipes.collides(&world, bird_id) {
                 break 'gameloop;
             }
+
+            if world.collides_tilemap(bird_id, ground_map_id) {
+                if killer_floor {
+                    break 'gameloop;
+                } else {
+                    let floor_surface_y = (GROUND_Y - TILESET_TILE_SIZE as i16) as f32;
+                    let bird = &mut world[bird_id];
+                    bird.set_y(floor_surface_y);
+                    bird.set_vy(0.1);
+                }
+            }
         }
 
-        ground_position += pipes_list[0].speed;
-
-        // speed increase
-        if can_increase_speed && score != 0 && score % speed_increase == 0 {
-            for i in 0..MAX_PIPES_ON_SCREEN {
-                pipes_list[i].increase_speed();
-            }
+        // 6. Dynamic Speed Scaling
+        if can_increase_speed && score != 0 && score.is_multiple_of(speed_increase) {
+            current_speed *= 1.15;
+            pipes.set_speed(&mut world, current_speed);
+            world
+                .tilemap_mut(decor_map_id)
+                .set_horizontal_speed(current_speed);
+            world
+                .tilemap_mut(ground_map_id)
+                .set_horizontal_speed(current_speed);
             can_increase_speed = false;
         }
 
-        let next_index = (right_most_pipe + 1) % MAX_PIPES_ON_SCREEN;
-        if pipes_list[next_index].active
-            && pipes_list[next_index].x_pos > SCREEN_WIDTH - WINDOW_SIZE - TILESET_TILE_SIZE * 2
-        {
-            right_most_pipe = next_index;
-        }
+        // 7. Hardware Render (Sparse invalidation automatically tracks moving ground & decor tiles)
+        engine.render(&mut world);
 
-        // Drawing everything
-        display::wait_for_vblank();
-        cloud.clear_old_self();
-        cloud.draw_self();
-
-        // Drawing the pipes right to left
-        let mut current_pipe = right_most_pipe;
-        for _ in 0..MAX_PIPES_ON_SCREEN {
-            let pipe = &pipes_list[current_pipe]; // error
-            pipe.clear_old_self();
-            pipe.draw_self();
-            current_pipe = if current_pipe == 0 {
-                MAX_PIPES_ON_SCREEN - 1
-            } else {
-                current_pipe - 1
-            }
-        }
-
-        draw_ground(ground_position as u16); // this too
-
-        draw_ui(score); // just at the limit of the frame vblank time...
-        {
-            bird.clear_old_self();
-            bird.draw_self();
-        }
+        // can also use (it is the same):
+        //        world.render_to_engine(&mut engine, progressive);
 
         frame_counter = frame_counter.wrapping_add(1);
     }
-    // Game over
-    bird.clear_old_self();
-    draw_dead_bird(Point {
-        x: bird.x_pos,
-        y: bird.y_pos,
-    });
+
+    // Death Presentation
+    world[bird_id].set_animation(&ANIM_BIRD_DEAD);
+    engine.render_progressive(&mut world);
+
     draw_centered_string("GAME OVER\0", 70, true, &COLOR_CONFIG, true);
+
     if score > *high_score as u16 {
         draw_centered_string(
             "NEW HIGH SCORE!\0",
@@ -335,31 +452,8 @@ pub fn game(
         );
         *high_score = score as u32;
     }
+
     flappy_pause(true)
-}
-
-/// Numbers of pixels where there should be collisions but there aren't because the game would be a lot more difficult
-const NICE_COLLISION_MARGIN: u16 = 2;
-
-#[inline]
-fn bird_collide_with(bird: &Player, pipes: &Pipes) -> bool {
-    if bird.x_pos + TILESET_TILE_SIZE
-        < pipes
-            .x_pos
-            .saturating_sub(5)
-            .saturating_add(NICE_COLLISION_MARGIN)
-        || bird.x_pos
-            > pipes
-                .x_pos
-                .saturating_add(3)
-                .saturating_sub(NICE_COLLISION_MARGIN)
-                + TILESET_TILE_SIZE * 2
-    {
-        false
-    } else {
-        bird.y_pos < pipes.interval.0.saturating_sub(NICE_COLLISION_MARGIN)
-            || bird.y_pos + TILESET_TILE_SIZE > pipes.interval.1 + NICE_COLLISION_MARGIN
-    }
 }
 
 fn flappy_pause(death: bool) -> u8 {

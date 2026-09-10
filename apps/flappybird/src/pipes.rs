@@ -1,132 +1,195 @@
-use numworks_utils::{
-    eadk::{
-        display::{push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
-        Rect,
-    },
-    numbers::{abs, ceil, floor},
-    utils::randint,
-};
+use heapless::Vec;
+use num_engine::{hitbox, physics::Body, spawn_sprite, world::Entity};
+use numworks_utils::utils::randint;
 
 use crate::{
-    flappy_ui::{clear_moving_pipe, draw_pipe, BACKGROUND, TILESET_TILE_SIZE, UI_BACKGROUND},
-    game::WINDOW_SIZE,
+    flappy_ui::{ANIM_PIPE_LIP_BOT, ANIM_PIPE_LIP_TOP, ANIM_PIPE_SHAFT, TILESET_TILE_SIZE},
+    game::{
+        GameWorld, GROUND_Y, MAX_PIPES_ON_SCREEN, TILE_SIZE, VIEW_SCREEN_W, VIEW_SCREEN_X,
+        WINDOW_ROWS,
+    },
 };
 
-/// A [Pipes] represent a pair of pipes, between which the bird need to pass.
-///
-/// An inactive pipe will not be drawn and is waiting for its turn to start moving
-pub struct Pipes {
-    pub interval: (u16, u16),
-    pub x_pos: u16,
+const SHAFT_HEIGHT_PX: i16 = (WINDOW_ROWS * TILE_SIZE) as i16;
+pub const PIPE_WIDTH_PX: u16 = TILESET_TILE_SIZE * 2;
+
+pub struct PipePair {
+    pub entity_id: usize,
+    pub gap_y: i16,
+    pub gap_size: i16,
+    pub scored: bool,
     pub active: bool,
-    pub speed: f32,
-    pub true_pos: f32,
-    last_pos: u16,
-    clear: bool,
-    pub has_moved: bool,
 }
 
-impl Pipes {
-    /// Last problem : with 4 pipes on the screen, it can't !
-    pub fn draw_self(&self) {
-        if self.active && self.has_moved {
-            draw_pipe(self.x_pos, self.interval, false);
-            draw_pipe(self.x_pos, self.interval, true);
-            if self.x_pos >= SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - WINDOW_SIZE - 10 {
-                // 10 is probably overkilled but that doesn't change anything
-                // I tried not to put any UI drawing here, but it was necessary optimisation wise.
-                push_rect_uniform(
-                    Rect {
-                        x: SCREEN_WIDTH - WINDOW_SIZE,
-                        y: WINDOW_SIZE,
-                        width: TILESET_TILE_SIZE / 2,
-                        height: SCREEN_HEIGHT - WINDOW_SIZE * 2,
-                    },
-                    UI_BACKGROUND,
-                );
-            }
-        }
-    }
+impl PipePair {
+    pub fn spawn(gap_size: i16, speed: f32, world: &mut GameWorld) -> Self {
+        let spawn_x = (VIEW_SCREEN_X + VIEW_SCREEN_W) as i16;
+        let gap_y = Self::random_gap(gap_size);
+        let collar_offset_x = -(TILESET_TILE_SIZE as i16);
 
-    /// If self.clear == true, will clear the pipe considering it is on the left only !
-    pub fn clear_old_self(&self) {
-        if self.has_moved {
-            if self.clear {
-                push_rect_uniform(
-                    Rect {
-                        x: WINDOW_SIZE,
-                        y: WINDOW_SIZE,
-                        width: TILESET_TILE_SIZE * 2,
-                        height: SCREEN_HEIGHT - WINDOW_SIZE * 2,
-                    },
-                    BACKGROUND,
-                );
-            } else if self.active
-                && self.last_pos <= SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - WINDOW_SIZE
-            {
-                clear_moving_pipe(self.last_pos, self.interval, ceil(self.speed) as u16, false);
-                clear_moving_pipe(self.last_pos, self.interval, ceil(self.speed) as u16, true);
-            }
-        }
-    }
+        let body = Body::new(spawn_x as f32, 0.0).with_velocity(-speed, 0.0);
 
-    pub fn new(speed: f32, interval_size: u16) -> Self {
+        let top_shaft = spawn_sprite!(&ANIM_PIPE_SHAFT, [0, 0], 10)
+            .with_offset([0, (gap_y - 20) - SHAFT_HEIGHT_PX]);
+        let top_lip = spawn_sprite!(&ANIM_PIPE_LIP_TOP, [0, 0], 11)
+            .with_offset([collar_offset_x, gap_y - 20]);
+        let bot_lip = spawn_sprite!(&ANIM_PIPE_LIP_BOT, [0, 0], 11)
+            .with_offset([collar_offset_x, gap_y + gap_size]);
+        let bot_shaft =
+            spawn_sprite!(&ANIM_PIPE_SHAFT, [0, 0], 10).with_offset([0, gap_y + gap_size + 20]);
+
+        let top_box = hitbox!(0, 0, PIPE_WIDTH_PX, gap_y.max(0) as u16);
+        let bot_y = gap_y + gap_size;
+        let bot_box = hitbox!(0, bot_y, PIPE_WIDTH_PX, (GROUND_Y - bot_y).max(0) as u16);
+
+        let mut entity = Entity::new()
+            .with_body(body)
+            .with_sprite(top_shaft)
+            .with_sprite(top_lip)
+            .with_sprite(bot_lip)
+            .with_sprite(bot_shaft)
+            .with_hitbox(top_box)
+            .with_hitbox(bot_box);
+
+        entity.set_active(false);
+        let entity_id = world.spawn(entity).expect("World entity capacity exceeded");
+
         Self {
-            interval: Self::random_interval(interval_size),
-            x_pos: SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - TILESET_TILE_SIZE / 2,
-            true_pos: (SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - TILESET_TILE_SIZE / 2) as f32,
+            entity_id,
+            gap_y,
+            gap_size,
+            scored: false,
             active: false,
-            clear: false,
-            has_moved: false,
-            speed,
-            last_pos: SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - TILESET_TILE_SIZE / 2,
         }
     }
 
-    fn random_interval(interval_size: u16) -> (u16, u16) {
-        let up = randint(
-            (WINDOW_SIZE + TILESET_TILE_SIZE) as u32,
-            (SCREEN_HEIGHT - WINDOW_SIZE - TILESET_TILE_SIZE - interval_size) as u32,
-        ) as u16;
-        (up, up + interval_size)
+    fn random_gap(gap_size: i16) -> i16 {
+        randint(20, (GROUND_Y - 20 - gap_size).max(21) as u32) as i16
     }
 
-    pub fn increase_speed(&mut self) {
-        self.speed *= 1.15;
+    pub fn set_active(&mut self, world: &mut GameWorld, active: bool) {
+        self.active = active;
+        world[self.entity_id].set_active(active);
     }
 
-    pub fn action(&mut self) -> u16 {
-        let mut result = 0;
-        self.clear = false;
-        if self.active {
-            // which means that the decimal part exceeded one
-            self.move_pipe(-self.speed);
-            if self.x_pos != self.last_pos {
-                self.has_moved = true;
-                if self.x_pos <= ceil(self.speed) as u16 {
-                    self.interval = Self::random_interval(self.interval.1 - self.interval.0);
-                    self.x_pos = SCREEN_WIDTH - 2 * TILESET_TILE_SIZE - TILESET_TILE_SIZE / 2;
-                    self.true_pos = self.x_pos as f32;
-                    self.active = false;
-                    self.clear = true;
+    fn apply_layout(&self, world: &mut GameWorld) {
+        let collar_offset_x = -(TILESET_TILE_SIZE as i16);
+        let ent = &mut world[self.entity_id];
 
-                    result = 1;
-                }
+        ent.sprites[0].offset = [0, (self.gap_y - 20) - SHAFT_HEIGHT_PX];
+        ent.sprites[1].offset = [collar_offset_x, self.gap_y - 20];
+        ent.sprites[2].offset = [collar_offset_x, self.gap_y + self.gap_size];
+        ent.sprites[3].offset = [0, self.gap_y + self.gap_size + 20];
+
+        ent.hitboxes[0].height = self.gap_y.max(0) as u16;
+        let bot_y = self.gap_y + self.gap_size;
+        ent.hitboxes[1].offset_y = bot_y;
+        ent.hitboxes[1].height = (GROUND_Y - bot_y).max(0) as u16;
+    }
+
+    pub fn warp_to(&mut self, world: &mut GameWorld, target_x: i16) {
+        self.gap_y = Self::random_gap(self.gap_size);
+        self.scored = false;
+
+        self.apply_layout(world);
+        world[self.entity_id].set_pos(target_x as f32, 0.0);
+    }
+
+    #[inline(always)]
+    pub fn set_speed(&mut self, world: &mut GameWorld, speed: f32) {
+        world[self.entity_id].set_vx(-speed);
+    }
+
+    #[inline(always)]
+    pub fn x(&self, world: &GameWorld) -> i16 {
+        world[self.entity_id].position()[0]
+    }
+}
+
+pub struct PipePool {
+    pub pipes: Vec<PipePair, MAX_PIPES_ON_SCREEN>,
+    pub spacing: i16,
+}
+
+impl PipePool {
+    pub fn new(density: u16, speed: f32, world: &mut GameWorld) -> Self {
+        let spacing = match density {
+            3 => 75,
+            2 => 105,
+            _ => 145,
+        };
+
+        let mut pipes = Vec::new();
+        for _ in 0..MAX_PIPES_ON_SCREEN {
+            let _ = pipes.push(PipePair::spawn(75, speed, world));
+        }
+
+        // Initialize the first pipe just off the right edge of the screen
+        pipes[0].set_active(world, true);
+        pipes[0].warp_to(world, VIEW_SCREEN_W as i16);
+
+        Self { pipes, spacing }
+    }
+
+    /// Single-pass update handling scoring, queue advancement, and recycling.
+    /// Returns true if a pipe was passed this frame.
+    pub fn update(&mut self, world: &mut GameWorld, bird_x: i16) -> bool {
+        let mut scored_point = false;
+
+        // 1. Scoring & Finding the current true leading pipe position
+        let mut max_x = i16::MIN;
+        for p in self.pipes.iter_mut().filter(|p| p.active) {
+            let px = p.x(world);
+
+            if px > max_x {
+                max_x = px;
             }
-        } else {
-            self.last_pos = SCREEN_WIDTH;
+
+            if !p.scored && (px + PIPE_WIDTH_PX as i16) < bird_x {
+                p.scored = true;
+                scored_point = true;
+            }
         }
-        result
+
+        // If no active pipes exist, fallback to screen edge
+        if max_x == i16::MIN {
+            max_x = VIEW_SCREEN_W as i16;
+        }
+
+        // 2. Queue activation (fill out the screen initially until pool limit is reached)
+        if max_x <= VIEW_SCREEN_W as i16 {
+            if let Some(inactive) = self.pipes.iter_mut().find(|p| !p.active) {
+                inactive.set_active(world, true);
+                let target_x = max_x + self.spacing;
+                inactive.warp_to(world, target_x);
+                max_x = target_x;
+            }
+        }
+
+        // 3. Recycle pipes that have completely left the screen on the left.
+        // Lip width is 80 px (collar offset -20 to 60), so <-80 guarantees fully offscreen.
+        for p in self.pipes.iter_mut().filter(|p| p.active) {
+            let px = p.x(world);
+            if px < -80 {
+                let target_x = max_x + self.spacing;
+                p.warp_to(world, target_x);
+                max_x = target_x;
+            }
+        }
+
+        scored_point
     }
 
-    /// Offset the position by a given number.
-    ///
-    /// Used to make all pipes move on the same frame !
-    ///
-    /// And also to clean up a bit the action function.
-    pub fn move_pipe(&mut self, offset: f32) {
-        self.last_pos = self.x_pos;
-        self.true_pos += offset;
-        self.x_pos = abs(floor(self.true_pos) as i32) as u16;
+    #[inline(always)]
+    pub fn collides(&self, world: &GameWorld, bird_id: usize) -> bool {
+        self.pipes
+            .iter()
+            .any(|p| p.active && world.collides(bird_id, p.entity_id))
+    }
+
+    pub fn set_speed(&mut self, world: &mut GameWorld, speed: f32) {
+        for p in self.pipes.iter_mut() {
+            p.set_speed(world, speed);
+        }
     }
 }

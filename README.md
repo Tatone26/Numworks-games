@@ -23,6 +23,8 @@ You can find a lot more programs on numworks.com, where anyone can submit their 
 
 **NEW BIS : All games can now be downloaded as a single package with "alltheapps.nwa" ! Saves a lot of space thanks to compiler optimisations.**
 
+**NEW TER : A 2D engine has been created !!!! (will be updated when needed)**
+
 > Be warned : resetting the calculator will remove any app and all the data too -> you can enter GodMode to edit the highscores by pressing 'shift' while clicking on "settings".
 
 *Feel free to download and copy the code it if you want, but it's quite messy as I work alone.*
@@ -38,9 +40,10 @@ PS : These games are tested on a real N0110 and the latest version of the Epsilo
 - [Connect Four](./apps/connectfour/) : You can play against your friend or **an AI**, and even try some (strange) 3 players games !
 - [Solitaire](./apps/solitaire/) : A Classic Solitaire, with classic rules.
 - [Tetris](./apps/tetris/) : Yeah. **Tetris!** I feel like it is almost as good as it can be :) I *think* I followed every rule of the original game.
-- [Flappy Bird](./apps/flappybird/) : Everybody knows Flappy Bird. As of today, it is by far the most **technically advanced game** I made. (and the one I worked the most on)
+- [Flappy Bird](./apps/flappybird/) : Everybody knows Flappy Bird. As of today, it is by far the most **technically advanced game** I made. *It has been remade to be the first to use my new engine !*
 - [Pacman](./apps/pacman/) : A pretty correct recreation of the original arcade Pacman game. You won't believe how many lines of code this needs.
 
+- [Num_engine](./apps/num_engine) : A lightweight 2D engine made to simplify the game development. It works in parallel to the graphical utilities below, specialized for 2D sprites moving around.
 - [Numworks_utils](./apps/numworks_utils/) contains a lot of the utility code I use : the numworks default functions, the entire menu code, graphical tools and more.
 - [Model](./apps/model/) is a basic repo you can copy to start making a game using my template.
 - [Nppm_decoder](./apps/nppm_decoder/) is a build utility I made to process the images at compile time. Necessary to use my graphical modules, like *tiling*.
