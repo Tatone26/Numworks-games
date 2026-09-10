@@ -207,12 +207,12 @@ pub fn game(
         VIEW_SCREEN_Y,
         VIEW_SCREEN_W,
         VIEW_SCREEN_H,
-        Some(InterlaceMode::Columns),
+        Some(InterlaceMode::None),
     );
 
     // 1. Sky Background (Z = 0)
     let mut bg_data: [Option<[u8; 2]>; WINDOW_TILES] = [Some([3u8, 3u8]); WINDOW_TILES];
-    let bg_map: GameTilemap = GameTilemap::new(
+    let mut bg_map: GameTilemap = GameTilemap::new(
         &TILESET,
         &mut bg_data,
         SCREEN_COLS,
@@ -221,7 +221,7 @@ pub fn game(
         0,
         false,
         Parallax::FIXED,
-        false,
+        num_engine::tilemap::WrapMode::None,
     );
 
     // 2. Ground Tilemap (Z = 15, row 10 is [0, 4])
@@ -239,7 +239,7 @@ pub fn game(
         15,
         true,
         Parallax::FOREGROUND,
-        true,
+        num_engine::tilemap::WrapMode::Horizontal,
     );
 
     // 3. Cloud Sprites (Z = 2) - in world space [0..280]
@@ -450,33 +450,24 @@ pub fn game(
         {
             let mut render_list: Vec<GameRenderable, 36> = Vec::new();
 
-            let _ = render_list.push(Renderable::Tilemap(&bg_map));
+            let _ = render_list.push(Renderable::Tilemap(&mut bg_map));
 
-            for c in clouds.iter() {
+            for c in clouds.iter_mut() {
                 let _ = render_list.push(Renderable::Sprite(c));
             }
 
-            for p in pipes.iter().filter(|p| p.active) {
-                let _ = render_list.push(Renderable::Sprite(&p.spr_top_shaft));
-                let _ = render_list.push(Renderable::Sprite(&p.spr_top_lip));
-                let _ = render_list.push(Renderable::Sprite(&p.spr_bot_lip));
-                let _ = render_list.push(Renderable::Sprite(&p.spr_bot_shaft));
+            for p in pipes.iter_mut().filter(|p| p.active) {
+                let _ = render_list.push(Renderable::Sprite(&mut p.spr_top_shaft));
+                let _ = render_list.push(Renderable::Sprite(&mut p.spr_top_lip));
+                let _ = render_list.push(Renderable::Sprite(&mut p.spr_bot_lip));
+                let _ = render_list.push(Renderable::Sprite(&mut p.spr_bot_shaft));
             }
 
-            let _ = render_list.push(Renderable::Tilemap(&ground_map));
-            let _ = render_list.push(Renderable::Sprite(&bird_sprite));
+            let _ = render_list.push(Renderable::Tilemap(&mut ground_map));
+            let _ = render_list.push(Renderable::Sprite(&mut bird_sprite));
 
             let scratch = unsafe { &mut *(&raw mut SCRATCH_BUFFER) };
             engine.render_frame(&mut render_list, scratch);
-        }
-
-        // 8. Commit Frames
-        bird_sprite.commit_frame();
-        for c in clouds.iter_mut() {
-            c.commit_frame();
-        }
-        for p in pipes.iter_mut().filter(|p| p.active) {
-            p.commit_frame();
         }
 
         frame_counter = frame_counter.wrapping_add(1);
@@ -488,24 +479,24 @@ pub fn game(
     {
         let mut render_list: Vec<GameRenderable, 36> = Vec::new();
 
-        let _ = render_list.push(Renderable::Tilemap(&bg_map));
+        let _ = render_list.push(Renderable::Tilemap(&mut bg_map));
 
-        for c in clouds.iter() {
+        for c in clouds.iter_mut() {
             let _ = render_list.push(Renderable::Sprite(c));
         }
 
-        for p in pipes.iter().filter(|p| p.active) {
-            let _ = render_list.push(Renderable::Sprite(&p.spr_top_shaft));
-            let _ = render_list.push(Renderable::Sprite(&p.spr_top_lip));
-            let _ = render_list.push(Renderable::Sprite(&p.spr_bot_lip));
-            let _ = render_list.push(Renderable::Sprite(&p.spr_bot_shaft));
+        for p in pipes.iter_mut().filter(|p| p.active) {
+            let _ = render_list.push(Renderable::Sprite(&mut p.spr_top_shaft));
+            let _ = render_list.push(Renderable::Sprite(&mut p.spr_top_lip));
+            let _ = render_list.push(Renderable::Sprite(&mut p.spr_bot_lip));
+            let _ = render_list.push(Renderable::Sprite(&mut p.spr_bot_shaft));
         }
 
-        let _ = render_list.push(Renderable::Tilemap(&ground_map));
-        let _ = render_list.push(Renderable::Sprite(&bird_sprite));
+        let _ = render_list.push(Renderable::Tilemap(&mut ground_map));
+        let _ = render_list.push(Renderable::Sprite(&mut bird_sprite));
 
         let scratch = unsafe { &mut *(&raw mut SCRATCH_BUFFER) };
-        engine.render_frame(&mut render_list, scratch);
+        engine.render_frame_progressive(&mut render_list, scratch);
     }
 
     draw_centered_string("GAME OVER\0", 70, true, &COLOR_CONFIG, true);

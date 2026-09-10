@@ -13,8 +13,6 @@ use numworks_utils::eadk::Rect;
 pub(crate) struct DirtyGrid<const TILE_SIZE: usize, const COLS: usize, const ROWS: usize> {
     /// Cells marked dirty during the current frame update.
     pub curr: [u32; ROWS],
-    /// Cells that were dirty during the previous frame (cleared regions requiring redraw).
-    pub prev: [u32; ROWS],
 }
 
 // Notice: <const TILE_SIZE: usize, const COLS: usize, const ROWS: usize> goes after impl too!
@@ -23,10 +21,7 @@ impl<const TILE_SIZE: usize, const COLS: usize, const ROWS: usize>
 {
     /// Creates an empty dirty grid with all bits set to 0.
     pub const fn new() -> Self {
-        Self {
-            curr: [0; ROWS],
-            prev: [0; ROWS],
-        }
+        Self { curr: [0; ROWS] }
     }
 
     /// Marks all cells intersecting a given pixel rectangle as dirty in the current frame.
@@ -67,12 +62,5 @@ impl<const TILE_SIZE: usize, const COLS: usize, const ROWS: usize>
         for cy in 0..ROWS {
             self.curr[cy] = full_row_mask;
         }
-    }
-
-    /// Rotates dirty buffers at the end of a frame, moving `curr` into `prev` and resetting `curr` to zero.
-    #[inline(always)]
-    pub fn swap_and_clear(&mut self) {
-        self.prev = self.curr;
-        self.curr = [0; ROWS];
     }
 }

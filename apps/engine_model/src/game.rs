@@ -254,7 +254,7 @@ pub fn game(speed_factor: f32, has_hazards: bool, high_score: &mut u32) -> u8 {
         0,
         false,
         Parallax::FOREGROUND,
-        false,
+        num_engine::tilemap::WrapMode::None,
     );
     tile_span!(bg_map, row: ground_row, cols: 0..WORLD_COLS, tile: Some([0, 4]));
 
@@ -278,7 +278,7 @@ pub fn game(speed_factor: f32, has_hazards: bool, high_score: &mut u32) -> u8 {
     hills_map.set_origin(0, (WORLD_HEIGHT_PX - (HILLS_ROWS * TILE_SIZE) as i32) - 20);
 
     // 3. Foreground Obstacles from ASCII layout
-    let pipe_map = ascii_tilemap!(
+    let mut pipe_map = ascii_tilemap!(
         tileset: &TILESET,
         buffer: &mut pipe_data,
         cols: WORLD_COLS,
@@ -513,33 +513,23 @@ pub fn game(speed_factor: f32, has_hazards: bool, high_score: &mut u32) -> u8 {
         {
             let mut render_list: Vec<GameRenderable, { NUM_SWARM + NUM_CLOUDS + 5 }> = Vec::new();
 
-            let _ = render_list.push(Renderable::Tilemap(&bg_map));
-            let _ = render_list.push(Renderable::Tilemap(&hills_map));
+            let _ = render_list.push(Renderable::Tilemap(&mut bg_map));
+            let _ = render_list.push(Renderable::Tilemap(&mut hills_map));
 
-            for c in clouds.iter() {
+            for c in clouds.iter_mut() {
                 let _ = render_list.push(Renderable::Sprite(c));
             }
 
-            let _ = render_list.push(Renderable::Tilemap(&pipe_map));
+            let _ = render_list.push(Renderable::Tilemap(&mut pipe_map));
 
-            let _ = render_list.push(Renderable::Sprite(&player));
-            for s in swarm.iter() {
+            let _ = render_list.push(Renderable::Sprite(&mut player));
+            for s in swarm.iter_mut() {
                 let _ = render_list.push(Renderable::Sprite(s));
             }
-            let _ = render_list.push(Renderable::UiSprite(&ui_marker));
+            let _ = render_list.push(Renderable::UiSprite(&mut ui_marker));
 
             let scratch = unsafe { &mut *(&raw mut SCRATCH_BUFFER) };
             engine.render_frame(&mut render_list, scratch);
-        }
-
-        // 9. Frame Commits
-        player.commit_frame();
-        ui_marker.commit_frame();
-        for c in clouds.iter_mut() {
-            c.commit_frame();
-        }
-        for s in swarm.iter_mut() {
-            s.commit_frame();
         }
 
         // Handle Death Sequence
@@ -548,8 +538,8 @@ pub fn game(speed_factor: f32, has_hazards: bool, high_score: &mut u32) -> u8 {
             player.update(frame + 1);
 
             let mut death_list: Vec<GameRenderable, 2> = Vec::new();
-            let _ = death_list.push(Renderable::Tilemap(&pipe_map));
-            let _ = death_list.push(Renderable::Sprite(&player));
+            let _ = death_list.push(Renderable::Tilemap(&mut pipe_map));
+            let _ = death_list.push(Renderable::Sprite(&mut player));
             let scratch = unsafe { &mut *(&raw mut SCRATCH_BUFFER) };
             engine.render_frame(&mut death_list, scratch);
 

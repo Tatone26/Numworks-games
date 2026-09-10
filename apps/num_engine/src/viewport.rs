@@ -165,4 +165,15 @@ impl Viewport {
             && sy + (h as i32) > 0
             && sy < self.screen_h as i32
     }
+
+    // In src/viewport.rs:
+    #[inline(always)]
+    pub fn world_to_screen_x(&self, wx: i32) -> i16 {
+        (wx - self.x + self.screen_x as i32) as i16
+    }
+
+    #[inline(always)]
+    pub fn world_to_screen_y(&self, wy: i32) -> i16 {
+        (wy - self.y + self.screen_y as i32) as i16
+    }
 }

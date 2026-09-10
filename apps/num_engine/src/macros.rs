@@ -1,5 +1,28 @@
 //! Declarative macros for compile-time asset definition and layout generation.
 
+/// Helper trait to allow both `bool` and `WrapMode` in `ascii_tilemap!`.
+pub trait IntoWrapMode {
+    fn into_wrap_mode(self) -> crate::tilemap::WrapMode;
+}
+
+impl IntoWrapMode for crate::tilemap::WrapMode {
+    #[inline(always)]
+    fn into_wrap_mode(self) -> crate::tilemap::WrapMode {
+        self
+    }
+}
+
+impl IntoWrapMode for bool {
+    #[inline(always)]
+    fn into_wrap_mode(self) -> crate::tilemap::WrapMode {
+        if self {
+            crate::tilemap::WrapMode::Both
+        } else {
+            crate::tilemap::WrapMode::None
+        }
+    }
+}
+
 /// Declares a static [`Animation`](crate::texture::Animation) in Flash (ROM).
 ///
 /// Stores frame slices and texture metadata directly in `.rodata`, using **zero bytes of RAM**.
@@ -15,9 +38,7 @@
 ///     speed_ticks,
 ///     [ (tx0, ty0), (tx1, ty1), ... ]
 /// );
-///
-/// Automatically sets `sheet_w = width` and `sheet_h = height` for standard non-repeating sprites.
-///
+/// ```
 #[macro_export]
 macro_rules! define_anim {
     (
@@ -76,11 +97,6 @@ macro_rules! define_repeating_anim {
 }
 
 /// Spawns a [`Sprite`](crate::sprite::Sprite) instance from an animation reference.
-///
-/// # Syntax
-/// ```rust
-/// let player = spawn_sprite!(&PLAYER_ANIM, [x, y], z_index);
-/// ```
 #[macro_export]
 macro_rules! spawn_sprite {
     ($anim:expr, $pos:expr, $z:expr $(,)?) => {
@@ -91,6 +107,7 @@ macro_rules! spawn_sprite {
 /// Populates a mutable slice buffer using a visual ASCII art string.
 ///
 /// Trailing newlines advance the row; spaces and carriage returns are ignored.
+/// Accepts either `WrapMode` or `bool` for `wrap:`.
 ///
 /// # Syntax
 /// ```rust
@@ -102,7 +119,7 @@ macro_rules! spawn_sprite {
 ///     z: 10,
 ///     transparent: true,
 ///     parallax: Parallax::FOREGROUND,
-///     wrap: false,
+///     wrap: WrapMode::Horizontal, // or `false` / `true`
 ///     mapping: {
 ///         b'.' => None,
 ///         b'G' => Some([0, 4]),
@@ -150,22 +167,22 @@ macro_rules! ascii_tilemap {
             }
         }
 
+        use $crate::macros::IntoWrapMode;
         $crate::tilemap::Tilemap::new(
-            $tileset, $buf, $cols, $rows, &[], $z, $trans, $parallax, $wrap,
+            $tileset,
+            $buf,
+            $cols,
+            $rows,
+            &[],
+            $z,
+            $trans,
+            $parallax,
+            $wrap.into_wrap_mode(),
         )
     }};
 }
 
 /// Fills rectangular bounds or horizontal spans of a Tilemap with a single tile.
-///
-/// # Syntax
-/// ```rust
-/// // Horizontal ground span:
-/// tile_span!(map, row: 23, cols: 0..32, tile: Some([0, 4]));
-///
-/// // Rectangular block:
-/// tile_rect!(map, cols: 5..7, rows: 3..5, tile: Some([1, 0]));
-/// ```
 #[macro_export]
 macro_rules! tile_span {
     ($map:expr, row: $row:expr, cols: $cols:expr, tile: $tile:expr $(,)?) => {{

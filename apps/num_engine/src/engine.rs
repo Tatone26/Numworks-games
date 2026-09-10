@@ -14,37 +14,20 @@ use crate::{
     viewport::Viewport,
 };
 
-/// Threshold in microseconds for tripping into dynamic interlacing (20.0 ms).
-///
-/// Leaves approximately 2.2 ms of headroom before the standard 22.2 ms (60 Hz)
-/// VBlank boundary, preventing dropped frames caused by keyboard scanning or OS interrupts.
-const RENDER_BUDGET_CEILING_US: u32 = 20_000;
+/// Target budget ceiling for 40-45 Hz display hardware (~22.2-25.0 ms period).
+/// Leaves 5.5 ms of headroom for game logic and keyboard scanning before VBlank.
+const RENDER_BUDGET_CEILING_US: u32 = 19_500;
 
-/// Normalized full-frame threshold in microseconds for disengaging interlacing (17.5 ms).
-///
-/// When interlacing is active, the measured frame duration is roughly halved.
-/// Normalizing back to the estimated full-frame equivalent (`measured * 2`) and
-/// requiring it to drop below 17,500 µs (i.e. `< 8,750 µs` measured) ensures strong
-/// hysteresis and avoids rapid mode-flapping.
-const RENDER_BUDGET_FLOOR_US: u32 = 17_500;
+/// Normalized full-frame threshold for disengaging interlacing.
+/// Requiring estimated full-frame duration (measured * 2) < 16_000 us ensures stable hysteresis.
+const RENDER_BUDGET_FLOOR_US: u32 = 16_000;
 
 /// Number of consecutive cool frames required before returning to progressive rendering.
-const INTERLACE_COOLDOWN_FRAMES: u8 = 8;
+const INTERLACE_COOLDOWN_FRAMES: u8 = 10;
 
-/// Number of initial frames ignored during level startup to let the EMA stabilize.
+/// Number of initial frames ignored during level startup to let the pipeline stabilize.
 const WARMUP_FRAMES: u32 = 5;
 
-/// The primary coordinator for rendering, camera movement, and frame pacing.
-///
-/// Manages the compositor pipeline, dirty-rect tracking across layers, sub-screen viewport
-/// boundaries, and closed-loop dynamic interlacing governed by wall-clock hardware benchmarks.
-///
-/// # Generics
-/// * `TILE_SIZE` - Width and height of one square tile in pixels (e.g. `20`).
-/// * `CELL_AREA` - Total pixel count of one tile (`TILE_SIZE * TILE_SIZE`).
-/// * `SCREEN_COLS` - Total columns contained within the viewport grid.
-/// * `SCREEN_ROWS` - Total rows contained within the viewport grid.
-/// * `DEBUG` - Compile-time toggle for performance tracking overlays and telemetry.
 pub struct Engine<
     const TILE_SIZE: usize,
     const CELL_AREA: usize,
@@ -52,24 +35,17 @@ pub struct Engine<
     const SCREEN_ROWS: usize,
     const DEBUG: bool = false,
 > {
-    /// Layered cell compositor and dirty bitmask grid.
     compositor: Compositor<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS>,
-    /// Active camera viewport tracking world and screen window bounds.
     viewport: Viewport,
-    /// Monotonically increasing frame sequence counter.
     frame: u32,
-    /// On-screen telemetry and frame timing collector.
     debug_stats: DebugStats,
-    /// When true, interlacing is dynamically engaged based on render load and sub-pixel scrolling.
     pub auto_interlace: bool,
-    /// The target interlacing pattern applied when interlacing is engaged.
     interlace_mode: InterlaceMode,
-    /// Exponential Moving Average (EMA) of the rasterization duration in microseconds.
     smoothed_render_us: u32,
-    /// Whether adaptive interlacing is currently engaged by the runtime governor.
     is_interlacing_engaged: bool,
-    /// Cooldown frame counter preventing rapid flapping when transitioning back to progressive mode.
     cooldown_frames: u8,
+    /// Hardware timestamp in milliseconds of the previous frame completion.
+    prev_frame_end_ms: u64,
 }
 
 impl<
@@ -80,14 +56,6 @@ impl<
         const DEBUG: bool,
     > Engine<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS, DEBUG>
 {
-    /// Constructs a full-screen engine instance.
-    ///
-    /// Clears the physical display glass with `clear_color` and initializes a full-display viewport.
-    ///
-    /// # Arguments
-    /// * `clear_color` - Solid background color to clear the display glass with.
-    /// * `interlace_mode` - Optional fallback pattern when dynamic interlacing is engaged.
-    ///   Defaults to [`InterlaceMode::Rows`].
     pub fn new(clear_color: Color, interlace_mode: Option<InterlaceMode>) -> Self {
         fill_screen(clear_color);
 
@@ -97,26 +65,14 @@ impl<
             frame: 0,
             debug_stats: DebugStats::new(),
             auto_interlace: true,
-            interlace_mode: interlace_mode.unwrap_or(InterlaceMode::Rows),
+            interlace_mode: interlace_mode.unwrap_or(InterlaceMode::Columns),
             smoothed_render_us: 10_000,
             is_interlacing_engaged: false,
             cooldown_frames: 0,
+            prev_frame_end_ms: 0,
         }
     }
 
-    /// Constructs an engine instance constrained to an explicit sub-screen window.
-    ///
-    /// Clears the designated rectangular area with `clear_color` and limits dirty invalidation,
-    /// camera bounds, and rendering strictly to `(screen_x, screen_y, screen_w, screen_h)`.
-    ///
-    /// # Arguments
-    /// * `clear_color` - Background fill color for the window rectangle.
-    /// * `screen_x` - Horizontal pixel origin on physical display glass.
-    /// * `screen_y` - Vertical pixel origin on physical display glass.
-    /// * `screen_w` - Total physical width of the viewport window in pixels.
-    /// * `screen_h` - Total physical height of the viewport window in pixels.
-    /// * `interlace_mode` - Optional fallback pattern when dynamic interlacing is engaged.
-    ///   Defaults to [`InterlaceMode::Rows`].
     pub fn new_with_window(
         clear_color: Color,
         screen_x: u16,
@@ -141,56 +97,119 @@ impl<
             frame: 0,
             debug_stats: DebugStats::new(),
             auto_interlace: true,
-            interlace_mode: interlace_mode.unwrap_or(InterlaceMode::Rows),
+            interlace_mode: interlace_mode.unwrap_or(InterlaceMode::Columns),
             smoothed_render_us: 10_000,
             is_interlacing_engaged: false,
             cooldown_frames: 0,
+            prev_frame_end_ms: 0,
         }
     }
 
-    /// Explicitly updates the interlacing pattern and controls adaptive mode switching.
-    ///
-    /// # Arguments
-    /// * `mode` - Interlacing pattern to apply when engaged ([`InterlaceMode::Rows`],
-    ///   [`InterlaceMode::Columns`], or [`InterlaceMode::Checkerboard`]).
-    /// * `dynamic_adaptation` - When `true`, automatically engages `mode` only when sub-pixel
-    ///   scrolling or when frame render benchmarks exceed budget thresholds. When `false`,
-    ///   locks the engine permanently into `mode`.
     #[inline(always)]
     pub fn set_interlacing(&mut self, mode: InterlaceMode, dynamic_adaptation: bool) {
         self.interlace_mode = mode;
         self.auto_interlace = dynamic_adaptation;
     }
 
-    /// Returns a mutable reference to the camera viewport for positioning and scrolling.
     #[inline(always)]
     pub fn get_mut_viewport(&mut self) -> &mut Viewport {
         &mut self.viewport
     }
 
-    /// Returns an immutable reference to the active camera viewport.
     #[inline(always)]
     pub fn get_viewport(&self) -> &Viewport {
         &self.viewport
     }
 
-    /// Returns the current monotonic frame sequence counter.
     #[inline(always)]
     pub fn get_frame(&self) -> u32 {
         self.frame
     }
 
-    /// Flags the entire cell grid as dirty, forcing every tile on screen to re-render next frame.
-    ///
-    /// Useful after unpausing, restoring from full-screen dialogs, or following scene transitions.
     pub fn mark_all_dirty(&mut self) {
         self.compositor.grid.mark_all();
     }
 
-    /// Resolves the active interlacing pattern for the current frame using closed-loop metrics.
-    ///
-    /// Evaluates camera sub-pixel offsets and the Exponential Moving Average of measured
-    /// hardware render times against [`RENDER_BUDGET_CEILING_US`] and [`RENDER_BUDGET_FLOOR_US`].
+    #[inline(always)]
+    fn is_item_visible<'r, 'a>(
+        &self,
+        item: &Renderable<'r, 'a, TILE_SIZE, CELL_AREA>,
+        win_x0: i16,
+        win_y0: i16,
+        win_x1: i16,
+        win_y1: i16,
+    ) -> bool {
+        match item {
+            Renderable::Tilemap(_) => true,
+            Renderable::Sprite(s) => {
+                let w = s.pixel_width() as i16;
+                let h = s.pixel_height() as i16;
+
+                let (cx, cy) = self
+                    .viewport
+                    .world_to_screen(s.position[0] as i32, s.position[1] as i32);
+                let curr_visible = cx + w > win_x0 && cx < win_x1 && cy + h > win_y0 && cy < win_y1;
+
+                if curr_visible {
+                    return true;
+                }
+
+                if s.moved {
+                    let (px, py) = self
+                        .viewport
+                        .world_to_screen(s.prev_position[0] as i32, s.prev_position[1] as i32);
+                    px + w > win_x0 && px < win_x1 && py + h > win_y0 && py < win_y1
+                } else {
+                    false
+                }
+            }
+            Renderable::UiSprite(s) => {
+                let w = s.pixel_width() as i16;
+                let h = s.pixel_height() as i16;
+                let local_w = win_x1 - win_x0;
+                let local_h = win_y1 - win_y0;
+
+                let cx = s.position[0];
+                let cy = s.position[1];
+                let curr_visible = cx + w > 0 && cx < local_w && cy + h > 0 && cy < local_h;
+
+                if curr_visible {
+                    return true;
+                }
+
+                if s.moved {
+                    let px = s.prev_position[0];
+                    let py = s.prev_position[1];
+                    px + w > 0 && px < local_w && py + h > 0 && py < local_h
+                } else {
+                    false
+                }
+            }
+        }
+    }
+
+    #[inline(always)]
+    fn cull_offscreen_items<'r, 'a>(
+        &self,
+        items: &mut [Renderable<'r, 'a, TILE_SIZE, CELL_AREA>],
+    ) -> usize {
+        let win_x0 = self.viewport.screen_x as i16;
+        let win_y0 = self.viewport.screen_y as i16;
+        let win_x1 = win_x0 + self.viewport.screen_w as i16;
+        let win_y1 = win_y0 + self.viewport.screen_h as i16;
+
+        let mut next_visible = 0;
+        for i in 0..items.len() {
+            if self.is_item_visible(&items[i], win_x0, win_y0, win_x1, win_y1) {
+                if i != next_visible {
+                    items.swap(i, next_visible);
+                }
+                next_visible += 1;
+            }
+        }
+        next_visible
+    }
+
     #[inline(always)]
     fn resolve_interlace_mode(&mut self, viewport_moved: bool, sub_x: i32) -> InterlaceMode {
         if self.interlace_mode == InterlaceMode::None {
@@ -206,15 +225,11 @@ impl<
             return self.interlace_mode;
         }
 
-        // Warmup guard: ignore early pipeline initialization spikes
         if self.frame < WARMUP_FRAMES {
             return InterlaceMode::None;
         }
 
-        // Closed-loop runtime budget evaluation
         if self.is_interlacing_engaged {
-            // When already interlacing, measured render duration drops by ~50%.
-            // Normalize duration back to estimated full-frame equivalent before evaluating release:
             let estimated_full_frame_us = self.smoothed_render_us.saturating_mul(2);
 
             if estimated_full_frame_us < RENDER_BUDGET_FLOOR_US {
@@ -238,15 +253,7 @@ impl<
         }
     }
 
-    /// Renders all registered visual entities, synchronizes to VBlank, and tracks performance metrics.
-    ///
-    /// Calculates dirty rectangles for moving entities, determines whether interlacing is required,
-    /// executes the compositing pipeline, measures wall-clock duration, updates moving averages,
-    /// and advances internal state counters.
-    ///
-    /// # Arguments
-    /// * `items` - Slice of renderable entities (tilemaps, sprites, UI sprites) to composite.
-    /// * `scratch` - Fast scratch pixel buffer utilized during compositing and line assembly.
+    #[inline(always)]
     pub fn render_frame<'a>(
         &mut self,
         items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
@@ -254,12 +261,45 @@ impl<
     ) {
         let viewport_moved = self.viewport.moved();
         let sub_x = self.viewport.x.rem_euclid(TILE_SIZE as i32);
+        let active_interlace = self.resolve_interlace_mode(viewport_moved, sub_x);
 
-        // 1. Invalidate moving entities and viewports
+        self.render_pipeline(items, scratch, viewport_moved, active_interlace);
+    }
+
+    #[inline(always)]
+    pub fn render_frame_progressive<'a>(
+        &mut self,
+        items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
+        scratch: &mut [Color],
+    ) {
+        let viewport_moved = self.viewport.moved();
+        self.render_pipeline(items, scratch, viewport_moved, InterlaceMode::None);
+    }
+
+    pub fn render_frame_full<'a>(
+        &mut self,
+        items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
+        scratch: &mut [Color],
+    ) {
+        self.mark_all_dirty();
+        self.render_pipeline(items, scratch, true, InterlaceMode::None);
+    }
+
+    fn render_pipeline<'a>(
+        &mut self,
+        items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
+        scratch: &mut [Color],
+        viewport_moved: bool,
+        active_interlace: InterlaceMode,
+    ) {
+        // 1. In-Place Frustum Culling
+        let visible_count = self.cull_offscreen_items(items);
+
+        // 2. Invalidate moving entities and viewports
         if viewport_moved {
             self.compositor.grid.mark_all();
         } else {
-            for item in items.iter() {
+            for item in items[..visible_count].iter() {
                 match item {
                     Renderable::Sprite(s) => {
                         if s.moved {
@@ -292,7 +332,7 @@ impl<
                         }
                     }
                     Renderable::Tilemap(tm) => {
-                        tm.mark_animated_dirty(
+                        tm.mark_sparse_dirty(
                             self.frame,
                             &mut self.compositor.grid,
                             self.viewport.x,
@@ -303,42 +343,48 @@ impl<
             }
         }
 
-        // 2. Select interlacing strategy using closed-loop metrics
-        let active_interlace = self.resolve_interlace_mode(viewport_moved, sub_x);
-
         if DEBUG {
             self.debug_stats.tick();
             self.compositor.grid.mark_rect(Rect {
                 x: 0,
                 y: 0,
-                width: 90,
+                width: 120,
                 height: 16,
             });
         }
 
         // 3. Hardware synchronization and timing capture
         wait_for_vblank();
-        let t_start = timing::millis();
+        let t_render_start = timing::millis();
 
         self.compositor.render(
-            items,
+            &mut items[..visible_count],
             &self.viewport,
             scratch,
             viewport_moved,
             active_interlace,
         );
 
-        let t_end = timing::millis();
-        let elapsed_ms = t_end.saturating_sub(t_start);
-        let frame_duration_us = (elapsed_ms as u32).saturating_mul(1000);
+        let t_now = timing::millis();
+        let render_duration_ms = t_now.saturating_sub(t_render_start);
+        let render_duration_us = (render_duration_ms as u32).saturating_mul(1000);
+
+        // Total frame duration measured from previous completion (Logic + VBlank Wait + Render)
+        let total_frame_duration_us = if self.prev_frame_end_ms > 0 {
+            (t_now.saturating_sub(self.prev_frame_end_ms) as u32).saturating_mul(1000)
+        } else {
+            render_duration_us
+        };
+        self.prev_frame_end_ms = t_now;
 
         // 4. Update Exponential Moving Average: EMA = (3 * prev + 1 * curr) / 4
         if self.frame >= WARMUP_FRAMES {
-            self.smoothed_render_us = ((self.smoothed_render_us * 3) + frame_duration_us) >> 2;
+            self.smoothed_render_us = ((self.smoothed_render_us * 3) + render_duration_us) >> 2;
         }
 
-        self.debug_stats.record_render_time(
-            frame_duration_us as u64,
+        self.debug_stats.record_metrics(
+            render_duration_us as u64,
+            total_frame_duration_us as u64,
             active_interlace != InterlaceMode::None,
         );
 
@@ -350,11 +396,13 @@ impl<
         self.viewport.commit_frame();
         self.frame = self.frame.wrapping_add(1);
         self.compositor.set_frame(self.frame);
+
+        // 6. Automatic commit across all items submitted to the frame
+        for item in items.iter_mut() {
+            item.commit_frame();
+        }
     }
 
-    /// Marks a screen-space rectangle as dirty within the active viewport window.
-    ///
-    /// Clips the coordinates against the viewport boundary before setting bits in the grid.
     #[inline(always)]
     fn mark_screen_rect(&mut self, sx: i16, sy: i16, w: u16, h: u16) {
         let win_x0 = self.viewport.screen_x as i16;
@@ -377,13 +425,6 @@ impl<
         }
     }
 
-    /// Invalidate an entire grid row across the viewport.
-    ///
-    /// Useful for horizontal scrolling tilemaps (e.g. ground or parallax layers) that
-    /// advance horizontally while the viewport camera itself remains stationary.
-    ///
-    /// # Arguments
-    /// * `row` - Zero-indexed row within `0..SCREEN_ROWS`.
     #[inline(always)]
     pub fn mark_row_dirty(&mut self, row: usize) {
         if row < SCREEN_ROWS {

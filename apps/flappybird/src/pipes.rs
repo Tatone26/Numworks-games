@@ -93,13 +93,6 @@ impl<'a> PipePair<'a> {
         self.spr_bot_shaft.update(frame);
     }
 
-    pub fn commit_frame(&mut self) {
-        self.spr_top_shaft.commit_frame();
-        self.spr_top_lip.commit_frame();
-        self.spr_bot_lip.commit_frame();
-        self.spr_bot_shaft.commit_frame();
-    }
-
     #[inline(always)]
     pub fn x(&self) -> i16 {
         self.spr_top_shaft.position[0]
