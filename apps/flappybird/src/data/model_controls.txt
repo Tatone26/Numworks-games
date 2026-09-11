@@ -4,10 +4,13 @@
 
 
     - Press <OK> to jump
-    
-    - Don't touch the pipes or the floor
-
     - Press <BACK> to pause
+    - Don't touch anything
 
-    Warning : speed will slightly increase !
-                                                                                     
+   Warning : some events may occur, and
+     speed may increase over time...
+     Good luck !
+
+   See Tatone26/Numworks_games on github
+     for more stuff :)  
+

@@ -1,11 +1,13 @@
 #![no_std]
 
+mod events;
 mod flappy_ui;
 mod game;
+mod menu;
 mod pipes;
 
 use flappy_ui::BACKGROUND;
-pub use game::start;
+pub use menu::start;
 
 use heapless::String;
 use numworks_utils::{

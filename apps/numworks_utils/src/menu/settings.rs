@@ -1,4 +1,4 @@
-use heapless::Vec;
+use heapless::{String, Vec};
 
 use crate::{
     eadk::{
@@ -85,7 +85,7 @@ pub(super) fn set_values_from_file(list: &mut [&mut Setting], filename: &str) {
     }
 }
 
-pub fn write_values_to_file(list: &mut [&mut Setting], filename: &str) {
+pub fn write_values_to_file(list: &[&mut Setting], filename: &str) {
     for (i, v) in list.iter().enumerate() {
         if v.fixed_values {
             write_data(filename, Some(i as u32), v.choice as u32);
@@ -95,35 +95,59 @@ pub fn write_values_to_file(list: &mut [&mut Setting], filename: &str) {
     }
 }
 
-/// Create a fully fonctional settings menu, which changes directly the [options][Setting] values. (no settings return)
-/// For now, only allows a limited number of settings because making multiple pages is too complicated and I don't have time for that
-pub(crate) fn settings(
-    list: &mut [&mut Setting],
-    cfg: &ColorConfig,
-    filename: &str,
-    godmode: bool,
-) {
-    let items_number: u16 = list.iter().filter(|p| godmode || p.user_modifiable).count() as u16;
-    let first_y: u16 = match (SCREEN_HEIGHT + LARGE_CHAR_HEIGHT)
-        .checked_sub((LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * items_number)
+const MAX_ITEMS_PER_PAGE: u16 = 5;
+
+/// Formats current/total pages
+fn format_page_counter(current_page: u16, total_pages: u16) -> String<16> {
+    use core::fmt::Write;
+    let mut str = String::<16>::new();
+    let _ = write!(str, "{}/{}\0", current_page + 1, total_pages);
+    str
+}
+
+/// Computes the top Y coordinate for the settings list on the current page.
+#[inline]
+fn calculate_first_y(items_in_page: u16) -> u16 {
+    match (SCREEN_HEIGHT + LARGE_CHAR_HEIGHT)
+        .checked_sub((LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * items_in_page)
     {
         None | Some(0) => 0,
         x_ @ Some(1u16..=u16::MAX) => x_.unwrap() / 2,
-    }; // the y position of the first item. Calculated taking account of the number of options.
-       // visual things
+    }
+}
+
+/// Computes the Y coordinate of an item given its slot index within the page.
+#[inline]
+fn item_y(first_y: u16, slot: u16) -> u16 {
+    first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * slot
+}
+
+/// Returns the number of items displayed on a given page.
+#[inline]
+fn items_on_page(page: u16, total_items: u16) -> u16 {
+    let start = page * MAX_ITEMS_PER_PAGE;
+    if start >= total_items {
+        0
+    } else {
+        (total_items - start).min(MAX_ITEMS_PER_PAGE)
+    }
+}
+
+/// Draws a full settings page and returns the calculated `first_y`.
+fn draw_settings_page(
+    visible: &[&mut Setting],
+    page: u16,
+    pages: u16,
+    cursor_pos: u16,
+    cfg: &ColorConfig,
+) -> u16 {
+    let count = items_on_page(page, visible.len() as u16);
+    let first_y = calculate_first_y(count);
+
+    // visual things
     display::wait_for_vblank();
     fill_screen(cfg.bckgrd);
-    draw_centered_string(
-        "SETTINGS\0",
-        if items_number < 6 {
-            20u16
-        } else {
-            10u16.saturating_sub((items_number - 6 + 1) * 5)
-        },
-        true,
-        cfg,
-        false,
-    );
+    draw_centered_string("SETTINGS\0", 5u16, true, cfg, false);
     let back_text = "Menu : <Back>  \0";
     draw_string_cfg(
         back_text,
@@ -135,18 +159,32 @@ pub(crate) fn settings(
         cfg,
         false,
     );
+
+    // Page counter: print "x/x" in the bottom-left corner only when there are multiple pages
+    if pages > 1 {
+        let page_str = format_page_counter(page, pages);
+        draw_string_cfg(
+            &page_str,
+            Point::new(10, SCREEN_HEIGHT - SMALL_CHAR_HEIGHT - 5),
+            false,
+            cfg,
+            false,
+        );
+    }
+
+    // Page indicator: show '^' if there is a previous page
+    if page > 0 {
+        draw_centered_string("^\0", first_y - LARGE_CHAR_HEIGHT, true, cfg, false);
+    }
+
     // printing the options
-    for item in list
-        .iter()
-        .filter(|p| godmode || p.user_modifiable)
-        .enumerate()
-    {
-        let (i, x) = item;
-        let y_pos: u16 = first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * (i as u16);
-        let large: bool =
-            get_string_pixel_size(x.name, true) + XPOS_NAMES < XPOS_VALUES - LARGE_CHAR_HEIGHT * 2;
+    let start = (page * MAX_ITEMS_PER_PAGE) as usize;
+    for (i, item) in visible[start..start + count as usize].iter().enumerate() {
+        let y_pos = item_y(first_y, i as u16);
+        let large: bool = get_string_pixel_size(item.name, true) + XPOS_NAMES
+            < XPOS_VALUES - LARGE_CHAR_HEIGHT * 2;
         display::draw_string(
-            x.name,
+            item.name,
             Point::new(
                 XPOS_NAMES,
                 y_pos
@@ -160,24 +198,84 @@ pub(crate) fn settings(
             cfg.text,
             cfg.bckgrd,
         );
-        draw_setting_selection(x, y_pos, i == 0, cfg)
+        draw_setting_selection(item, y_pos, i as u16 == cursor_pos, cfg);
     }
-    setting_selection(list, cfg, first_y, godmode);
+
+    // Page indicator: show 'v' if there is a next page
+    if page + 1 < pages {
+        let last_y = item_y(first_y, count - 1);
+        draw_centered_string("v\0", last_y + LARGE_CHAR_HEIGHT + 5, true, cfg, false);
+    }
+
+    first_y
+}
+
+/// Create a fully fonctional settings menu, which changes directly the [options][Setting] values. (no settings return)
+/// For now, only allows a limited number of settings because making multiple pages is too complicated and I don't have time for that
+pub(crate) fn settings(
+    list: &mut [&mut Setting],
+    cfg: &ColorConfig,
+    filename: &str,
+    godmode: bool,
+) {
+    // Collect active mutable references so we don't repeatedly filter in hot loops
+    {
+        let mut visible: heapless::Vec<&mut Setting, MAX_SETTINGS_VALUES> = list
+            .iter_mut()
+            .filter_map(|s| {
+                if godmode || s.user_modifiable {
+                    Some(&mut **s)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let items_number = visible.len() as u16;
+        if items_number == 0 {
+            return;
+        }
+        let pages: u16 = (items_number + MAX_ITEMS_PER_PAGE - 1) / MAX_ITEMS_PER_PAGE; // 1 -> 1 ; 5 -> 1 ; 6 -> 2 : good !
+
+        let mut current_page: u16 = 0;
+        let mut cursor_pos: u16 = 0;
+        let mut first_y = draw_settings_page(&visible, current_page, pages, cursor_pos, cfg);
+
+        setting_selection(
+            &mut visible,
+            cfg,
+            &mut first_y,
+            items_number,
+            pages,
+            &mut current_page,
+            &mut cursor_pos,
+        );
+    }
+
     write_values_to_file(list, filename);
 }
 
 /// Takes care of all the difficult stuff, like moving the cursor and modifying the text.
 ///
 /// Similar to [super::selection] but redone to account for more things (and not account for horizontal versions)
-fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16, godmode: bool) {
+fn setting_selection(
+    visible: &mut [&mut Setting],
+    cfg: &ColorConfig,
+    first_y: &mut u16,
+    items_number: u16,
+    pages: u16,
+    current_page: &mut u16,
+    cursor_pos: &mut u16,
+) {
     wait_for_no_keydown();
 
-    let mut cursor_pos: u16 = 0;
     let mut last_action: u64 = timing::millis();
     let mut last_action_key: u32 = key::ALPHA;
 
     loop {
+        let items_in_page = items_on_page(*current_page, items_number);
         let keyboard_scan = keyboard::scan();
+
         if keyboard_scan.key_down(key::BACK) {
             break;
         } else if (keyboard_scan.key_down(key::UP) || keyboard_scan.key_down(key::DOWN))
@@ -185,71 +283,91 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16,
         {
             display::wait_for_vblank();
 
-            let current_selection: &Setting = list
-                .iter()
-                .filter(|p| godmode || p.user_modifiable)
-                .nth(cursor_pos as usize)
-                .unwrap();
-            draw_setting_selection(
-                current_selection,
-                first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
-                false,
-                cfg,
-            );
             // moving cursor
             if keyboard_scan.key_down(key::UP) {
-                if cursor_pos > 0 {
-                    cursor_pos -= 1;
-                } else {
-                    cursor_pos =
-                        (list.iter().filter(|p| godmode || p.user_modifiable).count() as u16) - 1;
+                if *cursor_pos > 0 {
+                    // Un-highlight previous item
+                    let old_global_idx =
+                        (*current_page * MAX_ITEMS_PER_PAGE + *cursor_pos) as usize;
+                    draw_setting_selection(
+                        &visible[old_global_idx],
+                        item_y(*first_y, *cursor_pos),
+                        false,
+                        cfg,
+                    );
+
+                    *cursor_pos -= 1;
+
+                    // Highlight newly selected item
+                    let new_global_idx =
+                        (*current_page * MAX_ITEMS_PER_PAGE + *cursor_pos) as usize;
+                    draw_setting_selection(
+                        &visible[new_global_idx],
+                        item_y(*first_y, *cursor_pos),
+                        true,
+                        cfg,
+                    );
+                } else if *current_page > 0 {
+                    *current_page -= 1;
+                    *cursor_pos = items_on_page(*current_page, items_number) - 1;
+                    *first_y = draw_settings_page(visible, *current_page, pages, *cursor_pos, cfg);
                 }
+                // If on page 0 and cursor_pos == 0, do nothing (no wrap around)
                 last_action_key = key::UP;
             } else if keyboard_scan.key_down(key::DOWN) {
-                if cursor_pos
-                    < list.iter().filter(|p| godmode || p.user_modifiable).count() as u16 - 1
-                {
-                    cursor_pos += 1;
-                } else {
-                    cursor_pos = 0;
+                if *cursor_pos < items_in_page - 1 {
+                    // Un-highlight previous item
+                    let old_global_idx =
+                        (*current_page * MAX_ITEMS_PER_PAGE + *cursor_pos) as usize;
+                    draw_setting_selection(
+                        &visible[old_global_idx],
+                        item_y(*first_y, *cursor_pos),
+                        false,
+                        cfg,
+                    );
+
+                    *cursor_pos += 1;
+
+                    // Highlight newly selected item
+                    let new_global_idx =
+                        (*current_page * MAX_ITEMS_PER_PAGE + *cursor_pos) as usize;
+                    draw_setting_selection(
+                        &visible[new_global_idx],
+                        item_y(*first_y, *cursor_pos),
+                        true,
+                        cfg,
+                    );
+                } else if *current_page + 1 < pages {
+                    *current_page += 1;
+                    *cursor_pos = 0;
+                    *first_y = draw_settings_page(visible, *current_page, pages, *cursor_pos, cfg);
                 }
+                // If on the last page and on the last item, do nothing (no wrap around)
                 last_action_key = key::DOWN;
             }
 
-            let new_selection: &Setting = list
-                .iter()
-                .filter(|p| godmode || p.user_modifiable)
-                .nth(cursor_pos as usize)
-                .unwrap();
-            draw_setting_selection(
-                new_selection,
-                first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
-                true,
-                cfg,
-            );
             last_action = timing::millis();
         } else if (keyboard_scan.key_down(key::OK)
             || keyboard_scan.key_down(key::RIGHT)
             || keyboard_scan.key_down(key::LEFT))
             && (timing::millis() >= (last_action + REPETITION_SPEED as u64))
         {
+            let current_y = item_y(*first_y, *cursor_pos);
             display::wait_for_vblank();
+
             push_rect_uniform(
                 // remove last text
                 Rect {
                     x: XPOS_VALUES,
-                    y: first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
+                    y: current_y,
                     width: SCREEN_WIDTH - XPOS_VALUES,
                     height: LARGE_CHAR_HEIGHT + 2, // I got some problems with characters going under the line (like g)
                 },
                 cfg.bckgrd,
             );
 
-            let selection: &mut Setting = list
-                .iter_mut()
-                .filter(|p| godmode || p.user_modifiable)
-                .nth(cursor_pos as usize)
-                .unwrap();
+            let global_idx = (*current_page * MAX_ITEMS_PER_PAGE + *cursor_pos) as usize;
+            let selection: &mut Setting = &mut visible[global_idx];
 
             if !selection.fixed_values {
                 if keyboard_scan.key_down(key::OK) {
@@ -260,7 +378,7 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16,
                         true,
                         Point {
                             x: XPOS_VALUES,
-                            y: first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
+                            y: current_y,
                         },
                         cfg,
                     );
@@ -280,20 +398,16 @@ fn setting_selection(list: &mut [&mut Setting], cfg: &ColorConfig, first_y: u16,
                 }
             } else if keyboard_scan.key_down(key::OK) {
                 selection.increment_value();
-                last_action_key = key::OK
+                last_action_key = key::OK;
             } else if keyboard_scan.key_down(key::RIGHT) {
                 selection.increment_value();
                 last_action_key = key::RIGHT;
             } else {
                 selection.decrement_value();
-                last_action_key = key::LEFT
+                last_action_key = key::LEFT;
             }
-            draw_setting_selection(
-                selection,
-                first_y + (LARGE_CHAR_HEIGHT + SPACE_BETWEEN_LINES) * cursor_pos,
-                true,
-                cfg,
-            );
+
+            draw_setting_selection(selection, current_y, true, cfg);
             last_action = timing::millis();
         } else if !keyboard_scan.key_down(last_action_key) {
             // if we let go of the key, then we can use a key just after (even the same one)

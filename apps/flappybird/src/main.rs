@@ -1,8 +1,10 @@
 #![no_std]
 #![no_main]
 
+mod events;
 mod flappy_ui;
 mod game;
+mod menu;
 mod pipes;
 
 #[used]
@@ -19,5 +21,5 @@ pub static EADK_APP_ICON: [u8; 3305] = *include_bytes!("../target/icon.nwi");
 
 #[no_mangle]
 pub fn main() {
-    game::start();
+    menu::start();
 }

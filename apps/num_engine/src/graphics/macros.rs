@@ -175,3 +175,83 @@ macro_rules! ascii_tilemap {
         map
     }};
 }
+
+/// Constructs an [`Emitter`](crate::graphics::particles::Emitter) with zone-based randomized seeding.
+#[macro_export]
+macro_rules! emitter {
+    // 1. Explicit independent dimensions [width, height]
+    (
+        area: [$x:expr, $y:expr, $w:expr, $h:expr],
+        rate: $rate:expr,
+        interval: $interval:expr,
+        vx: [$min_vx:expr, $max_vx:expr],
+        vy: [$min_vy:expr, $max_vy:expr],
+        width: [$min_w:expr, $max_w:expr],
+        height: [$min_h:expr, $max_h:expr],
+        color: $color:expr,
+        life: [$min_life:expr, $max_life:expr] $(,)?
+    ) => {{
+        let mut em = $crate::graphics::particles::Emitter::empty();
+        em.area = [$x as i16, $y as i16, $w as i16, $h as i16];
+        em.rate = $rate as u8;
+        em.interval = $interval as u8;
+        em.vx_range = [$min_vx as f32, $max_vx as f32];
+        em.vy_range = [$min_vy as f32, $max_vy as f32];
+        em.size_x_range = [$min_w as u8, $max_w as u8];
+        em.size_y_range = [$min_h as u8, $max_h as u8];
+        em.color = $color;
+        em.life_range = [$min_life as u8, $max_life as u8];
+        em.enabled = true;
+        em
+    }};
+
+    // 2. Streaks / Squares (Single size metric, thickness defaults to 1 px)
+    (
+        area: [$x:expr, $y:expr, $w:expr, $h:expr],
+        rate: $rate:expr,
+        interval: $interval:expr,
+        vx: [$min_vx:expr, $max_vx:expr],
+        vy: [$min_vy:expr, $max_vy:expr],
+        size: [$min_size:expr, $max_size:expr],
+        color: $color:expr,
+        life: [$min_life:expr, $max_life:expr] $(,)?
+    ) => {{
+        $crate::emitter!(
+            area: [$x, $y, $w, $h],
+            rate: $rate,
+            interval: $interval,
+            vx: [$min_vx, $max_vx],
+            vy: [$min_vy, $max_vy],
+            width: [$min_size, $max_size],
+            height: [1, 1],
+            color: $color,
+            life: [$min_life, $max_life],
+        )
+    }};
+
+    // 3. Constant scalar size
+    (
+        area: [$x:expr, $y:expr, $w:expr, $h:expr],
+        rate: $rate:expr,
+        interval: $interval:expr,
+        vx: [$min_vx:expr, $max_vx:expr],
+        vy: [$min_vy:expr, $max_vy:expr],
+        size: $size:expr,
+        color: $color:expr,
+        life: $life:expr $(,)?
+    ) => {{
+        let s = $size as u8;
+        let l = $life as u8;
+        $crate::emitter!(
+            area: [$x, $y, $w, $h],
+            rate: $rate,
+            interval: $interval,
+            vx: [$min_vx, $max_vx],
+            vy: [$min_vy, $max_vy],
+            width: [s, s],
+            height: [1, 1],
+            color: $color,
+            life: [l, l],
+        )
+    }};
+}

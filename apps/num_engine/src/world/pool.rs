@@ -1,7 +1,7 @@
-//! Scene manager holding entities and tilemaps, executing simulation and render dispatch.
+//! Scene manager holding entities, tilemaps, and particle systems.
 
 use crate::{
-    graphics::{compositor::Renderable, tilemap::Tilemap},
+    graphics::{compositor::Renderable, particles::ParticleSystem, tilemap::Tilemap},
     world::Entity,
     Engine,
 };
@@ -15,10 +15,13 @@ pub struct World<
     const ENT_CAP: usize,
     const MAP_CAP: usize,
     const PARTS_PER_ENT: usize = 4,
-    const R_CAP: usize = 36,
+    const R_CAP: usize = 64,
+    const PARTICLE_CAP: usize = 48,
+    const PARTICLE_SYS_CAP: usize = 2,
 > {
     pub entities: [Entity<'a, TILE_SIZE, CELL_AREA, PARTS_PER_ENT>; ENT_CAP],
     pub tilemaps: [Option<Tilemap<'a, TILE_SIZE, CELL_AREA>>; MAP_CAP],
+    pub particle_systems: [Option<ParticleSystem<PARTICLE_CAP>>; PARTICLE_SYS_CAP],
     active_ent_count: usize,
 }
 
@@ -30,12 +33,26 @@ impl<
         const MAP_CAP: usize,
         const PARTS_PER_ENT: usize,
         const R_CAP: usize,
-    > World<'a, TILE_SIZE, CELL_AREA, ENT_CAP, MAP_CAP, PARTS_PER_ENT, R_CAP>
+        const PARTICLE_CAP: usize,
+        const PARTICLE_SYS_CAP: usize,
+    >
+    World<
+        'a,
+        TILE_SIZE,
+        CELL_AREA,
+        ENT_CAP,
+        MAP_CAP,
+        PARTS_PER_ENT,
+        R_CAP,
+        PARTICLE_CAP,
+        PARTICLE_SYS_CAP,
+    >
 {
     pub fn new() -> Self {
         Self {
             entities: core::array::from_fn(|_| Entity::empty()),
             tilemaps: core::array::from_fn(|_| None),
+            particle_systems: core::array::from_fn(|_| None),
             active_ent_count: 0,
         }
     }
@@ -55,7 +72,23 @@ impl<
         self.tilemaps[id].as_mut().expect("Invalid tilemap index")
     }
 
-    /// Spawns an Entity into the first unallocated slot.
+    pub fn add_particle_system(&mut self, sys: ParticleSystem<PARTICLE_CAP>) -> Option<usize> {
+        for (i, slot) in self.particle_systems.iter_mut().enumerate() {
+            if slot.is_none() {
+                *slot = Some(sys);
+                return Some(i);
+            }
+        }
+        None
+    }
+
+    #[inline(always)]
+    pub fn particles_mut(&mut self, id: usize) -> &mut ParticleSystem<PARTICLE_CAP> {
+        self.particle_systems[id]
+            .as_mut()
+            .expect("Invalid particle system index")
+    }
+
     pub fn spawn(
         &mut self,
         mut entity: Entity<'a, TILE_SIZE, CELL_AREA, PARTS_PER_ENT>,
@@ -73,7 +106,6 @@ impl<
         None
     }
 
-    /// Marks the slot unallocated and frees it for subsequent spawns.
     #[inline(always)]
     pub fn despawn(&mut self, id: usize) {
         if id < self.active_ent_count {
@@ -100,6 +132,14 @@ impl<
         for ent in self.entities[..self.active_ent_count].iter_mut() {
             if ent.allocated && ent.active {
                 ent.update(frame);
+            }
+        }
+
+        for sys_opt in self.particle_systems.iter_mut() {
+            if let Some(sys) = sys_opt.as_mut() {
+                if sys.active {
+                    sys.update();
+                }
             }
         }
     }
@@ -135,7 +175,7 @@ impl<
 
     pub fn render_to_engine<const SC: usize, const SR: usize, const DBG: bool>(
         &mut self,
-        engine: &mut Engine<'_, TILE_SIZE, CELL_AREA, SC, SR, DBG>,
+        engine: &mut Engine<'_, TILE_SIZE, CELL_AREA, SC, SR, R_CAP, DBG>,
         progressive: bool,
     ) {
         let mut list: Vec<Renderable<'_, 'a, TILE_SIZE, CELL_AREA>, R_CAP> = Vec::new();
@@ -156,6 +196,14 @@ impl<
             }
         }
 
+        for sys_opt in self.particle_systems.iter_mut() {
+            if let Some(sys) = sys_opt.as_mut() {
+                if sys.active {
+                    let _ = list.push(Renderable::Particles(sys));
+                }
+            }
+        }
+
         if progressive {
             engine.render_frame_progressive(&mut list);
         } else {
@@ -172,7 +220,20 @@ impl<
         const MAP_CAP: usize,
         const PARTS_PER_ENT: usize,
         const R_CAP: usize,
-    > Index<usize> for World<'a, TILE_SIZE, CELL_AREA, ENT_CAP, MAP_CAP, PARTS_PER_ENT, R_CAP>
+        const PARTICLE_CAP: usize,
+        const PARTICLE_SYS_CAP: usize,
+    > Index<usize>
+    for World<
+        'a,
+        TILE_SIZE,
+        CELL_AREA,
+        ENT_CAP,
+        MAP_CAP,
+        PARTS_PER_ENT,
+        R_CAP,
+        PARTICLE_CAP,
+        PARTICLE_SYS_CAP,
+    >
 {
     type Output = Entity<'a, TILE_SIZE, CELL_AREA, PARTS_PER_ENT>;
 
@@ -190,7 +251,20 @@ impl<
         const MAP_CAP: usize,
         const PARTS_PER_ENT: usize,
         const R_CAP: usize,
-    > IndexMut<usize> for World<'a, TILE_SIZE, CELL_AREA, ENT_CAP, MAP_CAP, PARTS_PER_ENT, R_CAP>
+        const PARTICLE_CAP: usize,
+        const PARTICLE_SYS_CAP: usize,
+    > IndexMut<usize>
+    for World<
+        'a,
+        TILE_SIZE,
+        CELL_AREA,
+        ENT_CAP,
+        MAP_CAP,
+        PARTS_PER_ENT,
+        R_CAP,
+        PARTICLE_CAP,
+        PARTICLE_SYS_CAP,
+    >
 {
     #[inline(always)]
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
@@ -206,7 +280,20 @@ impl<
         const MAP_CAP: usize,
         const PARTS_PER_ENT: usize,
         const R_CAP: usize,
-    > Default for World<'a, TILE_SIZE, CELL_AREA, ENT_CAP, MAP_CAP, PARTS_PER_ENT, R_CAP>
+        const PARTICLE_CAP: usize,
+        const PARTICLE_SYS_CAP: usize,
+    > Default
+    for World<
+        'a,
+        TILE_SIZE,
+        CELL_AREA,
+        ENT_CAP,
+        MAP_CAP,
+        PARTS_PER_ENT,
+        R_CAP,
+        PARTICLE_CAP,
+        PARTICLE_SYS_CAP,
+    >
 {
     fn default() -> Self {
         Self::new()

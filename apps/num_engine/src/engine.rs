@@ -15,10 +15,32 @@ use crate::{
     world::World,
 };
 
-const RENDER_BUDGET_CEILING_US: u32 = 19_500;
-const RENDER_BUDGET_FLOOR_US: u32 = 16_000;
-const INTERLACE_COOLDOWN_FRAMES: u8 = 10;
-const WARMUP_FRAMES: u32 = 5;
+/// Dynamic performance budgeting and sensitivity tuning for auto-interlacing.
+#[derive(Clone, Copy, Debug)]
+pub struct InterlaceTuning {
+    /// Upper threshold before interlacing is triggered (in microseconds).
+    /// Default: 21_500 µs (~21.5 ms, targeting 40-45 FPS).
+    pub target_budget_us: u32,
+    /// Margin below target to exit interlacing (in microseconds).
+    /// Full-frame equivalent must drop below (target_budget_us - hysteresis_us) to exit.
+    /// Default: 3_500 µs (exits when full frame equivalent is under 18.0 ms).
+    pub hysteresis_us: u32,
+    /// Consecutive slow frames required to engage interlacing (1 = instant tripwire).
+    pub tripwire_frames: u8,
+    /// Consecutive healthy frames required before progressive mode is restored.
+    pub cooldown_frames: u8,
+}
+
+impl Default for InterlaceTuning {
+    fn default() -> Self {
+        Self {
+            target_budget_us: 21_500,
+            hysteresis_us: 3_500,
+            tripwire_frames: 1,
+            cooldown_frames: 5,
+        }
+    }
+}
 
 pub struct Engine<
     's,
@@ -26,18 +48,20 @@ pub struct Engine<
     const CELL_AREA: usize,
     const SCREEN_COLS: usize,
     const SCREEN_ROWS: usize,
+    const R_CAP: usize = 64,
     const DEBUG: bool = false,
 > {
-    compositor: Compositor<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS>,
+    compositor: Compositor<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS, R_CAP>,
     viewport: Viewport,
     scratch: &'s mut [Color],
     frame: u32,
     debug_stats: DebugStats,
     pub auto_interlace: bool,
     interlace_mode: InterlaceMode,
-    smoothed_render_us: u32,
     is_interlacing_engaged: bool,
-    cooldown_frames: u8,
+    tuning: InterlaceTuning,
+    slow_streak: u8,
+    fast_streak: u8,
     prev_frame_end_ms: u64,
 }
 
@@ -47,8 +71,9 @@ impl<
         const CELL_AREA: usize,
         const SCREEN_COLS: usize,
         const SCREEN_ROWS: usize,
+        const R_CAP: usize,
         const DEBUG: bool,
-    > Engine<'s, TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS, DEBUG>
+    > Engine<'s, TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS, R_CAP, DEBUG>
 {
     pub fn new(
         clear_color: Color,
@@ -64,10 +89,11 @@ impl<
             frame: 0,
             debug_stats: DebugStats::new(),
             auto_interlace: true,
-            interlace_mode: interlace_mode.unwrap_or(InterlaceMode::Columns),
-            smoothed_render_us: 10_000,
+            interlace_mode: interlace_mode.unwrap_or(InterlaceMode::Checkerboard),
             is_interlacing_engaged: false,
-            cooldown_frames: 0,
+            tuning: InterlaceTuning::default(),
+            slow_streak: 0,
+            fast_streak: 0,
             prev_frame_end_ms: 0,
         }
     }
@@ -98,48 +124,77 @@ impl<
             frame: 0,
             debug_stats: DebugStats::new(),
             auto_interlace: true,
-            interlace_mode: interlace_mode.unwrap_or(InterlaceMode::Columns),
-            smoothed_render_us: 10_000,
+            interlace_mode: interlace_mode.unwrap_or(InterlaceMode::Checkerboard),
             is_interlacing_engaged: false,
-            cooldown_frames: 0,
+            tuning: InterlaceTuning::default(),
+            slow_streak: 0,
+            fast_streak: 0,
             prev_frame_end_ms: 0,
         }
     }
 
-    /// Primary render entry point: auto-dispatches the world's tilemaps and entities.
     #[inline(always)]
-    pub fn render<
-        'a,
-        const ENT_CAP: usize,
-        const MAP_CAP: usize,
-        const PARTS: usize,
-        const R_CAP: usize,
-    >(
-        &mut self,
-        world: &mut World<'a, TILE_SIZE, CELL_AREA, ENT_CAP, MAP_CAP, PARTS, R_CAP>,
-    ) {
-        world.render_to_engine(self, false);
-    }
-
-    /// Renders without interlacing (for menus, transitions, or Game Over screen).
-    #[inline(always)]
-    pub fn render_progressive<
-        'a,
-        const ENT_CAP: usize,
-        const MAP_CAP: usize,
-        const PARTS: usize,
-        const R_CAP: usize,
-    >(
-        &mut self,
-        world: &mut World<'a, TILE_SIZE, CELL_AREA, ENT_CAP, MAP_CAP, PARTS, R_CAP>,
-    ) {
-        world.render_to_engine(self, true);
+    pub fn set_interlace_tuning(&mut self, tuning: InterlaceTuning) {
+        self.tuning = tuning;
     }
 
     #[inline(always)]
     pub fn set_interlacing(&mut self, mode: InterlaceMode, dynamic_adaptation: bool) {
         self.interlace_mode = mode;
         self.auto_interlace = dynamic_adaptation;
+        if !dynamic_adaptation {
+            self.is_interlacing_engaged = mode != InterlaceMode::None;
+        }
+    }
+
+    #[inline(always)]
+    pub fn render<
+        'a,
+        const ENT_CAP: usize,
+        const MAP_CAP: usize,
+        const PARTS: usize,
+        const PARTICLE_CAP: usize,
+        const PARTICLE_SYS_CAP: usize,
+    >(
+        &mut self,
+        world: &mut World<
+            'a,
+            TILE_SIZE,
+            CELL_AREA,
+            ENT_CAP,
+            MAP_CAP,
+            PARTS,
+            R_CAP,
+            PARTICLE_CAP,
+            PARTICLE_SYS_CAP,
+        >,
+    ) {
+        world.render_to_engine(self, false);
+    }
+
+    #[inline(always)]
+    pub fn render_progressive<
+        'a,
+        const ENT_CAP: usize,
+        const MAP_CAP: usize,
+        const PARTS: usize,
+        const PARTICLE_CAP: usize,
+        const PARTICLE_SYS_CAP: usize,
+    >(
+        &mut self,
+        world: &mut World<
+            'a,
+            TILE_SIZE,
+            CELL_AREA,
+            ENT_CAP,
+            MAP_CAP,
+            PARTS,
+            R_CAP,
+            PARTICLE_CAP,
+            PARTICLE_SYS_CAP,
+        >,
+    ) {
+        world.render_to_engine(self, true);
     }
 
     #[inline(always)]
@@ -172,6 +227,9 @@ impl<
     ) -> bool {
         match item {
             Renderable::Tilemap(_) => true,
+            Renderable::Particles(ps) => {
+                ps.is_visible(win_x0, win_y0, win_x1, win_y1, &self.viewport)
+            }
             Renderable::Sprite(s) => {
                 let w = s.pixel_width() as i16;
                 let h = s.pixel_height() as i16;
@@ -242,7 +300,7 @@ impl<
     }
 
     #[inline(always)]
-    fn resolve_interlace_mode(&mut self, viewport_moved: bool, sub_x: i32) -> InterlaceMode {
+    fn resolve_interlace_mode(&self, viewport_moved: bool, sub_x: i32) -> InterlaceMode {
         if self.interlace_mode == InterlaceMode::None {
             return InterlaceMode::None;
         }
@@ -251,29 +309,9 @@ impl<
             return self.interlace_mode;
         }
 
+        // Sub-pixel camera scrolling requires interlacing to prevent diagonal tearing
         if viewport_moved && sub_x != 0 {
             return self.interlace_mode;
-        }
-
-        if self.frame < WARMUP_FRAMES {
-            return InterlaceMode::None;
-        }
-
-        if self.is_interlacing_engaged {
-            let estimated_full_frame_us = self.smoothed_render_us.saturating_mul(2);
-
-            if estimated_full_frame_us < RENDER_BUDGET_FLOOR_US {
-                if self.cooldown_frames == 0 {
-                    self.is_interlacing_engaged = false;
-                } else {
-                    self.cooldown_frames -= 1;
-                }
-            } else {
-                self.cooldown_frames = INTERLACE_COOLDOWN_FRAMES;
-            }
-        } else if self.smoothed_render_us >= RENDER_BUDGET_CEILING_US {
-            self.is_interlacing_engaged = true;
-            self.cooldown_frames = INTERLACE_COOLDOWN_FRAMES;
         }
 
         if self.is_interlacing_engaged {
@@ -310,7 +348,7 @@ impl<
         if viewport_moved {
             self.compositor.grid.mark_all();
         } else {
-            for item in items[..visible_count].iter() {
+            for item in items[..visible_count].iter_mut() {
                 match item {
                     Renderable::Sprite(s) => {
                         if s.moved {
@@ -350,6 +388,13 @@ impl<
                             self.viewport.y,
                         );
                     }
+                    Renderable::Particles(ps) => {
+                        let vp = self.viewport;
+                        let grid = &mut self.compositor.grid;
+                        ps.mark_dirty(&vp, &mut |r| {
+                            grid.mark_rect(r);
+                        });
+                    }
                 }
             }
         }
@@ -387,8 +432,36 @@ impl<
         };
         self.prev_frame_end_ms = t_now;
 
-        if self.frame >= WARMUP_FRAMES {
-            self.smoothed_render_us = ((self.smoothed_render_us * 3) + render_duration_us) >> 2;
+        // Dynamic State Machine Transition: Fast Tripwire & Safe Exit
+        if self.auto_interlace {
+            if self.is_interlacing_engaged {
+                // In interlaced mode, cost is ~half. Double it to estimate full progressive cost.
+                let est_full_frame = render_duration_us.saturating_mul(2);
+                let exit_ceiling = self
+                    .tuning
+                    .target_budget_us
+                    .saturating_sub(self.tuning.hysteresis_us);
+
+                if est_full_frame <= exit_ceiling {
+                    self.fast_streak += 1;
+                    if self.fast_streak >= self.tuning.cooldown_frames {
+                        self.is_interlacing_engaged = false;
+                        self.fast_streak = 0;
+                        self.slow_streak = 0;
+                    }
+                } else {
+                    self.fast_streak = 0;
+                }
+            } else if render_duration_us > self.tuning.target_budget_us {
+                self.slow_streak += 1;
+                if self.slow_streak >= self.tuning.tripwire_frames {
+                    self.is_interlacing_engaged = true;
+                    self.slow_streak = 0;
+                    self.fast_streak = 0;
+                }
+            } else {
+                self.slow_streak = 0;
+            }
         }
 
         self.debug_stats.record_metrics(

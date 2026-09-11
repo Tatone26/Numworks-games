@@ -133,3 +133,29 @@ macro_rules! world_fill_tilemap {
         $world.add_tilemap(map)
     }};
 }
+
+/// Instantiates and registers a [`ParticleSystem`](crate::graphics::particles::ParticleSystem) into a World.
+#[macro_export]
+macro_rules! world_particles {
+    // 1. Initialized with a pre-configured auto-emitter
+    (world: $world:expr, z: $z:expr, kind: $kind:expr, emitter: $emitter:expr $(,)?) => {{
+        let mut sys = $crate::graphics::particles::ParticleSystem::new($z, $kind);
+        sys.set_emitter($emitter);
+        $world.add_particle_system(sys)
+    }};
+
+    // 2. Standalone particle system with explicit particle kind
+    (world: $world:expr, z: $z:expr, kind: $kind:expr $(,)?) => {{
+        let sys = $crate::graphics::particles::ParticleSystem::new($z, $kind);
+        $world.add_particle_system(sys)
+    }};
+
+    // 3. Standalone particle system (defaults to HorizontalStreak)
+    (world: $world:expr, z: $z:expr $(,)?) => {{
+        let sys = $crate::graphics::particles::ParticleSystem::new(
+            $z,
+            $crate::graphics::particles::ParticleKind::Pixel,
+        );
+        $world.add_particle_system(sys)
+    }};
+}

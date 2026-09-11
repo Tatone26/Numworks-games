@@ -596,4 +596,54 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         }
         false
     }
+
+    /// Computes the tilemap's bounding box projected into physical screen space.
+    #[inline(always)]
+    pub fn screen_bounds(
+        &self,
+        viewport: &crate::graphics::viewport::Viewport,
+    ) -> Option<[i16; 4]> {
+        let win_x0 = viewport.screen_x as i16;
+        let win_y0 = viewport.screen_y as i16;
+        let win_x1 = win_x0 + viewport.screen_w as i16 - 1;
+        let win_y1 = win_y0 + viewport.screen_h as i16 - 1;
+
+        let sx0 = if self.wrap.wraps_x() {
+            win_x0
+        } else {
+            let eff_x = self.parallax.apply(viewport.x) - self.origin_x - self.offset[0] as i32;
+            win_x0 - eff_x as i16
+        };
+
+        let sy0 = if self.wrap.wraps_y() {
+            win_y0
+        } else {
+            let eff_y = self.parallax.apply(viewport.y) - self.origin_y - self.offset[1] as i32;
+            win_y0 - eff_y as i16
+        };
+
+        let sx1 = if self.wrap.wraps_x() {
+            win_x1
+        } else {
+            sx0 + (self.cols * TILE_SIZE) as i16 - 1
+        };
+
+        let sy1 = if self.wrap.wraps_y() {
+            win_y1
+        } else {
+            sy0 + (self.rows * TILE_SIZE) as i16 - 1
+        };
+
+        // If completely outside the physical screen window, reject
+        if sx0 > win_x1 || sx1 < win_x0 || sy0 > win_y1 || sy1 < win_y0 {
+            None
+        } else {
+            Some([
+                sx0.max(win_x0),
+                sy0.max(win_y0),
+                sx1.min(win_x1),
+                sy1.min(win_y1),
+            ])
+        }
+    }
 }

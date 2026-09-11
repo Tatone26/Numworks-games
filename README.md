@@ -92,6 +92,6 @@ You can find a lot more programs on numworks.com, where anyone can submit their 
 
 ### TODOS
 
-* [ ] Update Menu to add lot-of-options support with multi page
+* [x] Update Menu to add lot-of-options support with multi page
 * [ ] Update Flappy Bird to be better !!
 * [ ] NEW GAMES IDEAS : crossy-road like, platformer

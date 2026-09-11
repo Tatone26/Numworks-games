@@ -1,12 +1,11 @@
 //! Low-level rasterizer, layer sorter, reverse-Z occlusion culler, and display batcher.
 
 use crate::graphics::dirty_grid::DirtyGrid;
+use crate::graphics::particles::ParticleRenderer;
 use crate::graphics::sprite::Sprite;
 use crate::graphics::tilemap::Tilemap;
 use crate::graphics::viewport::Viewport;
 use numworks_utils::eadk::{display, Color, Rect};
-
-const MAX_RENDER_ITEMS: usize = 36;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum InterlaceMode {
@@ -36,11 +35,11 @@ impl InterlaceMode {
     }
 }
 
-/// A renderable object variant submitted to the engine render list.
 pub enum Renderable<'r, 'a, const TILE_SIZE: usize, const CELL_AREA: usize> {
     Tilemap(&'r mut Tilemap<'a, TILE_SIZE, CELL_AREA>),
     Sprite(&'r mut Sprite<'a, TILE_SIZE, CELL_AREA>),
     UiSprite(&'r mut Sprite<'a, TILE_SIZE, CELL_AREA>),
+    Particles(&'r mut (dyn ParticleRenderer<TILE_SIZE, CELL_AREA> + 'r)),
 }
 
 impl<'r, 'a, const TILE_SIZE: usize, const CELL_AREA: usize>
@@ -52,6 +51,38 @@ impl<'r, 'a, const TILE_SIZE: usize, const CELL_AREA: usize>
             Renderable::Tilemap(tm) => tm.z,
             Renderable::Sprite(s) => s.z,
             Renderable::UiSprite(s) => s.z,
+            Renderable::Particles(ps) => ps.z(),
+        }
+    }
+
+    #[inline(always)]
+    pub fn is_opaque(&self) -> bool {
+        match self {
+            Renderable::Tilemap(tm) => !tm.transparent,
+            _ => false,
+        }
+    }
+
+    /// Screen-space half-open bounding box: [sx0, sy0, sx1, sy1] where sx1 = sx0 + w
+    #[inline(always)]
+    pub fn screen_bounds(&self, viewport: &Viewport) -> Option<[i16; 4]> {
+        match self {
+            Renderable::Tilemap(tm) => tm.screen_bounds(viewport),
+            Renderable::Sprite(s) => {
+                let (sx0, sy0) =
+                    viewport.world_to_screen(s.position[0] as i32, s.position[1] as i32);
+                let sx1 = sx0 + s.pixel_width() as i16;
+                let sy1 = sy0 + s.pixel_height() as i16;
+                Some([sx0, sy0, sx1, sy1])
+            }
+            Renderable::UiSprite(s) => {
+                let sx0 = s.position[0];
+                let sy0 = s.position[1];
+                let sx1 = sx0 + s.pixel_width() as i16;
+                let sy1 = sy0 + s.pixel_height() as i16;
+                Some([sx0, sy0, sx1, sy1])
+            }
+            Renderable::Particles(ps) => ps.screen_bounds(viewport),
         }
     }
 
@@ -61,6 +92,7 @@ impl<'r, 'a, const TILE_SIZE: usize, const CELL_AREA: usize>
             Renderable::Tilemap(tm) => tm.commit_frame(),
             Renderable::Sprite(s) => s.commit_frame(),
             Renderable::UiSprite(s) => s.commit_frame(),
+            Renderable::Particles(ps) => ps.commit_frame(),
         }
     }
 }
@@ -70,6 +102,7 @@ pub(crate) struct Compositor<
     const CELL_AREA: usize,
     const SCREEN_COLS: usize,
     const SCREEN_ROWS: usize,
+    const R_CAP: usize,
 > {
     pub(crate) grid: DirtyGrid<TILE_SIZE, SCREEN_COLS, SCREEN_ROWS>,
     clear_color: Color,
@@ -81,7 +114,8 @@ impl<
         const CELL_AREA: usize,
         const SCREEN_COLS: usize,
         const SCREEN_ROWS: usize,
-    > Compositor<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS>
+        const R_CAP: usize,
+    > Compositor<TILE_SIZE, CELL_AREA, SCREEN_COLS, SCREEN_ROWS, R_CAP>
 {
     pub fn new(clear_color: Color) -> Self {
         let mut comp = Self {
@@ -109,36 +143,18 @@ impl<
         items.sort_unstable_by_key(|item| item.z());
         let phase = (self.frame % 2) as usize;
 
-        let item_count = items.len().min(MAX_RENDER_ITEMS);
-        let mut bounds = [[0i16; 4]; MAX_RENDER_ITEMS];
+        let item_count = items.len().min(R_CAP);
+        let mut bounds = [None; R_CAP];
 
         for (idx, item) in items[..item_count].iter().enumerate() {
-            bounds[idx] = match item {
-                Renderable::Tilemap(_) => [0, 0, 0, 0],
-                Renderable::Sprite(s) => {
-                    let (sx0, sy0) =
-                        viewport.world_to_screen(s.position[0] as i32, s.position[1] as i32);
-                    let sx1 = sx0 + s.pixel_width() as i16 - 1;
-                    let sy1 = sy0 + s.pixel_height() as i16 - 1;
-                    [sx0, sy0, sx1, sy1]
-                }
-                Renderable::UiSprite(s) => {
-                    let sx0 = s.position[0];
-                    let sy0 = s.position[1];
-                    let sx1 = sx0 + s.pixel_width() as i16 - 1;
-                    let sy1 = sy0 + s.pixel_height() as i16 - 1;
-                    [sx0, sy0, sx1, sy1]
-                }
-            };
+            bounds[idx] = item.screen_bounds(viewport);
         }
 
         let (mask_scratch, pixel_scratch) = scratch.split_at_mut(CELL_AREA);
         let covered: &mut [bool; CELL_AREA] =
             unsafe { &mut *(mask_scratch.as_mut_ptr() as *mut [bool; CELL_AREA]) };
 
-        // This .rev() is extremely important and makes the engine look twice as good without any downsides.
-        // Something to do with scanline and memory, don't really know.
-        // But drawing right-to-left is a GAME CHANGER.
+        // Right-to-left column iteration
         for cx in (0..SCREEN_COLS).rev() {
             if !interlace.allows_column(cx, phase) {
                 continue;
@@ -146,7 +162,6 @@ impl<
 
             let col_mask = 1u32 << cx;
 
-            // Fast check: If entire column has zero dirty cells, skip all row checks
             let mut col_has_dirty = false;
             for r in 0..SCREEN_ROWS {
                 if (self.grid.curr[r] & col_mask) != 0 {
@@ -159,7 +174,7 @@ impl<
             }
 
             let cell_x = viewport.screen_x as i16 + (cx * TILE_SIZE) as i16;
-            let cell_x1 = cell_x + TILE_SIZE as i16 - 1;
+            let cell_x1 = cell_x + TILE_SIZE as i16;
 
             let mut y = 0;
             while let Some((span_start, span_end)) =
@@ -227,7 +242,7 @@ impl<
         span_end: usize,
         col_mask: u32,
         items: &[Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
-        bounds: &[[i16; 4]],
+        bounds: &[Option<[i16; 4]>],
         viewport: &Viewport,
         pixel_scratch: &mut [Color],
         covered: &mut [bool; CELL_AREA],
@@ -277,7 +292,7 @@ impl<
         cell_pos: [i16; 2],
         cell_x1: i16,
         items: &[Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
-        bounds: &[[i16; 4]],
+        bounds: &[Option<[i16; 4]>],
         viewport: &Viewport,
         buffer: &mut [Color; CELL_AREA],
         covered: &mut [bool; CELL_AREA],
@@ -286,11 +301,21 @@ impl<
         let mut pixels_covered: usize = 0;
 
         let [cell_x, cell_y] = cell_pos;
-        let cell_y1 = cell_y + TILE_SIZE as i16 - 1;
+        let cell_y1 = cell_y + TILE_SIZE as i16;
 
         for (idx, item) in items.iter().enumerate().rev() {
             if pixels_covered >= CELL_AREA {
                 break;
+            }
+
+            // Only process items that have valid screen bounds
+            let Some([sx0, sy0, sx1, sy1]) = bounds[idx] else {
+                continue;
+            };
+
+            // Half-open interval test: cell_pos is [cell_x..cell_x1), item is [sx0..sx1)
+            if sx0 >= cell_x1 || sx1 <= cell_x || sy0 >= cell_y1 || sy1 <= cell_y {
+                continue;
             }
 
             match item {
@@ -303,35 +328,32 @@ impl<
                         &mut pixels_covered,
                         self.frame,
                     );
-
-                    if !tm.transparent {
-                        break;
-                    }
                 }
                 Renderable::Sprite(s) => {
-                    let [sx0, sy0, sx1, sy1] = bounds[idx];
-                    if !(sx0 > cell_x1 || sx1 < cell_x || sy0 > cell_y1 || sy1 < cell_y) {
-                        s.blit_to_cell_reverse_z(
-                            buffer,
-                            covered,
-                            &mut pixels_covered,
-                            cell_pos,
-                            [sx0, sy0],
-                        );
-                    }
+                    s.blit_to_cell_reverse_z(
+                        buffer,
+                        covered,
+                        &mut pixels_covered,
+                        cell_pos,
+                        [sx0, sy0],
+                    );
                 }
                 Renderable::UiSprite(s) => {
-                    let [sx0, sy0, sx1, sy1] = bounds[idx];
-                    if !(sx0 > cell_x1 || sx1 < cell_x || sy0 > cell_y1 || sy1 < cell_y) {
-                        s.blit_to_cell_reverse_z(
-                            buffer,
-                            covered,
-                            &mut pixels_covered,
-                            cell_pos,
-                            [sx0, sy0],
-                        );
-                    }
+                    s.blit_to_cell_reverse_z(
+                        buffer,
+                        covered,
+                        &mut pixels_covered,
+                        cell_pos,
+                        [sx0, sy0],
+                    );
                 }
+                Renderable::Particles(ps) => {
+                    ps.blit_to_cell(cell_pos, viewport, buffer, covered, &mut pixels_covered);
+                }
+            }
+
+            if item.is_opaque() && pixels_covered >= CELL_AREA {
+                break;
             }
         }
 

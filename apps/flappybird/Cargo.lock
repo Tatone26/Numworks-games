@@ -19,7 +19,7 @@ dependencies = [
 
 [[package]]
 name = "flappybird"
-version = "1.0.0"
+version = "1.2.0"
 dependencies = [
  "heapless",
  "nppm_decoder",
@@ -52,7 +52,7 @@ version = "0.1.0"
 
 [[package]]
 name = "num_engine"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "cc",
  "heapless",
