@@ -196,18 +196,32 @@ impl<
             }
         }
 
-        for sys_opt in self.particle_systems.iter_mut() {
-            if let Some(sys) = sys_opt.as_mut() {
+        {
+            // Isolate active particle systems explicitly to bypass dyn-dispatch
+            let mut active_particles: Vec<&ParticleSystem<PARTICLE_CAP>, PARTICLE_SYS_CAP> =
+                Vec::new();
+            for sys in self.particle_systems.iter().flatten() {
                 if sys.active {
-                    let _ = list.push(Renderable::Particles(sys));
+                    let _ = active_particles.push(sys);
                 }
+            }
+
+            if progressive {
+                engine.render_frame_progressive(&mut list, &active_particles);
+            } else {
+                engine.render_frame(&mut list, &active_particles);
             }
         }
 
-        if progressive {
-            engine.render_frame_progressive(&mut list);
-        } else {
-            engine.render_frame(&mut list);
+        {
+            // Commit frames on particle systems manually since they are detached from Renderable
+            for sys_opt in self.particle_systems.iter_mut() {
+                if let Some(sys) = sys_opt.as_mut() {
+                    if sys.active {
+                        sys.commit_frame();
+                    }
+                }
+            }
         }
     }
 }

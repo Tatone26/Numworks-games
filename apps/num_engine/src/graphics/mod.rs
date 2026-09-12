@@ -12,7 +12,7 @@ pub mod viewport;
 
 // Re-export Sprite so it can be found directly under `crate::graphics::Sprite`
 pub use compositor::{InterlaceMode, Renderable};
-pub use particles::{Emitter, Particle, ParticleKind, ParticleRenderer, ParticleSystem};
+pub use particles::{Emitter, Particle, ParticleKind, ParticleSystem};
 pub use sprite::Sprite;
 pub use texture::{Animation, FrameCoord, TextureDescriptor};
 pub use tilemap::{Parallax, Tilemap, WrapMode};

@@ -90,7 +90,7 @@ pub struct Tilemap<'a, const TILE_SIZE: usize, const CELL_AREA: usize> {
     pub transparent: bool,
     pub parallax: Parallax,
     pub wrap: WrapMode,
-    /// Internal scrolling origin (camera offset inside the layer)
+    /// Internal scrolling translation in world pixels
     pub origin_x: i32,
     pub origin_y: i32,
     pub(crate) prev_origin_x: i32,
@@ -103,10 +103,6 @@ pub struct Tilemap<'a, const TILE_SIZE: usize, const CELL_AREA: usize> {
 }
 
 impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, CELL_AREA> {
-    // -------------------------------------------------------------------------
-    // 1. Constructors & Builders
-    // -------------------------------------------------------------------------
-
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         tileset: &'a Tileset,
@@ -146,10 +142,6 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         self
     }
 
-    // -------------------------------------------------------------------------
-    // 2. Configuration & Position Setters
-    // -------------------------------------------------------------------------
-
     #[inline(always)]
     pub fn set_offset(&mut self, offset: [i16; 2]) {
         self.offset = offset;
@@ -183,10 +175,6 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         };
     }
 
-    // -------------------------------------------------------------------------
-    // 3. Tile Access & Mutation
-    // -------------------------------------------------------------------------
-
     #[inline(always)]
     pub fn get_tile(&self, x: usize, y: usize) -> Option<[u8; 2]> {
         if x < self.cols && y < self.rows {
@@ -204,10 +192,7 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         }
     }
 
-    // -------------------------------------------------------------------------
-    // 4. Lifecycle & Frame Synchronization
-    // -------------------------------------------------------------------------
-
+    /// Fixed Kinematics: Negative speed moves the tilemap LEFT / UP (consistent with entities/pipes)
     pub fn update(&mut self) {
         match self.scroll {
             ScrollVelocity::Stationary => {}
@@ -215,7 +200,7 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
                 self.sub_pixel_acc += speed;
                 let delta = self.sub_pixel_acc as i32;
                 if delta != 0 {
-                    self.origin_x -= delta;
+                    self.origin_x += delta;
                     self.sub_pixel_acc -= delta as f32;
                     self.moved = true;
                 }
@@ -224,7 +209,7 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
                 self.sub_pixel_acc += speed;
                 let delta = self.sub_pixel_acc as i32;
                 if delta != 0 {
-                    self.origin_y -= delta;
+                    self.origin_y += delta;
                     self.sub_pixel_acc -= delta as f32;
                     self.moved = true;
                 }
@@ -239,18 +224,13 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         self.moved = false;
     }
 
-    // -------------------------------------------------------------------------
-    // 5. Spatial & Collision Queries
-    // -------------------------------------------------------------------------
-
-    /// Tests intersection with an axis-aligned bounding box taking `offset` and `wrap` into account.
     pub fn collides_with_rect(&self, x: i16, y: i16, width: u16, height: u16) -> bool {
         if width == 0 || height == 0 {
             return false;
         }
 
-        let local_x = (x - self.offset[0]) as i32;
-        let local_y = (y - self.offset[1]) as i32;
+        let local_x = (x - self.offset[0]) as i32 - self.origin_x;
+        let local_y = (y - self.offset[1]) as i32 - self.origin_y;
         let x1 = local_x + width as i32;
         let y1 = local_y + height as i32;
 
@@ -270,11 +250,6 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         false
     }
 
-    // -------------------------------------------------------------------------
-    // 6. Cell Rasterization (Reverse-Z)
-    // -------------------------------------------------------------------------
-
-    /// Front-to-back blit with fast-path alignment and multi-quadrant straddling.
     pub(crate) fn blit_to_cell_reverse_z(
         &self,
         cell_coords: [usize; 2],
@@ -291,24 +266,26 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         let [cx, cy] = cell_coords;
         let [cam_x, cam_y] = cam;
 
-        // Apply parallax, internal origin scrolling, and layer offset
-        let eff_x = self.parallax.apply(cam_x) - self.origin_x - self.offset[0] as i32;
-        let eff_y = self.parallax.apply(cam_y) - self.origin_y - self.offset[1] as i32;
+        let eff_x = self.parallax.apply(cam_x) + self.origin_x + self.offset[0] as i32;
+        let eff_y = self.parallax.apply(cam_y) + self.origin_y + self.offset[1] as i32;
 
-        let world_x = (cx * TILE_SIZE) as i32 + eff_x;
-        let world_y = (cy * TILE_SIZE) as i32 + eff_y;
+        let cell_world_x = (cx * TILE_SIZE) as i32;
+        let cell_world_y = (cy * TILE_SIZE) as i32;
+
+        let rel_x = cell_world_x - eff_x;
+        let rel_y = cell_world_y - eff_y;
 
         let ts = TILE_SIZE as i32;
-        let base_tx = world_x.div_euclid(ts);
-        let base_ty = world_y.div_euclid(ts);
-        let sub_x = world_x.rem_euclid(ts) as usize;
-        let sub_y = world_y.rem_euclid(ts) as usize;
+        let base_tx = rel_x.div_euclid(ts);
+        let base_ty = rel_y.div_euclid(ts);
+        let sub_x = rel_x.rem_euclid(ts) as usize;
+        let sub_y = rel_y.rem_euclid(ts) as usize;
 
-        let fast_copy = !self.transparent && *pixels_covered == 0;
-
-        // Path A: Aligned Fast Path (Zero sub-tile boundary seams)
+        // Path A: Perfectly grid-aligned cell
         if sub_x == 0 && sub_y == 0 {
             if let Some(tile) = self.get_tile_slice(base_tx, base_ty, frame_counter) {
+                // If tiles have no transparency color and the cell was empty, it completely occludes
+                let fast_copy = !self.transparent && *pixels_covered == 0;
                 Self::blit_span(
                     cell_buf,
                     covered,
@@ -322,10 +299,11 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
                     *pixels_covered = CELL_AREA;
                 }
             }
+            // If get_tile_slice returned None, we drew nothing and pixels_covered is NOT touched.
             return;
         }
 
-        // Path B: Straddled Multi-Quadrant Path
+        // Path B: Sub-pixel straddled cell (across up to 4 tiles)
         let t_tl = self.get_tile_slice(base_tx, base_ty, frame_counter);
         let t_tr = if sub_x != 0 {
             self.get_tile_slice(base_tx + 1, base_ty, frame_counter)
@@ -343,7 +321,7 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
             None
         };
 
-        // If all overlapping quadrants are empty, skip cell entirely
+        // If no tiles intersect this cell at all, exit immediately
         if t_tl.is_none() && t_tr.is_none() && t_bl.is_none() && t_br.is_none() {
             return;
         }
@@ -352,6 +330,14 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         let w_right = sub_x;
         let h_top = TILE_SIZE - sub_y;
         let h_bot = sub_y;
+
+        // The entire cell is only 100% solid if ALL overlapping tiles exist and tiles are opaque
+        let all_quadrants_exist = t_tl.is_some()
+            && (sub_x == 0 || t_tr.is_some())
+            && (sub_y == 0 || t_bl.is_some())
+            && (sub_x == 0 || sub_y == 0 || t_br.is_some());
+
+        let fast_copy = !self.transparent && *pixels_covered == 0 && all_quadrants_exist;
 
         for row in 0..h_top {
             let dst_row = row * TILE_SIZE;
@@ -414,10 +400,6 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         }
     }
 
-    // -------------------------------------------------------------------------
-    // 7. Dirty Grid Invalidation
-    // -------------------------------------------------------------------------
-
     pub(crate) fn mark_sparse_dirty<const SCREEN_COLS: usize, const SCREEN_ROWS: usize>(
         &self,
         frame_counter: u32,
@@ -436,28 +418,28 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
             return;
         }
 
-        let eff_x = self.parallax.apply(cam_x) - self.origin_x - self.offset[0] as i32;
-        let eff_y = self.parallax.apply(cam_y) - self.origin_y - self.offset[1] as i32;
-        let prev_eff_x = self.parallax.apply(cam_x) - self.prev_origin_x - self.offset[0] as i32;
-        let prev_eff_y = self.parallax.apply(cam_y) - self.prev_origin_y - self.offset[1] as i32;
+        let eff_x = self.parallax.apply(cam_x) + self.origin_x + self.offset[0] as i32;
+        let eff_y = self.parallax.apply(cam_y) + self.origin_y + self.offset[1] as i32;
+        let prev_eff_x = self.parallax.apply(cam_x) + self.prev_origin_x + self.offset[0] as i32;
+        let prev_eff_y = self.parallax.apply(cam_y) + self.prev_origin_y + self.offset[1] as i32;
 
         for cy in 0..SCREEN_ROWS {
-            let world_y = (cy * TILE_SIZE) as i32 + eff_y;
-            let prev_world_y = (cy * TILE_SIZE) as i32 + prev_eff_y;
+            let rel_y = (cy * TILE_SIZE) as i32 - eff_y;
+            let prev_rel_y = (cy * TILE_SIZE) as i32 - prev_eff_y;
 
             for cx in 0..SCREEN_COLS {
-                let world_x = (cx * TILE_SIZE) as i32 + eff_x;
-                let prev_world_x = (cx * TILE_SIZE) as i32 + prev_eff_x;
+                let rel_x = (cx * TILE_SIZE) as i32 - eff_x;
+                let prev_rel_x = (cx * TILE_SIZE) as i32 - prev_eff_x;
 
                 let mut mark = false;
 
                 if self.moved {
-                    mark = self.cell_has_tiles(world_x, world_y)
-                        || self.cell_has_tiles(prev_world_x, prev_world_y);
+                    mark = self.cell_has_tiles(rel_x, rel_y)
+                        || self.cell_has_tiles(prev_rel_x, prev_rel_y);
                 }
 
                 if !mark && active_anim_mask != 0 {
-                    mark = self.cell_has_anim(world_x, world_y, active_anim_mask);
+                    mark = self.cell_has_anim(rel_x, rel_y, active_anim_mask);
                 }
 
                 if mark {
@@ -466,10 +448,6 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
             }
         }
     }
-
-    // -------------------------------------------------------------------------
-    // 8. Private Helpers
-    // -------------------------------------------------------------------------
 
     #[inline(always)]
     fn blit_span(
@@ -557,12 +535,12 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
     }
 
     #[inline(always)]
-    fn cell_has_tiles(&self, world_x: i32, world_y: i32) -> bool {
+    fn cell_has_tiles(&self, rel_x: i32, rel_y: i32) -> bool {
         let ts = TILE_SIZE as i32;
-        let base_tx = world_x.div_euclid(ts);
-        let base_ty = world_y.div_euclid(ts);
-        let max_dtx = if world_x.rem_euclid(ts) != 0 { 1 } else { 0 };
-        let max_dty = if world_y.rem_euclid(ts) != 0 { 1 } else { 0 };
+        let base_tx = rel_x.div_euclid(ts);
+        let base_ty = rel_y.div_euclid(ts);
+        let max_dtx = if rel_x.rem_euclid(ts) != 0 { 1 } else { 0 };
+        let max_dty = if rel_y.rem_euclid(ts) != 0 { 1 } else { 0 };
 
         for dty in 0..=max_dty {
             for dtx in 0..=max_dtx {
@@ -575,12 +553,12 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
     }
 
     #[inline(always)]
-    fn cell_has_anim(&self, world_x: i32, world_y: i32, mask: u16) -> bool {
+    fn cell_has_anim(&self, rel_x: i32, rel_y: i32, mask: u16) -> bool {
         let ts = TILE_SIZE as i32;
-        let base_tx = world_x.div_euclid(ts);
-        let base_ty = world_y.div_euclid(ts);
-        let max_dtx = if world_x.rem_euclid(ts) != 0 { 1 } else { 0 };
-        let max_dty = if world_y.rem_euclid(ts) != 0 { 1 } else { 0 };
+        let base_tx = rel_x.div_euclid(ts);
+        let base_ty = rel_y.div_euclid(ts);
+        let max_dtx = if rel_x.rem_euclid(ts) != 0 { 1 } else { 0 };
+        let max_dty = if rel_y.rem_euclid(ts) != 0 { 1 } else { 0 };
 
         for dty in 0..=max_dty {
             for dtx in 0..=max_dtx {
@@ -597,7 +575,7 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         false
     }
 
-    /// Computes the tilemap's bounding box projected into physical screen space.
+    /// Accurate physical screen bounding box honoring offset and wrapping
     #[inline(always)]
     pub fn screen_bounds(
         &self,
@@ -605,37 +583,37 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
     ) -> Option<[i16; 4]> {
         let win_x0 = viewport.screen_x as i16;
         let win_y0 = viewport.screen_y as i16;
-        let win_x1 = win_x0 + viewport.screen_w as i16 - 1;
-        let win_y1 = win_y0 + viewport.screen_h as i16 - 1;
+        let win_x1 = win_x0 + viewport.screen_w as i16;
+        let win_y1 = win_y0 + viewport.screen_h as i16;
+
+        let eff_x = self.parallax.apply(viewport.x) + self.origin_x + self.offset[0] as i32;
+        let eff_y = self.parallax.apply(viewport.y) + self.origin_y + self.offset[1] as i32;
 
         let sx0 = if self.wrap.wraps_x() {
             win_x0
         } else {
-            let eff_x = self.parallax.apply(viewport.x) - self.origin_x - self.offset[0] as i32;
-            win_x0 - eff_x as i16
+            win_x0 + eff_x as i16
         };
 
         let sy0 = if self.wrap.wraps_y() {
             win_y0
         } else {
-            let eff_y = self.parallax.apply(viewport.y) - self.origin_y - self.offset[1] as i32;
-            win_y0 - eff_y as i16
+            win_y0 + eff_y as i16
         };
 
         let sx1 = if self.wrap.wraps_x() {
             win_x1
         } else {
-            sx0 + (self.cols * TILE_SIZE) as i16 - 1
+            sx0 + (self.cols * TILE_SIZE) as i16
         };
 
         let sy1 = if self.wrap.wraps_y() {
             win_y1
         } else {
-            sy0 + (self.rows * TILE_SIZE) as i16 - 1
+            sy0 + (self.rows * TILE_SIZE) as i16
         };
 
-        // If completely outside the physical screen window, reject
-        if sx0 > win_x1 || sx1 < win_x0 || sy0 > win_y1 || sy1 < win_y0 {
+        if sx0 >= win_x1 || sx1 <= win_x0 || sy0 >= win_y1 || sy1 <= win_y0 {
             None
         } else {
             Some([

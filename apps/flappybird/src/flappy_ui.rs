@@ -21,71 +21,71 @@ pub const UI_BACKGROUND: Color = Color::from_rgb888(50, 50, 50);
 
 // Wind streak palettes
 pub const COLOR_TAILWIND: Color = Color::from_rgb888(235, 245, 255);
-pub const COLOR_HEADWIND: Color = Color::from_rgb888(175, 190, 205);
+pub const COLOR_HEADWIND: Color = COLOR_TAILWIND;
 pub const COLOR_LOW_GRAV: Color = Color::from_rgb888(235, 245, 205);
 
 #[inline(always)]
 pub const fn tailwind_emitter() -> Emitter {
     emitter!(
-        area: [-20, 20, 10, 170],
+        area: [-20, 50, 10, VIEW_SCREEN_H - 50],
         rate: 1,
-        interval: 2,
+        interval: 3,
         vx: [6.5, 9.5],
         vy: [0.0, 0.0],
         width: [8, 16],
         height: [1, 1],
         color: COLOR_TAILWIND,
-        life: [30, 42],
+        life: [25, 38],
     )
 }
 
 #[inline(always)]
 pub const fn headwind_emitter() -> Emitter {
     emitter!(
-        area: [VIEW_SCREEN_W as i16 + 10, 20, 10, 170],
+        area: [VIEW_SCREEN_W as i16 + 50, 50, 10, VIEW_SCREEN_H - 50],
         rate: 1,
-        interval: 2,
+        interval: 3,
         vx: [-9.5, -6.5],
         vy: [0.0, 0.0],
         width: [10, 18],
         height: [1, 1],
         color: COLOR_HEADWIND,
-        life: [30, 42],
+        life: [25, 38],
     )
 }
 
 #[inline(always)]
 pub const fn low_gravity_emitter() -> Emitter {
     emitter!(
-        area: [5, VIEW_SCREEN_H as i16 - TILE_SIZE as i16, VIEW_SCREEN_W as i16 - 10, 10],
+        area: [30, VIEW_SCREEN_H as i16 - 5, VIEW_SCREEN_W as i16 - 70, 10],
         rate: 1,
-        interval: 2,
+        interval: 3,
         vx: [0.0, 0.0],
         vy: [-9.5, -6.5],
         width: [1, 1],
         height: [10, 18],
         color: COLOR_LOW_GRAV,
-        life: [30, 42],
+        life: [25, 38],
     )
 }
 
 #[inline(always)]
 pub const fn high_gravity_emitter() -> Emitter {
     emitter!(
-        area: [5, -5, VIEW_SCREEN_W as i16 - 10, 10],
+        area: [30, -5, VIEW_SCREEN_W as i16 - 70, 10],
         rate: 1,
-        interval: 2,
+        interval: 3,
         vx: [0.0, 0.0],
         vy: [9.5, 6.5],
         width: [1, 1],
         height: [10, 18],
         color: COLOR_LOW_GRAV,
-        life: [30, 42],
+        life: [25, 38],
     )
 }
 
-define_anim!(pub ANIM_BIRD_FLAP_UP, &TILESET, 1, 1, false, 1, [(3, 0)]);
-define_anim!(pub ANIM_BIRD_FALL, &TILESET, 1, 1, false, 1, [(0, 0)]);
+define_anim!(pub ANIM_BIRD_FLAP_UP, &TILESET, 1, 1, true, 1, [(3, 0)]);
+define_anim!(pub ANIM_BIRD_FALL, &TILESET, 1, 1, true, 1, [(0, 0)]);
 define_anim!(pub ANIM_BIRD_DEAD, &TILESET, 1, 1, true, 1, [(0, 3)]);
 
 define_anim!(pub ANIM_CLOUD, &TILESET, 2, 1, true, 1, [(1, 3)]);
@@ -94,6 +94,7 @@ define_anim!(pub ANIM_PIPE_LIP_TOP, &TILESET, 4, 1, true, 1, [(0, 1)]);
 define_anim!(pub ANIM_PIPE_LIP_BOT, &TILESET, 4, 1, true, 1, [(0, 2)]);
 
 define_repeating_anim!(pub ANIM_PIPE_SHAFT, &TILESET, 2, 11, 2, 1, false, 1, [(1, 0)]);
+define_anim!(pub ANIM_PIPE_SHAFT_LITTLE, &TILESET, 2, 1, false, 1, [(1, 0)]);
 
 pub fn draw_constant_ui(high_score: u16) {
     push_rect_uniform(
@@ -206,7 +207,23 @@ pub fn menu_vis_addon() {
     ANIM_PIPE_LIP_BOT.draw_at(
         Point {
             x: CENTER.x + 10,
-            y: 97 + 10 - TILESET_TILE_SIZE,
+            y: 97 - TILESET_TILE_SIZE,
+        },
+        0,
+    );
+
+    ANIM_PIPE_SHAFT_LITTLE.draw_at(
+        Point {
+            x: CENTER.x + 10 + TILESET_TILE_SIZE,
+            y: 97,
+        },
+        0,
+    );
+
+    ANIM_CLOUD.draw_at(
+        Point {
+            x: CENTER.x - 95,
+            y: 25,
         },
         0,
     );

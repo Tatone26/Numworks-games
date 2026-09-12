@@ -134,26 +134,81 @@ macro_rules! world_fill_tilemap {
     }};
 }
 
+/// Parses ASCII art layouts into a static buffer and registers it directly into World.
+#[macro_export]
+macro_rules! world_ascii_tilemap {
+    (
+        world: $world:expr,
+        tileset: $tileset:expr,
+        buffer: $buf:ident,
+        cols: $cols:expr,
+        rows: $rows:expr,
+        $(offset: [$ox:expr, $oy:expr],)?
+        z: $z:expr,
+        transparent: $trans:expr,
+        parallax: $parallax:expr,
+        wrap: $wrap:expr,
+        mapping: { $( $char:pat => $tile:expr ),* $(,)? },
+        layout: $layout:expr $(,)?
+    ) => {{
+        let buf_ref = unsafe { &mut *(&raw mut $buf) };
+        let map = $crate::ascii_tilemap!(
+            tileset: $tileset,
+            buffer: buf_ref,
+            cols: $cols,
+            rows: $rows,
+            $(offset: [$ox, $oy],)?
+            z: $z,
+            transparent: $trans,
+            parallax: $parallax,
+            wrap: $wrap,
+            mapping: { $( $char => $tile ),* },
+            layout: $layout,
+        );
+        $world.add_tilemap(map)
+    }};
+}
+
 /// Instantiates and registers a [`ParticleSystem`](crate::graphics::particles::ParticleSystem) into a World.
 #[macro_export]
 macro_rules! world_particles {
-    // 1. Initialized with a pre-configured auto-emitter
+    // 1. Initialized with a pre-configured auto-emitter (simplified, no z needed)
+    (world: $world:expr, kind: $kind:expr, emitter: $emitter:expr $(,)?) => {{
+        let mut sys = $crate::graphics::particles::ParticleSystem::new(0, $kind);
+        sys.set_emitter($emitter);
+        $world.add_particle_system(sys)
+    }};
+
+    // 2. Standalone system with kind (simplified, no z needed)
+    (world: $world:expr, kind: $kind:expr $(,)?) => {{
+        let sys = $crate::graphics::particles::ParticleSystem::new(0, $kind);
+        $world.add_particle_system(sys)
+    }};
+
+    // 3. Backward-compatible branches accepting legacy z: $z
     (world: $world:expr, z: $z:expr, kind: $kind:expr, emitter: $emitter:expr $(,)?) => {{
         let mut sys = $crate::graphics::particles::ParticleSystem::new($z, $kind);
         sys.set_emitter($emitter);
         $world.add_particle_system(sys)
     }};
 
-    // 2. Standalone particle system with explicit particle kind
     (world: $world:expr, z: $z:expr, kind: $kind:expr $(,)?) => {{
         let sys = $crate::graphics::particles::ParticleSystem::new($z, $kind);
         $world.add_particle_system(sys)
     }};
 
-    // 3. Standalone particle system (defaults to HorizontalStreak)
     (world: $world:expr, z: $z:expr $(,)?) => {{
         let sys = $crate::graphics::particles::ParticleSystem::new(
             $z,
+            $crate::graphics::particles::ParticleKind::Pixel,
+        );
+        $world.add_particle_system(sys)
+    }};
+
+    // 4. Fallback default
+    (world: $world:expr $(,)?) => {{
+        let sys = $crate::graphics::particles::ParticleSystem::new(
+            0,
             $crate::graphics::particles::ParticleKind::Pixel,
         );
         $world.add_particle_system(sys)

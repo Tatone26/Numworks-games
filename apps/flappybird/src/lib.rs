@@ -15,7 +15,9 @@ use numworks_utils::{
     utils::CENTER,
 };
 
-use crate::flappy_ui::{ANIM_BIRD_FALL, ANIM_PIPE_LIP_TOP};
+use crate::flappy_ui::{
+    ANIM_BIRD_FALL, ANIM_CLOUD, ANIM_PIPE_LIP_BOT, ANIM_PIPE_LIP_TOP, TILESET_TILE_SIZE,
+};
 
 pub fn get_name() -> String<15> {
     String::try_from("Flappy Bird\0").unwrap()
@@ -43,7 +45,6 @@ pub fn thumbnail(_: Point) {
         BACKGROUND,
     );
 
-    // Draw a miniature bird preview inside the thumbnail frame
     ANIM_BIRD_FALL.draw_at(
         Point {
             x: CENTER.x - 30,
@@ -52,11 +53,20 @@ pub fn thumbnail(_: Point) {
         0,
     );
 
-    // Draw a decorative mini-pipe entrance beside it
-    ANIM_PIPE_LIP_TOP.draw_at(
+    ANIM_PIPE_LIP_BOT.draw_at(
         Point {
-            x: CENTER.x + 10,
-            y: 45,
+            x: CENTER.x,
+            y: 18 + 94 - TILESET_TILE_SIZE,
+        },
+        0,
+    );
+
+    ANIM_PIPE_LIP_TOP.draw_at(Point { x: CENTER.x, y: 18 }, 0);
+
+    ANIM_CLOUD.draw_at(
+        Point {
+            x: CENTER.x - 65,
+            y: 45 - TILESET_TILE_SIZE,
         },
         0,
     );

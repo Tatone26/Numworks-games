@@ -1,7 +1,7 @@
 //! Low-level rasterizer, layer sorter, reverse-Z occlusion culler, and display batcher.
 
 use crate::graphics::dirty_grid::DirtyGrid;
-use crate::graphics::particles::ParticleRenderer;
+use crate::graphics::particles::ParticleSystem;
 use crate::graphics::sprite::Sprite;
 use crate::graphics::tilemap::Tilemap;
 use crate::graphics::viewport::Viewport;
@@ -39,7 +39,6 @@ pub enum Renderable<'r, 'a, const TILE_SIZE: usize, const CELL_AREA: usize> {
     Tilemap(&'r mut Tilemap<'a, TILE_SIZE, CELL_AREA>),
     Sprite(&'r mut Sprite<'a, TILE_SIZE, CELL_AREA>),
     UiSprite(&'r mut Sprite<'a, TILE_SIZE, CELL_AREA>),
-    Particles(&'r mut (dyn ParticleRenderer<TILE_SIZE, CELL_AREA> + 'r)),
 }
 
 impl<'r, 'a, const TILE_SIZE: usize, const CELL_AREA: usize>
@@ -51,7 +50,6 @@ impl<'r, 'a, const TILE_SIZE: usize, const CELL_AREA: usize>
             Renderable::Tilemap(tm) => tm.z,
             Renderable::Sprite(s) => s.z,
             Renderable::UiSprite(s) => s.z,
-            Renderable::Particles(ps) => ps.z(),
         }
     }
 
@@ -63,7 +61,6 @@ impl<'r, 'a, const TILE_SIZE: usize, const CELL_AREA: usize>
         }
     }
 
-    /// Screen-space half-open bounding box: [sx0, sy0, sx1, sy1] where sx1 = sx0 + w
     #[inline(always)]
     pub fn screen_bounds(&self, viewport: &Viewport) -> Option<[i16; 4]> {
         match self {
@@ -82,7 +79,6 @@ impl<'r, 'a, const TILE_SIZE: usize, const CELL_AREA: usize>
                 let sy1 = sy0 + s.pixel_height() as i16;
                 Some([sx0, sy0, sx1, sy1])
             }
-            Renderable::Particles(ps) => ps.screen_bounds(viewport),
         }
     }
 
@@ -92,7 +88,6 @@ impl<'r, 'a, const TILE_SIZE: usize, const CELL_AREA: usize>
             Renderable::Tilemap(tm) => tm.commit_frame(),
             Renderable::Sprite(s) => s.commit_frame(),
             Renderable::UiSprite(s) => s.commit_frame(),
-            Renderable::Particles(ps) => ps.commit_frame(),
         }
     }
 }
@@ -132,9 +127,10 @@ impl<
         self.frame = frame;
     }
 
-    pub fn render<'a>(
+    pub fn render<'a, const PCAP: usize>(
         &mut self,
         items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
+        particles: &[&ParticleSystem<PCAP>],
         viewport: &Viewport,
         scratch: &mut [Color],
         _viewport_moved: bool,
@@ -154,7 +150,6 @@ impl<
         let covered: &mut [bool; CELL_AREA] =
             unsafe { &mut *(mask_scratch.as_mut_ptr() as *mut [bool; CELL_AREA]) };
 
-        // Right-to-left column iteration
         for cx in (0..SCREEN_COLS).rev() {
             if !interlace.allows_column(cx, phase) {
                 continue;
@@ -189,6 +184,7 @@ impl<
                     col_mask,
                     &items[..item_count],
                     &bounds[..item_count],
+                    particles,
                     viewport,
                     pixel_scratch,
                     covered,
@@ -232,8 +228,9 @@ impl<
         Some((span_start, y))
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[inline(always)]
-    fn render_vertical_span<'a>(
+    fn render_vertical_span<'a, const PCAP: usize>(
         &mut self,
         cx: usize,
         cell_x: i16,
@@ -243,6 +240,7 @@ impl<
         col_mask: u32,
         items: &[Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
         bounds: &[Option<[i16; 4]>],
+        particles: &[&ParticleSystem<PCAP>],
         viewport: &Viewport,
         pixel_scratch: &mut [Color],
         covered: &mut [bool; CELL_AREA],
@@ -265,6 +263,7 @@ impl<
                 cell_x1,
                 items,
                 bounds,
+                particles,
                 viewport,
                 cell_buf,
                 covered,
@@ -284,8 +283,9 @@ impl<
         );
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[inline(always)]
-    fn composite_cell<'a>(
+    fn composite_cell<'a, const PCAP: usize>(
         &self,
         cx: usize,
         cy: usize,
@@ -293,6 +293,7 @@ impl<
         cell_x1: i16,
         items: &[Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
         bounds: &[Option<[i16; 4]>],
+        particles: &[&ParticleSystem<PCAP>],
         viewport: &Viewport,
         buffer: &mut [Color; CELL_AREA],
         covered: &mut [bool; CELL_AREA],
@@ -308,12 +309,10 @@ impl<
                 break;
             }
 
-            // Only process items that have valid screen bounds
             let Some([sx0, sy0, sx1, sy1]) = bounds[idx] else {
                 continue;
             };
 
-            // Half-open interval test: cell_pos is [cell_x..cell_x1), item is [sx0..sx1)
             if sx0 >= cell_x1 || sx1 <= cell_x || sy0 >= cell_y1 || sy1 <= cell_y {
                 continue;
             }
@@ -347,12 +346,10 @@ impl<
                         [sx0, sy0],
                     );
                 }
-                Renderable::Particles(ps) => {
-                    ps.blit_to_cell(cell_pos, viewport, buffer, covered, &mut pixels_covered);
-                }
             }
 
-            if item.is_opaque() && pixels_covered >= CELL_AREA {
+            // Once the cell is full (from an opaque tilemap tile, or sprite stack), stop!
+            if pixels_covered >= CELL_AREA {
                 break;
             }
         }
@@ -366,6 +363,13 @@ impl<
                         buffer[idx] = self.clear_color;
                     }
                 }
+            }
+        }
+
+        // Overlay mathematically evaluated particles bypassing the `covered` mask logic
+        for ps in particles {
+            if ps.active {
+                ps.blit_to_cell::<TILE_SIZE, CELL_AREA>(cell_pos, viewport, buffer);
             }
         }
     }

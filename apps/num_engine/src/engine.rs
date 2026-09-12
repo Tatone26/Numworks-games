@@ -11,23 +11,16 @@ use numworks_utils::{
 use crate::{
     debug::DebugStats,
     graphics::compositor::{Compositor, InterlaceMode, Renderable},
+    graphics::particles::ParticleSystem,
     graphics::viewport::Viewport,
     world::World,
 };
 
-/// Dynamic performance budgeting and sensitivity tuning for auto-interlacing.
 #[derive(Clone, Copy, Debug)]
 pub struct InterlaceTuning {
-    /// Upper threshold before interlacing is triggered (in microseconds).
-    /// Default: 21_500 µs (~21.5 ms, targeting 40-45 FPS).
     pub target_budget_us: u32,
-    /// Margin below target to exit interlacing (in microseconds).
-    /// Full-frame equivalent must drop below (target_budget_us - hysteresis_us) to exit.
-    /// Default: 3_500 µs (exits when full frame equivalent is under 18.0 ms).
     pub hysteresis_us: u32,
-    /// Consecutive slow frames required to engage interlacing (1 = instant tripwire).
     pub tripwire_frames: u8,
-    /// Consecutive healthy frames required before progressive mode is restored.
     pub cooldown_frames: u8,
 }
 
@@ -227,9 +220,6 @@ impl<
     ) -> bool {
         match item {
             Renderable::Tilemap(_) => true,
-            Renderable::Particles(ps) => {
-                ps.is_visible(win_x0, win_y0, win_x1, win_y1, &self.viewport)
-            }
             Renderable::Sprite(s) => {
                 let w = s.pixel_width() as i16;
                 let h = s.pixel_height() as i16;
@@ -309,7 +299,6 @@ impl<
             return self.interlace_mode;
         }
 
-        // Sub-pixel camera scrolling requires interlacing to prevent diagonal tearing
         if viewport_moved && sub_x != 0 {
             return self.interlace_mode;
         }
@@ -321,25 +310,31 @@ impl<
         }
     }
 
-    pub fn render_frame<'a>(&mut self, items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>]) {
+    pub fn render_frame<'a, const PCAP: usize>(
+        &mut self,
+        items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
+        particles: &[&ParticleSystem<PCAP>],
+    ) {
         let viewport_moved = self.viewport.moved();
         let sub_x = self.viewport.x.rem_euclid(TILE_SIZE as i32);
         let active_interlace = self.resolve_interlace_mode(viewport_moved, sub_x);
 
-        self.render_pipeline(items, viewport_moved, active_interlace);
+        self.render_pipeline(items, particles, viewport_moved, active_interlace);
     }
 
-    pub fn render_frame_progressive<'a>(
+    pub fn render_frame_progressive<'a, const PCAP: usize>(
         &mut self,
         items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
+        particles: &[&ParticleSystem<PCAP>],
     ) {
         let viewport_moved = self.viewport.moved();
-        self.render_pipeline(items, viewport_moved, InterlaceMode::None);
+        self.render_pipeline(items, particles, viewport_moved, InterlaceMode::None);
     }
 
-    fn render_pipeline<'a>(
+    fn render_pipeline<'a, const PCAP: usize>(
         &mut self,
         items: &mut [Renderable<'_, 'a, TILE_SIZE, CELL_AREA>],
+        particles: &[&ParticleSystem<PCAP>],
         viewport_moved: bool,
         active_interlace: InterlaceMode,
     ) {
@@ -388,14 +383,11 @@ impl<
                             self.viewport.y,
                         );
                     }
-                    Renderable::Particles(ps) => {
-                        let vp = self.viewport;
-                        let grid = &mut self.compositor.grid;
-                        ps.mark_dirty(&vp, &mut |r| {
-                            grid.mark_rect(r);
-                        });
-                    }
                 }
+            }
+
+            for ps in particles {
+                ps.mark_dirty(&self.viewport, &mut self.compositor.grid);
             }
         }
 
@@ -415,6 +407,7 @@ impl<
         let scratch = &mut *self.scratch;
         self.compositor.render(
             &mut items[..visible_count],
+            particles,
             &self.viewport,
             scratch,
             viewport_moved,
@@ -432,10 +425,8 @@ impl<
         };
         self.prev_frame_end_ms = t_now;
 
-        // Dynamic State Machine Transition: Fast Tripwire & Safe Exit
         if self.auto_interlace {
             if self.is_interlacing_engaged {
-                // In interlaced mode, cost is ~half. Double it to estimate full progressive cost.
                 let est_full_frame = render_duration_us.saturating_mul(2);
                 let exit_ceiling = self
                     .tuning

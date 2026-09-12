@@ -106,6 +106,7 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Sprite<'a, TILE_SIZE, C
         self.animation.get_frame(self.current_frame_index)
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[inline(always)]
     fn blit_row_span(
         cell_buf: &mut [Color; CELL_AREA],

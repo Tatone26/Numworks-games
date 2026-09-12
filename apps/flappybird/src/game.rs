@@ -1,7 +1,9 @@
-use heapless::Vec;
+use core::str::FromStr;
 
+use heapless::String;
 use num_engine::{
     define_scratch_buffer, define_tilemap_buffer,
+    engine::InterlaceTuning,
     graphics::{
         compositor::InterlaceMode,
         particles::ParticleKind,
@@ -9,7 +11,7 @@ use num_engine::{
     },
     init_engine_window, inset_hitbox, tile_span,
     world::World,
-    world_fill_tilemap, world_particles, world_spawn, world_tilemap, Engine,
+    world_ascii_tilemap, world_fill_tilemap, world_particles, world_spawn, world_tilemap, Engine,
 };
 use numworks_utils::{
     eadk::{
@@ -18,7 +20,7 @@ use numworks_utils::{
     },
     graphical::{draw_centered_string, fill_screen, ColorConfig},
     menu::{selection, MenuConfig},
-    utils::{randint, CENTER, LARGE_CHAR_HEIGHT},
+    utils::{string_from_u16, CENTER, LARGE_CHAR_HEIGHT},
 };
 
 use crate::{
@@ -26,16 +28,12 @@ use crate::{
     flappy_ui::{
         countdown, draw_constant_ui, draw_ui, headwind_emitter, high_gravity_emitter,
         low_gravity_emitter, tailwind_emitter, ANIM_BIRD_DEAD, ANIM_BIRD_FALL, ANIM_BIRD_FLAP_UP,
-        ANIM_CLOUD, BACKGROUND, TILESET, TILESET_TILE_SIZE, UI_BACKGROUND,
+        BACKGROUND, TILESET, TILESET_TILE_SIZE, UI_BACKGROUND,
     },
     pipes::{OscillationMode, PipePool},
 };
 
-// =============================================================================
-// Display & Layout Metrics
-// =============================================================================
 pub const WINDOW_SIZE: u16 = 20;
-
 pub const VIEW_SCREEN_X: u16 = 20;
 pub const VIEW_SCREEN_Y: u16 = 20;
 pub const VIEW_SCREEN_W: u16 = 280;
@@ -43,7 +41,6 @@ pub const VIEW_SCREEN_H: u16 = 220;
 
 pub const TILE_SIZE: usize = 20;
 pub const CELL_AREA: usize = 400;
-
 pub const WINDOW_COLS: usize = 14;
 pub const WINDOW_ROWS: usize = 11;
 
@@ -54,16 +51,19 @@ pub const GROUND_ROWS: usize = 1;
 pub const GROUND_ROW_INDEX: usize = WINDOW_ROWS - 1;
 pub const GROUND_Y: i16 = (GROUND_ROW_INDEX * TILE_SIZE) as i16;
 
-pub const DECOR_COLS: usize = 15;
+pub const DECOR_COLS: usize = 30;
 pub const DECOR_ROWS: usize = 3;
 pub const DECOR_START_ROW: usize = GROUND_ROW_INDEX - DECOR_ROWS;
 pub const DECOR_Y: i16 = (DECOR_START_ROW * TILE_SIZE) as i16;
 
+pub const CLOUDS_COLS: usize = 25;
+pub const CLOUDS_ROWS: usize = 4;
+pub const CLOUDS_Y: usize = 0;
+
 pub const MAX_PIPES_ON_SCREEN: usize = 8;
-const NUM_CLOUDS: usize = 2;
 
 const WORLD_ENT_CAP: usize = 32;
-const WORLD_MAP_CAP: usize = 3;
+const WORLD_MAP_CAP: usize = 4;
 const WORLD_PARTS_PER_ENT: usize = 4;
 const WORLD_RENDER_CAP: usize = 128;
 const WORLD_PARTICLE_CAP: usize = 48;
@@ -87,6 +87,7 @@ define_scratch_buffer!(SCRATCH_BUFFER, CELL_AREA, WINDOW_COLS, WINDOW_ROWS);
 define_tilemap_buffer!(BG_DATA, WINDOW_COLS, WINDOW_ROWS);
 define_tilemap_buffer!(DECOR_DATA, DECOR_COLS, DECOR_ROWS);
 define_tilemap_buffer!(GROUND_DATA, GROUND_COLS, GROUND_ROWS);
+define_tilemap_buffer!(CLOUD_DATA, CLOUDS_COLS, CLOUDS_ROWS);
 
 pub const COLOR_CONFIG: ColorConfig = ColorConfig {
     text: Color::BLACK,
@@ -94,11 +95,67 @@ pub const COLOR_CONFIG: ColorConfig = ColorConfig {
     alt: Color::from_rgb888(255, 140, 65),
 };
 
+const DEATH_COLOR_CONFIG: ColorConfig = ColorConfig {
+    text: COLOR_CONFIG.alt,
+    bckgrd: Color::from_rgb888(50, 50, 50),
+    alt: Color::RED,
+};
+
 const NICE_COLLISION_MARGIN: u16 = 2;
+
+fn sync_particles(world: &mut GameWorld, wind_id: usize, grav_id: usize, event: GameEvent) {
+    match event {
+        GameEvent::Tailwind => {
+            world.particles_mut(wind_id).set_emitter(tailwind_emitter());
+        }
+        GameEvent::Headwind => {
+            world.particles_mut(wind_id).set_emitter(headwind_emitter());
+        }
+        GameEvent::LowGravity => {
+            world
+                .particles_mut(grav_id)
+                .set_emitter(low_gravity_emitter());
+        }
+        GameEvent::HighGravity => {
+            world
+                .particles_mut(grav_id)
+                .set_emitter(high_gravity_emitter());
+        }
+        _ => {
+            world.particles_mut(wind_id).enable_emitter(false);
+            world.particles_mut(grav_id).enable_emitter(false);
+        }
+    }
+}
+
+fn play_death_drop(bird_id: usize, world: &mut GameWorld, engine: &mut GameEngine) {
+    let floor_y = (GROUND_Y - TILESET_TILE_SIZE as i16) as f32;
+    let bird = &mut world[bird_id];
+    bird.set_animation(&ANIM_BIRD_DEAD);
+    if bird.y() < floor_y {
+        bird.set_vy(-2.4);
+    }
+
+    while world[bird_id].y() < floor_y {
+        let bird = &mut world[bird_id];
+        let vy = (bird.vy() + 0.75).min(9.0);
+        bird.set_vy(vy);
+        bird.set_y((bird.y() + vy).min(floor_y));
+
+        world.update(engine.get_frame());
+        engine.render(world);
+    }
+
+    world[bird_id].set_y(floor_y);
+    world[bird_id].set_vy(0.0);
+    engine.render_progressive(world);
+    timing::msleep(400);
+}
 
 pub fn game(
     starting_speed: f32,
     density: u16,
+    gap_difficulty: u8,
     osc_mode: OscillationMode,
     event_config: EventConfig,
     speed_increase: u16,
@@ -116,6 +173,12 @@ pub fn game(
         interlace: Some(InterlaceMode::Columns),
         scratch: SCRATCH_BUFFER,
     );
+    engine.set_interlace_tuning(InterlaceTuning {
+        target_budget_us: 22_000,
+        hysteresis_us: 2_500,
+        tripwire_frames: 1,
+        cooldown_frames: 1,
+    });
 
     let mut world: GameWorld = GameWorld::new();
     let mut events = EventManager::new(event_config);
@@ -159,46 +222,66 @@ pub fn game(
         wrap: WrapMode::Horizontal,
     )
     .unwrap();
-
     tile_span!(world.tilemap_mut(ground_map_id), row: 0, cols: 0..GROUND_COLS, tile: [0, 4]);
 
-    world
-        .tilemap_mut(decor_map_id)
-        .set_horizontal_speed(starting_speed);
-    world
-        .tilemap_mut(ground_map_id)
-        .set_horizontal_speed(starting_speed);
+    let clouds_map_id = world_ascii_tilemap!(
+        world: world,
+        tileset: &TILESET,
+        buffer: CLOUD_DATA,
+        cols: CLOUDS_COLS,
+        rows: CLOUDS_ROWS,
+        offset: [0, CLOUDS_Y],
+        z: 2,
+        transparent: false,
+        parallax: Parallax::FIXED,
+        wrap: WrapMode::Horizontal,
+        mapping: {
+            b'.' => None,
+            b'A' => Some([1, 3]),
+            b'B' => Some([2, 3]),
+        },
+        layout: "
+        .........AB.........AB...
+        ..AB........AB...........
+        ......AB.................
+        ....................AB...
+    ",
+    )
+    .unwrap();
+    world.tilemap_mut(clouds_map_id).set_horizontal_speed(-0.05);
 
-    let mut cloud_ids: Vec<usize, NUM_CLOUDS> = Vec::new();
-    for i in 0..NUM_CLOUDS {
-        let cx = (VIEW_SCREEN_W as i16 - 40) - (i as i16 * 130);
-        let cy = 5 + (i as i16 * 20);
-        let id = world_spawn!(
-            world: world,
-            anim: &ANIM_CLOUD,
-            pos: [cx as f32, cy as f32],
-            z: 2,
-        )
-        .unwrap();
-        world[id].set_vx(-0.20);
-        let _ = cloud_ids.push(id);
-    }
+    let apply_speed = |world: &mut GameWorld, pipes: &mut PipePool, speed: f32| {
+        pipes.set_speed(world, speed);
+        world.tilemap_mut(decor_map_id).set_horizontal_speed(-speed);
+        world
+            .tilemap_mut(ground_map_id)
+            .set_horizontal_speed(-speed);
+    };
 
-    let wind_particles_id = world_particles!(
+    let wind_id = world_particles!(
         world: world,
         z: 25,
         kind: ParticleKind::HorizontalStreak,
     )
     .unwrap();
 
-    let grav_particles_id = world_particles!(
+    let grav_id = world_particles!(
         world: world,
         z: 25,
         kind: ParticleKind::VerticalStreak,
     )
     .unwrap();
 
-    let mut pipes = PipePool::new(density, starting_speed, osc_mode, &events, &mut world);
+    let mut pipes = PipePool::new(
+        density,
+        starting_speed,
+        jump_power,
+        gap_difficulty,
+        osc_mode,
+        &events,
+        &mut world,
+    );
+    apply_speed(&mut world, &mut pipes, starting_speed);
 
     let bird_x: i16 = 60;
     let bird_id = world_spawn!(
@@ -236,69 +319,32 @@ pub fn game(
             let action = flappy_pause(false);
             if action != 0 {
                 return action;
-            } else {
-                world.particles_mut(wind_particles_id).clear();
-                world.particles_mut(grav_particles_id).clear();
-                fill_screen(BACKGROUND);
-                countdown(
-                    Point {
-                        x: CENTER.x - TILESET_TILE_SIZE,
-                        y: CENTER.y - TILESET_TILE_SIZE * 2,
-                    },
-                    &mut engine,
-                    &mut world,
-                );
-                draw_constant_ui(*high_score as u16);
-                draw_ui(score);
-                continue;
             }
+            world.particles_mut(wind_id).clear();
+            world.particles_mut(grav_id).clear();
+            fill_screen(BACKGROUND);
+            countdown(
+                Point {
+                    x: CENTER.x - TILESET_TILE_SIZE,
+                    y: CENTER.y - TILESET_TILE_SIZE * 2,
+                },
+                &mut engine,
+                &mut world,
+            );
+            draw_constant_ui(*high_score as u16);
+            draw_ui(score);
+            continue;
         }
 
         let frame = engine.get_frame();
 
-        // 1. Events State Transitions & Synchronized Updates
-        let event_transition = events.update();
-        if event_transition {
-            let effective_speed = current_speed * events.speed_multiplier();
-            pipes.set_speed(&mut world, effective_speed);
-            world
-                .tilemap_mut(decor_map_id)
-                .set_horizontal_speed(effective_speed);
-            world
-                .tilemap_mut(ground_map_id)
-                .set_horizontal_speed(effective_speed);
-
-            match events.active {
-                GameEvent::MovingPipesSurge => {
-                    pipes.apply_moving_surge(&mut world);
-                }
-                GameEvent::Tailwind => {
-                    world
-                        .particles_mut(wind_particles_id)
-                        .set_emitter(tailwind_emitter());
-                }
-                GameEvent::Headwind => {
-                    world
-                        .particles_mut(wind_particles_id)
-                        .set_emitter(headwind_emitter());
-                }
-                GameEvent::LowGravity => {
-                    world
-                        .particles_mut(grav_particles_id)
-                        .set_emitter(low_gravity_emitter());
-                }
-                GameEvent::HighGravity => {
-                    world
-                        .particles_mut(grav_particles_id)
-                        .set_emitter(high_gravity_emitter());
-                }
-                GameEvent::None => {
-                    world.particles_mut(wind_particles_id).enable_emitter(false);
-                    world.particles_mut(grav_particles_id).enable_emitter(false);
-                    pipes.stop_surge(&mut world);
-                }
-                _ => {}
-            }
+        // 1. Dynamic Events Transition & Velocity Updates
+        let dense_cleared = !pipes.has_dense_ahead(&world, bird_x);
+        let steep_leap_ahead = pipes.has_steep_leap_ahead(&world, bird_x);
+        if events.update(dense_cleared, steep_leap_ahead) {
+            let eff = current_speed * events.speed_multiplier();
+            apply_speed(&mut world, &mut pipes, eff);
+            sync_particles(&mut world, wind_id, grav_id, events.active_particle_event());
         }
 
         // 2. Bird Input & Dynamics
@@ -334,96 +380,58 @@ pub fn game(
         // 3. Scene Simulation Tick
         world.update(frame);
 
-        // 4. Clouds Horizontal Wrap
-        for &c_id in cloud_ids.iter() {
-            let cloud = &mut world[c_id];
-            if cloud.x() < -40.0 {
-                cloud.set_pos(VIEW_SCREEN_W as f32, randint(5, 45) as f32);
-            }
-        }
-
-        // 5. Pipe Queue, Spawning, Morphing & Scoring
+        // 4. Pipe Queue, Spawning & Scoring
         if pipes.update(&mut world, bird_x, &events) {
             score += 1;
             can_increase_speed = true;
             draw_ui(score);
         }
 
-        // 6. Collision Checks
-        if !no_collisions {
-            if pipes.collides(&world, bird_id) {
-                break 'gameloop;
-            }
-
-            if world.collides_tilemap(bird_id, ground_map_id) {
-                break 'gameloop;
-            }
+        // 5. Collisions
+        if !no_collisions
+            && (pipes.collides(&world, bird_id) || world.collides_tilemap(bird_id, ground_map_id))
+        {
+            break 'gameloop;
         }
 
-        // 7. Dynamic Speed Scaling
+        // 6. Progressive Speed Scaling
         if can_increase_speed && score != 0 && score.is_multiple_of(speed_increase) {
             current_speed *= 1.15;
             let eff = current_speed * events.speed_multiplier();
-            pipes.set_speed(&mut world, eff);
-            world.tilemap_mut(decor_map_id).set_horizontal_speed(eff);
-            world.tilemap_mut(ground_map_id).set_horizontal_speed(eff);
+            apply_speed(&mut world, &mut pipes, eff);
             can_increase_speed = false;
         }
 
-        // 8. Hardware Render
+        // 7. Render
         engine.render(&mut world);
-
         frame_counter = frame_counter.wrapping_add(1);
     }
 
-    // =========================================================================
-    // Arcade Death Drop Sequence
-    // =========================================================================
-    // 1. Freeze horizontal world scrolling and disable active particle emitters
-    pipes.set_speed(&mut world, 0.0);
-    world.tilemap_mut(decor_map_id).set_horizontal_speed(0.0);
-    world.tilemap_mut(ground_map_id).set_horizontal_speed(0.0);
-    world.particles_mut(wind_particles_id).enable_emitter(false);
-    world.particles_mut(grav_particles_id).enable_emitter(false);
+    // Death & Game Over Sequence
+    apply_speed(&mut world, &mut pipes, 0.0);
+    world.particles_mut(wind_id).enable_emitter(false);
+    world.particles_mut(grav_id).enable_emitter(false);
 
-    // 2. Switch bird sprite to dead pose and give it an initial upward impact bounce
-    let floor_y = (GROUND_Y - TILESET_TILE_SIZE as i16) as f32;
-    let bird = &mut world[bird_id];
-    bird.set_animation(&ANIM_BIRD_DEAD);
-    if bird.y() < floor_y {
-        bird.set_vy(-2.4); // Subtle upward bump before plummeting
-    }
+    play_death_drop(bird_id, &mut world, &mut engine);
 
-    // 3. Fall straight down to the grass
-    while world[bird_id].y() < floor_y {
-        let bird = &mut world[bird_id];
-        let vy = (bird.vy() + 0.75).min(9.0);
-        bird.set_vy(vy);
-        bird.set_y((bird.y() + vy).min(floor_y));
-
-        let frame = engine.get_frame();
-        world.update(frame);
-        engine.render(&mut world);
-    }
-
-    // Rest dead bird firmly on the ground surface
-    world[bird_id].set_y(floor_y);
-    world[bird_id].set_vy(0.0);
-    engine.render_progressive(&mut world);
-    timing::msleep(400);
-
-    // =========================================================================
-    // Game Over Presentation
-    // =========================================================================
-    draw_centered_string("GAME OVER\0", 70, true, &COLOR_CONFIG, true);
+    draw_centered_string("GAME OVER\0", 70, true, &DEATH_COLOR_CONFIG, true);
+    let mut score_str: String<15> = String::from_str("Score: ").unwrap();
+    score_str.push_str(&string_from_u16(score)).unwrap();
+    draw_centered_string(
+        &score_str,
+        70 + 10 + LARGE_CHAR_HEIGHT,
+        true,
+        &DEATH_COLOR_CONFIG,
+        false,
+    );
 
     if score > *high_score as u16 {
         draw_centered_string(
             "NEW HIGH SCORE!\0",
-            70 + LARGE_CHAR_HEIGHT + 2,
+            70 + 20 + LARGE_CHAR_HEIGHT * 2,
             true,
-            &COLOR_CONFIG,
-            true,
+            &DEATH_COLOR_CONFIG,
+            false,
         );
         *high_score = score as u32;
     }
