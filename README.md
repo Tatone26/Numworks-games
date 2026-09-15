@@ -48,7 +48,7 @@ The official software comes with pretty intense limitations, but that's what mak
 
 ## Installation Instructions
 
-1. Download the `.nwa` file(s) of the game(s) you want from the link above or the [apps](./apps) folder.
+1. Download the `.nwa` file(s) of the game(s) you want from the links above or the [apps](./apps) folder.
 2. Go to [my.numworks.com/apps](https://my.numworks.com/apps) (on a Chromium browser like Chrome or Edge)
 3. Connect your NumWorks calculator via USB
 4. Follow the instructions on the website, and upload the file(s) you downloaded
@@ -72,7 +72,7 @@ The NumWorks calculator has limitations that make these games more challenging t
 > *Note: These are older projects and I don't work on them anymore.*
 > **Everything needs the menu.py script downloaded as well.**
 
-Find all the files in the [python](./python) folder.
+Find all the files in the `python games` folder.
 
 - Snake : An incredible classic, a lot of fun if you are motivated. The default settings are the hardest one, try to beat 20 or so points! See [the Apps for a better version](./apps/snake/).
 - Connect4 : Simple but efficient and fun to play with friends. You can even play with strange rules or at 3 players! See [the Apps for a better version](./apps/connectfour/).
