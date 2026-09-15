@@ -1,97 +1,90 @@
-# Numworks Games
+# Numworks Games 🎮
 
-Some simple games for numworks calculator, to run in python or as external applications ! I'm proud of them, but don't expect anything crazier than classic games remakes :)
+Some simple games for numworks calculator, to run in python or as external applications! I'm proud of them, but don't expect anything crazier than classic games remakes :)
 
-I make these game for fun, to learn Rust and to give myself a challenge by programming on a very limited device : the glorious Numworks Calculator !
+I make these game for fun, to learn Rust and to give myself a challenge by programming on a very limited device : the glorious NumWorks Calculator !
 
 > These games are tested on a real N0110 and the latest version of the Epsilon software.
-
-*Feel free to download and copy the code it if you want, but keep in mind it's tailored specifically for tight hardware hacks rather than standard textbook code.*
+> *Feel free to download and copy the code if you want, but keep in mind it's tailored specifically for tight hardware hacks rather than standard textbook code.*
 
 **Instructions and controls are included in the games themselves!**
 
 > **AI USAGE NOTE** : Yes, I use LLMs to help write code. No, I don't use autonomous agents: I do all the testing on hardware myself, profile the performance, understand every line, and dictate the low-level optimizations.
-> Art is completely human made, with zero AI generated images. Yes, my drawing skills are pretty limited.
 > It still takes tens of hours of manual engineering to hit this level of performance under extreme hardware constraints.
+> Art is completely human made, with zero AI generated images. Yes, my drawing skills are pretty limited.
 
 ---
 
 ## Applications
 
-**All games can be downloaded as a single package with `alltheapps.nwa` ! It even saves a lot of space thanks to compiler optimisations.** The only downside is that save data isn't shared between games launched with `alltheapps` and games launched with standalone apps.
+**All games can be downloaded as a single package with `alltheapps.nwa`!** The only downside is that save data isn't shared between games launched with `alltheapps` and games launched with standalone apps.
+
+> **Warning:** Resetting or crashing the calculator *may* wipe any installed app and all saved data. You can enter **GodMode** to edit your high scores by pressing Shift while clicking on "settings".
 
 **NEW : A 2D Engine !**
 
-> **Warning:** Resetting the calculator will wipe any installed app and all saved data. You can enter **GodMode** to edit your high scores by pressing Shift while clicking on "settings".
-
 ### Games
 
-* **[All the Apps](/apps/alltheapps)** : This is a single application combining all the games with a simple menu. The data is not shared with the normal apps, so you can't really use it in parallel of isolated apps.
-* **[Flappy Bird](./apps/flappybird/)** : Everybody knows Flappy Bird. As of today, it is by far the most **technically advanced game** I made. *It has been remade to be the first to use my new engine !*
-* **[Pacman](./apps/pacman/)** : A pretty correct recreation of the original arcade Pacman game. You won't believe how many lines of code this needs.
-* **[Tetris](./apps/tetris/)** : Yeah. **Tetris!** I feel like it is almost as good as it can be :) I *think* I followed every rule of the original game.
-* **[Snake](./apps/snake/)** : My take on the classic game!
-* **[Connect Four](./apps/connectfour/)** : You can play against your friend or **an AI**, and even try some (strange) 3 players games !
-* **[Solitaire](./apps/solitaire/)** : A Classic Solitaire, with classic rules.
+| Game & Links | Description |
+|------------------|-------------|
+| **[All the Apps](./apps/alltheapps)** - [Download](https://raw.githubusercontent.com/Tatone26/Numworks-games/main/apps/alltheapps.nwa) | This is a single application combining all games with a simple menu. |
+| **[Flappy Bird](./apps/flappybird)** - [Download](https://raw.githubusercontent.com/Tatone26/Numworks-games/main/apps/flappybird.nwa) | Everybody knows Flappy Bird. It is by far the most technically advanced game I made. *It has been remade to be the first to use my new engine!* |
+| **[Pacman](./apps/pacman)** - [Download](https://raw.githubusercontent.com/Tatone26/Numworks-games/main/apps/pacman.nwa) | A pretty correct recreation of the original arcade Pacman game. You won't believe how many lines of code this needs. |
+| **[Tetris](./apps/tetris)** - [Download](https://raw.githubusercontent.com/Tatone26/Numworks-games/main/apps/tetris.nwa) | Yeah. **Tetris!** I feel like it is almost as good as it can be :) I *think* I followed every rule of the original game. |
+| **[Snake](./apps/snake)** - [Download](https://raw.githubusercontent.com/Tatone26/Numworks-games/main/apps/snake.nwa) | My take on the classic game! |
+| **[Connect Four](./apps/connectfour)** - [Download](https://raw.githubusercontent.com/Tatone26/Numworks-games/main/apps/connectfour.nwa) | You can play against your friend or **an AI** (sort of), and even try some 3 players games! |
+| **[Solitaire](./apps/solitaire)** - [Download](https://raw.githubusercontent.com/Tatone26/Numworks-games/main/apps/solitaire.nwa) | A Classic Solitaire, with classic rules. |
 
 ### Engine & Utilities
 
-* **[Num_engine](./apps/num_engine)** : A lightweight 2D engine made to simplify the game development. It works in parallel to the graphical utilities below, specialized for 2D sprites moving around.
-* **[Numworks_utils](./apps/numworks_utils/)** contains a lot of the utility code I use : the numworks default functions, the entire menu code, graphical tools and more.
-* **[Model](./apps/model/)** is a basic repo you can copy to start making a game using my template. It doesn't show how to use the Engine for now.
-* **[Nppm_decoder](./apps/nppm_decoder/)** is a build utility I made to process the images at compile time. Necessary to use my graphical modules, like *tiling*.
+- **[Num_engine](./apps/num_engine)** : A lightweight 2D engine made to simplify game development. It works in parallel to the graphical utilities below, specialized for 2D sprites moving around.
+- **[Numworks_utils](./apps/numworks_utils/)** contains a lot of utility code I use: the numworks default functions, entire menu code, graphical tools and more.
+- **[Model](./apps/model/)** is a basic repo you can copy to start making a game using my template. It doesn't show how to use the Engine for now.
+- **[Nppm_decoder](./apps/nppm_decoder/)** is a build utility I made to process images at compile time. Necessary to use graphical modules like *tiling*.
 
-The official software comes with a lot of limitations, but that's what makes it interesting too !
-
-If you want to create some apps that run on Epsilon, see the official [Rust-based template](https://github.com/numworks/epsilon-sample-app-rust), [C++](https://github.com/numworks/epsilon-sample-app-cpp) and [C](https://github.com/numworks/epsilon-sample-app-c).
+The official software comes with pretty intense limitations, but that's what makes it interesting! If you want to create apps that run on Epsilon, see the official [Rust-based template](https://github.com/numworks/epsilon-sample-app-rust), [C++](https://github.com/numworks/epsilon-sample-app-cpp) and [C](https://github.com/numworks/epsilon-sample-app-c).
 
 ---
 
-### Installation instructions
+## Installation Instructions
 
-* Go to the [`apps/`](./apps/) folder
-* Download the `.nwa` file(s) of the game(s) you want
-* Go to [my.numworks.com/apps](https://my.numworks.com/apps) (on a Chromium browser like Chrome or Edge)
-* Connect your NumWorks calculator
-* Follow the instructions on the website, and upload the file(s) you downloaded
-* Click **DOWNLOAD** and you're good to go !
-
----
-
-### Some technical details of the Numworks calculator
-
-> Or what make these games more difficult to make than you think
-
-The official software comes with a lot of limitations, but that's what makes it interesting too !
-
-As I'm not an expert at all, I won't talk about the *truly* technical stuff. You can start on the [official website](https://www.numworks.com/engineering/software/#read-our-coding-guidelines) if you want more details.
-
-* **RAM constraints:** Total RAM is only 256 KB, and the stack is just 32 KB. Applications get roughly ~125 KB + 32 KB stack. It is small, but by being careful and using static arrays to avoid stack overflows, it doesn't cause major problems.
-* **No dynamic allocator (`no_std`):** There is no heap and no standard library, so no `malloc`. The `heapless` crate solves most problems, but I still hand-wrote basic utilities to avoid pulling extra dependencies and wasting binary space.
-* **Display buffer:** The screen is 320×240 pixels using RGB565 (16 bits / 2 bytes per pixel). Maintaining a full-screen framebuffer in RAM is mathematically impossible with the memory budget.
-* **Slow data bus:** The refresh rate is around 40 Hz, but the bus transferring pixels to the screen controller is slow. You cannot redraw the entire display in a single frame. Drawing right-to-left is good practice to prevent tearing against the scanline.
-* Look at how the Engine and graphical utilities are structured to see how these bottlenecks were handled.
+1. Download the `.nwa` file(s) of the game(s) you want from the link above or the [apps](./apps) folder.
+2. Go to [my.numworks.com/apps](https://my.numworks.com/apps) (on a Chromium browser like Chrome or Edge)
+3. Connect your NumWorks calculator via USB
+4. Follow the instructions on the website, and upload the file(s) you downloaded
+5. Click **DOWNLOAD** and you're good to go!
 
 ---
 
-## Python Games (Old)
+## Technical Details
 
-> *Note: These are older projects and I don't work on them anymore. Check out the Apps above for better versions!*
+The NumWorks calculator has limitations that make these games more challenging to create:
 
-**Everything needs the menu.py script downloaded as well.**
-
-* Snake : An incredible classic, a lot of fun if you are motivated. The default settings are the hardest one, try to beat 20 or so points! **See the Apps for a better one!**
-* Connect4 : Simple but efficient and fun to play with friends. You can even play with strange rules or at 3 players! **See the Apps for a better one!**
-* 2048 : Works but pretty bad looking compared to the original.
-* Solitaire : A fully functional Classic Solitaire! **See the Apps for a better one!**
-
-Thanks to [ZetaMap](https://github.com/ZetaMap/ZetaMap), you can run these python scripts on your pc with the Kandinksy and the Ion-Numworks modules installed to test them.
-You can find a lot more programs on numworks.com, where anyone can submit their own.
+- **RAM constraints:** Total RAM is only 256 KB, with a stack of just 32 KB. Applications seem to get roughly ~125 KB + 32 KB stack. Using static arrays avoids major stack issues.
+- **No dynamic allocator (`no_std`):** There's no heap or standard library, so no `malloc`. The `heapless` crate solves most problems, but I still hand-wrote basic utilities to avoid extra dependencies and waste binary space.
+- **Display buffer:** Screen is 320×240 pixels using RGB565 (16 bits / 2 bytes per pixel). Maintaining a full-screen framebuffer in RAM is mathematically impossible with the memory budget creating the need for lots of workarounds.
+- **Slow data bus:** Refresh rate around 40 Hz, but the bus transferring pixels to screen controller is slow. Cannot redraw entire display in single frame. Drawing right-to-left helps preventing tearing against scanline.
 
 ---
 
-### TODOS
+## Python Games (Old) ⚠️
 
-* [x] Update Menu to add lot-of-options support with multi page
-* [ ] Update Flappy Bird to be better !!
-* [ ] NEW GAMES IDEAS : crossy-road like, platformer
+> *Note: These are older projects and I don't work on them anymore.*
+> **Everything needs the menu.py script downloaded as well.**
+
+Find all the files in the [python](./python) folder.
+
+- Snake : An incredible classic, a lot of fun if you are motivated. The default settings are the hardest one, try to beat 20 or so points! See [the Apps for a better version](./apps/snake/).
+- Connect4 : Simple but efficient and fun to play with friends. You can even play with strange rules or at 3 players! See [the Apps for a better version](./apps/connectfour/).
+- 2048 : Works but pretty bad looking compared to the original.
+- Solitaire : A fully functional Classic Solitaire! See [the Apps for a better version](./apps/solitaire/).
+
+Thanks to [ZetaMap](https://github.com/ZetaMap/ZetaMap), you can run these python scripts on your PC with Kandinsky and Ion-Numworks modules installed. You can find a lot more programs on numworks.com, where anyone can submit their own.
+
+---
+
+### TODOs 📝
+
+- [x] Update Menu to add lot-of-options support with multi page
+- [ ] Update Flappy Bird to be better !!
+- [ ] NEW GAMES IDEAS : crossy-road like, platformer
