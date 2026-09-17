@@ -12,7 +12,7 @@ use crate::{
 };
 
 pub fn start() {
-    let mut opt: [&mut Setting; 15] = [
+    let mut opt: [&mut Setting; 16] = [
         // 0: Speed
         &mut Setting {
             name: "Starting speed\0",
@@ -47,7 +47,7 @@ pub fn start() {
             user_modifiable: true,
             fixed_values: true,
         },
-        // 2: Gap Difficulty (Delta Y step scale)
+        // 2: Gap Difficulty
         &mut Setting {
             name: "Gap difficulty\0",
             choice: 1,
@@ -99,7 +99,7 @@ pub fn start() {
             user_modifiable: true,
             fixed_values: true,
         },
-        // 6: Jump Strength (Corrected naming: higher impulse = floatier pop)
+        // 6: Jump Strength
         &mut Setting {
             name: "Jump strength\0",
             choice: 2,
@@ -170,7 +170,16 @@ pub fn start() {
             user_modifiable: true,
             fixed_values: true,
         },
-        // 13: Invincibility Cheat
+        // 13: Multiple Events At Once (Default: No)
+        &mut Setting {
+            name: "Stack events\0",
+            choice: 0,
+            values: Vec::from_slice(&[0, 1]).unwrap(),
+            texts: Vec::from_slice(&["No\0", "Yes\0"]).unwrap(),
+            user_modifiable: true,
+            fixed_values: true,
+        },
+        // 14: Invincibility Cheat
         &mut Setting {
             name: "No collisions\0",
             choice: 0,
@@ -179,7 +188,7 @@ pub fn start() {
             user_modifiable: false,
             fixed_values: true,
         },
-        // 14: High Score
+        // 15: High Score
         &mut Setting {
             name: "High Score\0",
             choice: 0,
@@ -201,9 +210,10 @@ pub fn start() {
         );
         if start == 0 {
             loop {
-                let mut high_score = opt[14].get_setting_value();
+                let mut high_score = opt[15].get_setting_value();
                 let event_config = EventConfig {
                     frequency: opt[4].get_setting_value() as u8,
+                    allow_stacking: opt[13].get_setting_value() != 0,
                     enable_moving_surge: opt[7].get_setting_value() != 0,
                     enable_wind: opt[8].get_setting_value() != 0,
                     enable_narrow_gaps: opt[9].get_setting_value() != 0,
@@ -221,11 +231,11 @@ pub fn start() {
                     event_config,
                     opt[5].get_setting_value() as u16,
                     f32::from_bits(opt[6].get_setting_value()),
-                    opt[13].get_setting_value() != 0,
+                    opt[14].get_setting_value() != 0,
                     &mut high_score,
                 );
 
-                opt[14].set_value(high_score);
+                opt[15].set_value(high_score);
                 write_values_to_file(&mut opt, "flappybird");
 
                 if action == 2 {

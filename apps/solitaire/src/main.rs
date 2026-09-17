@@ -3,6 +3,7 @@
 
 mod cards;
 mod game_solitaire;
+mod save;
 mod table;
 mod ui_solitaire;
 

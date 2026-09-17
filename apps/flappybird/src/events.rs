@@ -19,6 +19,7 @@ pub enum GameEvent {
 #[derive(Clone, Copy, Debug)]
 pub struct EventConfig {
     pub frequency: u8,
+    pub allow_stacking: bool,
     pub enable_moving_surge: bool,
     pub enable_wind: bool,
     pub enable_narrow_gaps: bool,
@@ -32,6 +33,7 @@ pub struct EventManager {
     pub config: EventConfig,
     pub pipe_event: GameEvent,
     pub phys_event: GameEvent,
+    pipe_warmup: u16,
     pipe_timer: u16,
     phys_timer: u16,
     phys_warmup: u16,
@@ -84,6 +86,7 @@ impl EventManager {
             config,
             pipe_event: GameEvent::None,
             phys_event: GameEvent::None,
+            pipe_warmup: 0,
             pipe_timer: 0,
             phys_timer: 0,
             phys_warmup: 0,
@@ -92,15 +95,6 @@ impl EventManager {
             candidates,
             nb_active: count,
             last_triggered: GameEvent::None,
-        }
-    }
-
-    fn sample_cooldown(freq: u8) -> u16 {
-        match freq {
-            3 => randint(90, 161) as u16,  // ~2.2s to 4.0s
-            2 => randint(180, 321) as u16, // ~4.5s to 8.0s
-            1 => randint(340, 561) as u16, // ~8.5s to 14.0s
-            _ => 1000,
         }
     }
 
@@ -115,6 +109,15 @@ impl EventManager {
         )
     }
 
+    fn sample_cooldown(freq: u8) -> u16 {
+        match freq {
+            3 => randint(40, 81) as u16,   // Frequent: ~0.7s to 1.3s calm period
+            2 => randint(180, 301) as u16, // Normal: ~3.0s to 5.0s guaranteed calm
+            1 => randint(420, 661) as u16, // Rare: ~7.0s to 11.0s guaranteed calm
+            _ => 1000,
+        }
+    }
+
     pub fn update(&mut self, dense_cleared: bool, steep_leap_ahead: bool) -> bool {
         if self.config.frequency == 0 {
             return false;
@@ -122,20 +125,31 @@ impl EventManager {
 
         let mut changed = false;
 
-        // 1. Tick pipe geometry/gap event
-        if self.pipe_timer > 0 {
+        // 1. Tick pipe geometry/gap event: Warmup -> Active -> None
+        if self.pipe_warmup > 0 {
+            self.pipe_warmup -= 1;
+            if self.pipe_warmup == 0 {
+                changed = true;
+            }
+        } else if self.pipe_timer > 0 {
             self.pipe_timer -= 1;
             if self.pipe_timer == 0 && self.pipe_event != GameEvent::DensePipes {
                 self.pipe_event = GameEvent::None;
+                // If all layers are now clear, start the downtime cooldown
+                if self.phys_event == GameEvent::None && self.phys_warmup == 0 {
+                    self.cooldown = Self::sample_cooldown(self.config.frequency);
+                }
                 changed = true;
             }
         } else if self.pipe_event == GameEvent::DensePipes && dense_cleared {
             self.pipe_event = GameEvent::None;
-            self.cooldown = Self::sample_cooldown(self.config.frequency);
+            if self.phys_event == GameEvent::None && self.phys_warmup == 0 {
+                self.cooldown = Self::sample_cooldown(self.config.frequency);
+            }
             changed = true;
         }
 
-        // 2. Tick atmospheric physics event
+        // 2. Tick atmospheric physics event: Warmup -> Active -> Winddown -> None
         if self.phys_warmup > 0 {
             self.phys_warmup -= 1;
             if self.phys_warmup == 0 {
@@ -154,25 +168,40 @@ impl EventManager {
             self.phys_winddown -= 1;
             if self.phys_winddown == 0 {
                 self.phys_event = GameEvent::None;
+                // Cooldown begins only after winddown is completely finished
+                if self.pipe_event == GameEvent::None && self.pipe_warmup == 0 {
+                    self.cooldown = Self::sample_cooldown(self.config.frequency);
+                }
                 changed = true;
             }
         }
 
         // 3. Roll new event when cooldown expires
+        let has_active = self.pipe_event != GameEvent::None
+            || self.phys_event != GameEvent::None
+            || self.pipe_warmup > 0
+            || self.phys_warmup > 0;
+
+        // When stacking is disabled, keep cooldown paused if any event is active
         if self.cooldown > 0 {
-            self.cooldown -= 1;
+            if self.config.allow_stacking || !has_active {
+                self.cooldown -= 1;
+            }
         } else if self.nb_active > 0 {
-            let has_active =
-                self.pipe_event != GameEvent::None || self.phys_event != GameEvent::None;
-            let stack_chance = match self.config.frequency {
-                3 => 20,
-                2 => 12,
-                _ => 6,
+            let can_roll = if !has_active {
+                true
+            } else if self.config.allow_stacking {
+                let stack_chance = match self.config.frequency {
+                    3 => 20,
+                    2 => 12,
+                    _ => 6,
+                };
+                randint(0, 100) < stack_chance
+            } else {
+                false
             };
 
-            if !has_active || randint(0, 100) < stack_chance {
-                // Fair candidate probing: start at a random offset and check all options
-                // to prevent starvation of index 0 when other slots are busy.
+            if can_roll {
                 let start_idx = randint(0, self.nb_active as u32) as usize;
                 let mut triggered = false;
 
@@ -180,14 +209,16 @@ impl EventManager {
                     let idx = (start_idx + i) % self.nb_active;
                     let cand = self.candidates[idx];
 
-                    // Avoid repeating the exact same event back-to-back if choices exist
                     if self.nb_active > 1 && cand == self.last_triggered {
                         continue;
                     }
 
                     if self.try_trigger(cand, steep_leap_ahead) {
                         self.last_triggered = cand;
-                        self.cooldown = Self::sample_cooldown(self.config.frequency);
+                        // In stacking mode, cooldown ticks toward potential overlay events
+                        if self.config.allow_stacking {
+                            self.cooldown = Self::sample_cooldown(self.config.frequency);
+                        }
                         changed = true;
                         triggered = true;
                         break;
@@ -197,8 +228,6 @@ impl EventManager {
                 if !triggered {
                     self.cooldown = 24;
                 }
-            } else {
-                self.cooldown = Self::sample_cooldown(self.config.frequency);
             }
         }
 
@@ -207,7 +236,7 @@ impl EventManager {
 
     fn try_trigger(&mut self, candidate: GameEvent, steep_leap_ahead: bool) -> bool {
         if Self::is_pipe_modifier(candidate) {
-            if self.pipe_event != GameEvent::None {
+            if self.pipe_event != GameEvent::None || self.pipe_warmup > 0 {
                 return false;
             }
             if candidate == GameEvent::DensePipes && self.phys_event != GameEvent::None {
@@ -215,6 +244,7 @@ impl EventManager {
             }
 
             self.pipe_event = candidate;
+            self.pipe_warmup = 48;
             self.pipe_timer = match candidate {
                 GameEvent::MovingPipesSurge => randint(280, 361) as u16,
                 GameEvent::DensePipes => randint(240, 311) as u16,
@@ -222,7 +252,7 @@ impl EventManager {
             };
             true
         } else {
-            if self.phys_event != GameEvent::None {
+            if self.phys_event != GameEvent::None || self.phys_warmup > 0 {
                 return false;
             }
             if self.pipe_event == GameEvent::DensePipes {
@@ -236,8 +266,8 @@ impl EventManager {
 
             self.phys_event = candidate;
             self.phys_warmup = match candidate {
-                GameEvent::Tailwind | GameEvent::Headwind => 36,
-                _ => 28,
+                GameEvent::Tailwind | GameEvent::Headwind => 42,
+                _ => 32,
             };
             self.phys_timer = match candidate {
                 GameEvent::Tailwind | GameEvent::Headwind => randint(220, 291) as u16,
@@ -276,10 +306,14 @@ impl EventManager {
 
     #[inline(always)]
     pub fn target_gap_size(&self) -> f32 {
-        match self.pipe_event {
-            GameEvent::NarrowGaps => 50.0,
-            GameEvent::WideGaps => 84.0,
-            _ => DEFAULT_GAP_SIZE,
+        if self.pipe_warmup > 0 {
+            DEFAULT_GAP_SIZE
+        } else {
+            match self.pipe_event {
+                GameEvent::NarrowGaps => 50.0,
+                GameEvent::WideGaps => 84.0,
+                _ => DEFAULT_GAP_SIZE,
+            }
         }
     }
 
@@ -294,12 +328,12 @@ impl EventManager {
 
     #[inline(always)]
     pub fn is_dense(&self) -> bool {
-        self.pipe_event == GameEvent::DensePipes && self.pipe_timer > 0
+        self.pipe_event == GameEvent::DensePipes && self.pipe_warmup == 0 && self.pipe_timer > 0
     }
 
     #[inline(always)]
     pub fn is_surge(&self) -> bool {
-        self.pipe_event == GameEvent::MovingPipesSurge
+        self.pipe_event == GameEvent::MovingPipesSurge && self.pipe_warmup == 0
     }
 
     #[inline(always)]
@@ -309,5 +343,13 @@ impl EventManager {
         } else {
             GameEvent::None
         }
+    }
+
+    #[inline(always)]
+    pub fn is_alert(&self) -> bool {
+        self.pipe_event != GameEvent::None
+            || self.phys_event != GameEvent::None
+            || self.pipe_warmup > 0
+            || self.phys_warmup > 0
     }
 }

@@ -5,6 +5,7 @@ pub mod tetriminos;
 pub mod ui_tetris;
 
 pub mod game_tetris;
+pub mod tetris_save;
 
 #[used]
 #[link_section = ".rodata.eadk_app_name"]

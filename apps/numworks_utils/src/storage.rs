@@ -1,7 +1,9 @@
 use heapless::Vec;
 use low_level_storage::{extapp_fileErase, extapp_fileExists, extapp_fileRead, extapp_fileWrite};
 
-pub const MAX_STORAGE_VALUES: usize = 16;
+pub mod save;
+
+pub const MAX_STORAGE_VALUES: usize = 32;
 // const MAX_FILE_SIZE: usize = MAX_VALUES * 4; // which represents 64 values (each represented by a u32)
 
 pub mod low_level_storage {

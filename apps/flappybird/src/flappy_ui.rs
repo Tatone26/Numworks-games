@@ -1,4 +1,7 @@
-use num_engine::{define_anim, define_repeating_anim, emitter, graphics::particles::Emitter};
+use num_engine::{
+    define_anim, define_repeating_anim, emitter,
+    graphics::{particles::Emitter, Animation},
+};
 use numworks_utils::{
     eadk::{
         display::{draw_string, push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
@@ -14,7 +17,7 @@ use crate::game::{GameEngine, GameWorld, TILE_SIZE, VIEW_SCREEN_H, VIEW_SCREEN_W
 pub const TILESET_TILE_SIZE: u16 = TILE_SIZE as u16;
 
 const IMAGE_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/image.nppm");
-pub static TILESET: Tileset = Tileset::new(TILESET_TILE_SIZE, 4, IMAGE_BYTES);
+pub static TILESET: Tileset = Tileset::new(TILESET_TILE_SIZE, 10, IMAGE_BYTES);
 
 pub const BACKGROUND: Color = Color::from_rgb888(128, 212, 255);
 pub const UI_BACKGROUND: Color = Color::from_rgb888(50, 50, 50);
@@ -88,13 +91,37 @@ define_anim!(pub ANIM_BIRD_FLAP_UP, &TILESET, 1, 1, true, 1, [(3, 0)]);
 define_anim!(pub ANIM_BIRD_FALL, &TILESET, 1, 1, true, 1, [(0, 0)]);
 define_anim!(pub ANIM_BIRD_DEAD, &TILESET, 1, 1, true, 1, [(0, 3)]);
 
-define_anim!(pub ANIM_CLOUD, &TILESET, 2, 1, true, 1, [(1, 3)]);
+define_anim!(pub ANIM_BIG_CLOUD, &TILESET, 2, 1, true, 1, [(4, 0)]);
 
 define_anim!(pub ANIM_PIPE_LIP_TOP, &TILESET, 4, 1, true, 1, [(0, 1)]);
 define_anim!(pub ANIM_PIPE_LIP_BOT, &TILESET, 4, 1, true, 1, [(0, 2)]);
 
 define_repeating_anim!(pub ANIM_PIPE_SHAFT, &TILESET, 2, 11, 2, 1, false, 1, [(1, 0)]);
 define_anim!(pub ANIM_PIPE_SHAFT_LITTLE, &TILESET, 2, 1, false, 1, [(1, 0)]);
+
+define_anim!(pub ANIM_SUNFLOWER_L_HEAD_UP, &TILESET, 1, 1, true, 1, [(4, 3)]);
+define_anim!(pub ANIM_SUNFLOWER_L_STEM_UP, &TILESET, 1, 1, true, 1, [(4, 4)]);
+define_anim!(pub ANIM_SUNFLOWER_L_HEAD_DOWN, &TILESET, 1, 1, true, 1, [(5, 3)]);
+define_anim!(pub ANIM_SUNFLOWER_L_STEM_DOWN, &TILESET, 1, 1, true, 1, [(5, 4)]);
+
+define_anim!(pub ANIM_SUNFLOWER_R_HEAD_UP, &TILESET, 1, 1, true, 1, [(7, 3)]);
+define_anim!(pub ANIM_SUNFLOWER_R_STEM_UP, &TILESET, 1, 1, true, 1, [(7, 4)]);
+define_anim!(pub ANIM_SUNFLOWER_R_HEAD_DOWN, &TILESET, 1, 1, true, 1, [(6, 3)]);
+define_anim!(pub ANIM_SUNFLOWER_R_STEM_DOWN, &TILESET, 1, 1, true, 1, [(6, 4)]);
+
+pub static SUNFLOWER_SLOTS_UP: [&Animation<'static>; 4] = [
+    &ANIM_SUNFLOWER_L_HEAD_UP,
+    &ANIM_SUNFLOWER_L_STEM_UP,
+    &ANIM_SUNFLOWER_R_HEAD_UP,
+    &ANIM_SUNFLOWER_R_STEM_UP,
+];
+
+pub static SUNFLOWER_SLOTS_DOWN: [&Animation<'static>; 4] = [
+    &ANIM_SUNFLOWER_L_HEAD_DOWN,
+    &ANIM_SUNFLOWER_L_STEM_DOWN,
+    &ANIM_SUNFLOWER_R_HEAD_DOWN,
+    &ANIM_SUNFLOWER_R_STEM_DOWN,
+];
 
 pub fn draw_constant_ui(high_score: u16) {
     push_rect_uniform(
@@ -103,15 +130,6 @@ pub fn draw_constant_ui(high_score: u16) {
             y: 0,
             width: SCREEN_WIDTH,
             height: WINDOW_SIZE,
-        },
-        UI_BACKGROUND,
-    );
-    push_rect_uniform(
-        Rect {
-            x: 0,
-            y: SCREEN_HEIGHT - TILESET_TILE_SIZE / 2,
-            width: SCREEN_WIDTH - 2 * WINDOW_SIZE,
-            height: TILESET_TILE_SIZE / 2,
         },
         UI_BACKGROUND,
     );
@@ -130,15 +148,6 @@ pub fn draw_constant_ui(high_score: u16) {
             y: WINDOW_SIZE,
             width: TILESET_TILE_SIZE,
             height: SCREEN_HEIGHT,
-        },
-        UI_BACKGROUND,
-    );
-    push_rect_uniform(
-        Rect {
-            x: 0,
-            y: SCREEN_HEIGHT - WINDOW_SIZE + TILESET_TILE_SIZE / 2,
-            width: SCREEN_WIDTH - WINDOW_SIZE,
-            height: TILESET_TILE_SIZE / 2,
         },
         UI_BACKGROUND,
     );
@@ -194,7 +203,7 @@ pub fn countdown(pos: Point, engine: &mut GameEngine, world: &mut GameWorld) {
         engine.render_progressive(world);
 
         wait_for_vblank();
-        TILESET.draw_tile(pos, Point { x: n, y: 4 }, 2, true);
+        TILESET.draw_tile(pos, Point { x: n, y: 3 }, 2, true);
 
         timing::msleep(800);
     }
@@ -220,7 +229,7 @@ pub fn menu_vis_addon() {
         0,
     );
 
-    ANIM_CLOUD.draw_at(
+    ANIM_BIG_CLOUD.draw_at(
         Point {
             x: CENTER.x - 95,
             y: 25,

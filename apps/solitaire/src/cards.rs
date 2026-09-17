@@ -4,7 +4,7 @@ use numworks_utils::utils::randint;
 use crate::table::Stack;
 
 // The number associated with each values is the position in the tileset.
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Suit {
     Club = 2,
     Diamond = 3,
@@ -12,7 +12,7 @@ pub enum Suit {
     Spade = 0,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Card {
     pub suit: Suit,
     pub number: u8,

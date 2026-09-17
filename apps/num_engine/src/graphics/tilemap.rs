@@ -192,6 +192,25 @@ impl<'a, const TILE_SIZE: usize, const CELL_AREA: usize> Tilemap<'a, TILE_SIZE, 
         }
     }
 
+    /// Replaces the entire active animation slot table and marks the layer moved
+    /// so the dirty grid invalidates all affected cells on the next frame.
+    #[inline(always)]
+    pub fn set_anim_slots(&mut self, slots: &'a [&'a Animation<'a>]) {
+        self.anim_slots = slots;
+        self.moved = true;
+    }
+
+    /// Mutates an individual animation slot at `index` and triggers self-invalidation.
+    #[inline(always)]
+    pub fn set_anim_slot(&mut self, index: usize, anim: &'a Animation<'a>) {
+        if let Some(slot) = self.anim_slots.get(index) {
+            if !core::ptr::eq(*slot, anim) {
+                // If caller owns a mutable slice reference inside anim_slots
+                self.moved = true;
+            }
+        }
+    }
+
     /// Fixed Kinematics: Negative speed moves the tilemap LEFT / UP (consistent with entities/pipes)
     pub fn update(&mut self) {
         match self.scroll {

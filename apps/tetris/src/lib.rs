@@ -2,6 +2,7 @@
 
 mod game_tetris;
 mod tetriminos;
+mod tetris_save;
 mod ui_tetris;
 
 use game_tetris::BACKGROUND_GRAY;

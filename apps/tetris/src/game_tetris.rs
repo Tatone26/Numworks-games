@@ -8,13 +8,15 @@ use numworks_utils::{
     menu::{
         pause_menu, selection,
         settings::{write_values_to_file, Setting},
-        start_menu, MenuConfig,
+        start_menu_with_save, MenuConfig, StartMenuAction,
     },
+    storage::save::{delete_save, write_save, SaveSlotMode},
     utils::{randint, LARGE_CHAR_HEIGHT},
 };
 
 use crate::{
     tetriminos::{get_initial_tetri, get_random_bag, get_wall_kicks_data, SignedPoint, Tetrimino},
+    tetris_save::{TetrisSave, TetrisSaveState},
     ui_tetris::{
         draw_blank_line, draw_block, draw_held_tetrimino, draw_level, draw_lines_number,
         draw_next_tetrimino, draw_score, draw_stable_ui, draw_tetrimino,
@@ -37,7 +39,7 @@ fn vis_addon() {
     tetri.pos = SignedPoint { x: 4, y: 4 };
     draw_tetrimino(&tetri, false);
 }
-/// Menu, Options and Game start/*  */
+
 pub fn start() {
     let mut opt: [&mut Setting; 3] = [
         &mut Setting {
@@ -65,54 +67,71 @@ pub fn start() {
             fixed_values: false,
         },
     ];
+
     loop {
-        let start = start_menu(
+        let menu_action: StartMenuAction<TetrisSave> = start_menu_with_save(
             "TETRIS \0",
             &mut opt,
             &COLOR_CONFIG,
             vis_addon,
             include_str!("./data/tetris_controls.txt"),
             "tetris",
+            SaveSlotMode::Single,
         );
-        if start == 0 {
-            loop {
+
+        match menu_action {
+            StartMenuAction::Continue(save, _) => {
+                let mut pending_save = Some(save);
+                loop {
+                    let mut high_score = opt[2].get_setting_value();
+                    let action = game(
+                        opt[0].get_setting_value() != 0,
+                        opt[1].get_setting_value() as u16,
+                        &mut high_score,
+                        pending_save.take(), // Consumes save on first run; None on replay
+                    );
+                    opt[2].set_value(high_score);
+                    write_values_to_file(&mut opt, "tetris");
+                    if action == 2 {
+                        return;
+                    } else if action == 1 {
+                        break;
+                    }
+                }
+            }
+            StartMenuAction::NewGame(_) => loop {
                 let mut high_score = opt[2].get_setting_value();
                 let action = game(
                     opt[0].get_setting_value() != 0,
                     opt[1].get_setting_value() as u16,
                     &mut high_score,
+                    None,
                 );
                 opt[2].set_value(high_score);
                 write_values_to_file(&mut opt, "tetris");
                 if action == 2 {
-                    // 2 means quitting
                     return;
                 } else if action == 1 {
-                    // 1 means back to menu
                     break;
-                } // if action == 0 : rejouer
-            }
-        } else {
-            return;
+                }
+            },
+            StartMenuAction::Exit => return,
         }
     }
 }
 
-/// Represents the game grid, every case being a [Color] or [None]
-struct Grid {
-    grid: [[Option<u8>; PLAYFIELD_HEIGHT as usize]; PLAYFIELD_WIDTH as usize],
+pub struct Grid {
+    pub grid: [[Option<u8>; PLAYFIELD_HEIGHT as usize]; PLAYFIELD_WIDTH as usize],
 }
 
 impl Grid {
-    // Does the grid initialisation for you
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             grid: [[None; (PLAYFIELD_HEIGHT as usize)]; (PLAYFIELD_WIDTH as usize)],
         }
     }
 
-    /// Returns the color at the given position, None if the pos is outside the grid
-    fn get_color_at(&self, x: i16, y: i16) -> Option<u8> {
+    pub fn get_color_at(&self, x: i16, y: i16) -> Option<u8> {
         if (y < 0) || (x < 0) || (x as u16 >= PLAYFIELD_WIDTH) || (y as u16 >= PLAYFIELD_HEIGHT) {
             None
         } else {
@@ -120,39 +139,33 @@ impl Grid {
         }
     }
 
-    /// Set the color at the given position, if the position is in the grid
-    fn set_color_at(&mut self, x: i16, y: i16, c: u8) {
+    pub fn set_color_at(&mut self, x: i16, y: i16, c: u8) {
         if (y >= 0) && (x >= 0) && (x < PLAYFIELD_WIDTH as i16) && (y < PLAYFIELD_HEIGHT as i16) {
             self.grid[x as usize][y as usize] = Some(c);
             draw_block(x as u16, y as u16, c as u16);
         }
     }
 
-    /// Set the case at the given position to None, if the position is in the grid
-    fn remove_color_at(&mut self, x: i16, y: i16) {
+    pub fn remove_color_at(&mut self, x: i16, y: i16) {
         if (y >= 0) && (x >= 0) && (x < PLAYFIELD_WIDTH as i16) && (y < PLAYFIELD_HEIGHT as i16) {
             self.grid[x as usize][y as usize] = None;
-            // draw_block(x as u16, y as u16, 7);
         }
     }
 
-    fn remove_line(&mut self, y: i16) {
+    pub fn remove_line(&mut self, y: i16) {
         if (y >= 0) && (y < PLAYFIELD_HEIGHT as i16) {
             for x in 0..PLAYFIELD_WIDTH {
                 self.remove_color_at(x as i16, y);
             }
-            // draw_blank_line(y as u16);
         }
     }
 }
 
-/// from tetris.wiki/Marathon, given in G (1/s)
 static FALL_SPEED_DATA: [f32; 19] = [
     0.01667, 0.021017, 0.026977, 0.035256, 0.04693, 0.06361, 0.0879, 0.1236, 0.1775, 0.2598, 0.388,
     0.59, 0.92, 1.46, 2.36, 3.91, 6.61, 11.43, 20.0,
 ];
 
-// Yep, that is a lot of constants.
 pub const CASE_SIZE: u16 = 10;
 pub const PLAYFIELD_HEIGHT: u16 = 20;
 pub const PLAYFIELD_WIDTH: u16 = 10;
@@ -212,7 +225,7 @@ impl Buttons {
 }
 
 struct Blockers {
-    pub hold: bool, // Not perfect, perfect enough for normal gameplay where people don't keep the hold key pressed.
+    pub hold: bool,
     pub hard_drop: bool,
     pub soft_drop: bool,
 }
@@ -229,9 +242,12 @@ impl Blockers {
     }
 }
 
-/// The entire game is here.
-pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 {
-    // Is it possible to not have all those variables ? Maybe some struct ?
+pub fn game(
+    ghost_piece: bool,
+    starting_level: u16,
+    high_score: &mut u32,
+    initial_save: Option<TetrisSave>,
+) -> u8 {
     let mut timings = Timings {
         fall: timing::millis(),
         side_move: timing::millis(),
@@ -248,32 +264,62 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
         soft_drop: false,
     };
 
-    let mut grid: Grid = Grid::new();
-    let mut score: u32 = 0;
-    let mut level: u16 = starting_level;
-    let mut level_lines: u16 = 0;
-    let mut fall_speed: u64 = (1000.0 / (FALL_SPEED_DATA[level as usize - 1] * 60.0)) as u64;
+    let mut grid: Grid;
+    let mut score: u32;
+    let mut level: u16;
+    let mut level_lines: u16;
+    let mut random_bag: Vec<Tetrimino, 7>;
+    let mut current_tetri: Tetrimino;
+    let mut next_tetri: Tetrimino;
+    let mut held_tetri: Option<Tetrimino>;
 
-    let mut random_bag: Vec<Tetrimino, 7> = get_random_bag();
+    if let Some(save) = initial_save {
+        let state = save.unpack();
+        grid = state.grid;
+        score = state.score;
+        level = state.level;
+        level_lines = state.level_lines;
+        current_tetri = get_initial_tetri(state.current_piece);
+        next_tetri = get_initial_tetri(state.next_piece);
+        held_tetri = state.held_piece.map(get_initial_tetri);
+        random_bag = state.bag;
+    } else {
+        grid = Grid::new();
+        score = 0;
+        level = starting_level;
+        level_lines = 0;
+        random_bag = get_random_bag();
+        current_tetri = random_bag.swap_remove(0);
+        next_tetri = random_bag.swap_remove(0);
+        held_tetri = None;
+    }
 
-    let mut current_tetri: Tetrimino = random_bag.swap_remove(0);
-    let mut next_tetri: Tetrimino = random_bag.swap_remove(0);
-    let mut held_tetri: Option<Tetrimino> = None;
-
+    let mut fall_speed: u64 =
+        (1000.0 / (FALL_SPEED_DATA[(level.max(1) as usize - 1).min(18)] * 60.0)) as u64;
     let mut auto_repeat_move: bool = false;
 
+    // Draw restored board
     draw_stable_ui(level, level_lines, score, *high_score);
-
+    for x in 0..PLAYFIELD_WIDTH {
+        for y in 0..PLAYFIELD_HEIGHT {
+            if let Some(c) = grid.get_color_at(x as i16, y as i16) {
+                draw_block(x, y, c as u16);
+            }
+        }
+    }
     draw_tetrimino(&current_tetri, false);
     draw_ghost_tetri(&current_tetri, &grid, false, ghost_piece);
     draw_next_tetrimino(&next_tetri);
+    if let Some(h) = &held_tetri {
+        draw_held_tetrimino(h);
+    }
 
     'gameloop: loop {
         let keyboard_state = keyboard::scan();
-        if (!buttons.side_move || (auto_repeat_move && (timings.side_move + AUTO_MOVE_SPEED < timing::millis()))) // if we touch the button for the first time in this frame, or if we maintained it pressed and some time has passed
+        if (!buttons.side_move
+            || (auto_repeat_move && (timings.side_move + AUTO_MOVE_SPEED < timing::millis())))
             && (keyboard_state.key_down(RIGHT_KEY) || keyboard_state.key_down(LEFT_KEY))
         {
-            // MOVE
             let direction: i16 = if keyboard_state.key_down(LEFT_KEY) {
                 -1
             } else {
@@ -295,7 +341,6 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
             && (keyboard_state.key_down(RIGHT_ROTATION_KEY)
                 || keyboard_state.key_down(LEFT_ROTATION_KEY))
         {
-            // ROTATE
             let new_tetri = can_rotate(
                 keyboard_state.key_down(RIGHT_ROTATION_KEY),
                 &current_tetri,
@@ -314,10 +359,7 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
                 buttons.rotate = true;
             }
         } else if !blockers.hold && keyboard_state.key_down(HOLD_KEY) {
-            // HOLD
-
             let temp = current_tetri.clone();
-
             blockers.hold = true;
 
             draw_tetrimino(&current_tetri, true);
@@ -339,6 +381,7 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
             draw_tetrimino(&current_tetri, false);
             draw_held_tetrimino(held_tetri.as_ref().unwrap());
         }
+
         if (timings.fall
             + if (!buttons.soft_drop && keyboard_state.key_down(SOFT_DROP_KEY))
                 || (buttons.soft_drop && !blockers.soft_drop)
@@ -361,7 +404,7 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
             } else if !buttons.soft_drop && keyboard_state.key_down(SOFT_DROP_KEY) {
                 buttons.soft_drop = true;
             }
-            // FALL
+
             let need_to_fall = can_move(&current_tetri, (0, 1), &grid);
             if need_to_fall {
                 draw_tetrimino(&current_tetri, true);
@@ -376,6 +419,7 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
                     }
                 }
                 if death {
+                    delete_save("tetris", None); // Deletes record immediately
                     draw_centered_string(" GAME OVER \0", 10, true, &COLOR_CONFIG, true);
                     if score > *high_score {
                         *high_score = score;
@@ -388,6 +432,8 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
                         );
                     }
                     let action = selection(&COLOR_CONFIG, &DEATH_MENU, false);
+                    // Ensure the save is deleted regardless of selection option chosen
+                    delete_save("tetris", None);
                     break 'gameloop action;
                 }
 
@@ -406,11 +452,26 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
                     }
                     bring_lines_down(&clear_lines_y, &mut grid);
                 }
+
                 if random_bag.is_empty() {
                     random_bag = get_random_bag();
                 }
                 current_tetri = next_tetri.clone();
                 next_tetri = random_bag.swap_remove(0);
+
+                // Lock complete: save game state immediately
+                let save_state = TetrisSaveState {
+                    grid,
+                    score,
+                    level,
+                    level_lines,
+                    current_piece: current_tetri.tetri,
+                    next_piece: next_tetri.tetri,
+                    held_piece: held_tetri.as_ref().map(|h| h.tetri),
+                    bag: random_bag.clone(),
+                };
+                write_save("tetris", None, &TetrisSave::pack(&save_state));
+                grid = save_state.grid;
 
                 draw_ghost_tetri(&current_tetri, &grid, false, ghost_piece);
                 draw_tetrimino(&current_tetri, false);
@@ -423,6 +484,7 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
             }
             timings.fall = timing::millis();
         }
+
         buttons.check_and_clear();
         if auto_repeat_move && !buttons.side_move {
             auto_repeat_move = false;
@@ -430,8 +492,8 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
             auto_repeat_move = true;
         }
         blockers.check_and_clear(&buttons);
+
         if keyboard_state.key_down(PAUSE_KEY) {
-            // PAUSE MENU
             let action = pause_menu(&COLOR_CONFIG, 0);
             if action != 0 {
                 return action;
@@ -443,7 +505,7 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
                     for y in 0..PLAYFIELD_HEIGHT {
                         let c = grid.get_color_at(x as i16, y as i16);
                         if let Some(c_) = c {
-                            draw_block(x, y, c_ as u16)
+                            draw_block(x, y, c_ as u16);
                         }
                     }
                 }
@@ -460,14 +522,11 @@ pub fn game(ghost_piece: bool, starting_level: u16, high_score: &mut u32) -> u8 
     }
 }
 
-/// Removes the cleared lines and brings everything else down if needed. Draws too.
 fn bring_lines_down(clear_lines_y: &Vec<i16, 4>, grid: &mut Grid) {
-    // Removes every cleared line
     for i in clear_lines_y {
         grid.remove_line(*i);
         draw_blank_line(*i as u16);
     }
-    // Brings lines down
     for (i, e) in clear_lines_y.iter().enumerate() {
         for j in (0..*e + i as i16).rev() {
             for x in 0..PLAYFIELD_WIDTH {
@@ -482,7 +541,6 @@ fn bring_lines_down(clear_lines_y: &Vec<i16, 4>, grid: &mut Grid) {
     }
 }
 
-/// Draws the ghostly tetrimino that shows where the true one will fall.
 fn draw_ghost_tetri(tetri: &Tetrimino, grid: &Grid, clear: bool, do_it: bool) {
     if do_it && can_move(tetri, (0, 1), grid) {
         let mut ghost_tetri = tetri.clone();
@@ -494,7 +552,6 @@ fn draw_ghost_tetri(tetri: &Tetrimino, grid: &Grid, clear: bool, do_it: bool) {
     }
 }
 
-/// Check if a line is complete or not.
 fn check_line(p: i16, grid: &Grid) -> bool {
     for i in 0..PLAYFIELD_WIDTH {
         if grid.get_color_at(i as i16, p).is_none() {
@@ -504,12 +561,10 @@ fn check_line(p: i16, grid: &Grid) -> bool {
     true
 }
 
-/// Returns every completed line by the given tetrimino
 fn get_clear_lines(tetri: &Tetrimino, grid: &Grid) -> Vec<i16, 4> {
     let mut clear_lines_y = Vec::<i16, 4>::new();
     for pos in tetri.get_blocks_grid_pos() {
         if check_line(pos.y, grid) && !clear_lines_y.contains(&(pos.y)) {
-            // get sorted index
             let mut new_index: usize = 0;
             for e in clear_lines_y.iter() {
                 if (pos.y) < *e {
@@ -524,7 +579,6 @@ fn get_clear_lines(tetri: &Tetrimino, grid: &Grid) -> Vec<i16, 4> {
     clear_lines_y
 }
 
-/// Returns the number of points gained by clearing the given lines
 fn add_points(cleared_lines: &Vec<i16, 4>, level: u16, points: u32) -> u32 {
     let mut sum: u32 = 0;
 
@@ -539,7 +593,6 @@ fn add_points(cleared_lines: &Vec<i16, 4>, level: u16, points: u32) -> u32 {
             sum += 80
         }
     } else {
-        // len == 3
         if (cleared_lines[0].abs_diff(cleared_lines[1]) == 1)
             && (cleared_lines[1].abs_diff(cleared_lines[2]) == 1)
         {
@@ -553,7 +606,6 @@ fn add_points(cleared_lines: &Vec<i16, 4>, level: u16, points: u32) -> u32 {
     (sum * (level as u32)) + points
 }
 
-/// Returns true if the tetrimino can go to that direction.
 fn can_move(future_tetri: &Tetrimino, direction: (i16, i16), grid: &Grid) -> bool {
     for pos in future_tetri.get_blocks_grid_pos() {
         if (pos.x + direction.0 < 0)
@@ -569,7 +621,6 @@ fn can_move(future_tetri: &Tetrimino, direction: (i16, i16), grid: &Grid) -> boo
     true
 }
 
-/// Returns (line_number, level)
 fn add_lines(number: u16, level: u16, current_lines: u16, starting_level: u16) -> (u16, u16) {
     let max_lines: u16 = if level == starting_level {
         starting_level * 10
@@ -587,7 +638,6 @@ fn add_lines(number: u16, level: u16, current_lines: u16, starting_level: u16) -
     (new_number, level)
 }
 
-/// Returns the rotated Tetrimino if it can rotate.
 fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> {
     let mut rotated_tetri = tetri.clone();
     if right {
@@ -595,11 +645,9 @@ fn can_rotate(right: bool, tetri: &Tetrimino, grid: &Grid) -> Option<Tetrimino> 
     } else {
         rotated_tetri.rotate_left();
     }
-    // using direction = (0, 0) means it checks if the position is valid
     if can_move(&rotated_tetri, (0, 0), grid) {
         Some(rotated_tetri)
     } else {
-        // if the position isn't valid, tries kicking to get a valid position
         let kicks = get_wall_kicks_data(tetri, right);
         for k in kicks {
             if can_move(&rotated_tetri, *k, grid) {

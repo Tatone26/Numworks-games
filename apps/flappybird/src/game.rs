@@ -11,7 +11,7 @@ use num_engine::{
     },
     init_engine_window, inset_hitbox, tile_span,
     world::World,
-    world_ascii_tilemap, world_fill_tilemap, world_particles, world_spawn, world_tilemap, Engine,
+    world_ascii_tilemap, world_particles, world_spawn, world_tilemap, Engine,
 };
 use numworks_utils::{
     eadk::{
@@ -28,7 +28,8 @@ use crate::{
     flappy_ui::{
         countdown, draw_constant_ui, draw_ui, headwind_emitter, high_gravity_emitter,
         low_gravity_emitter, tailwind_emitter, ANIM_BIRD_DEAD, ANIM_BIRD_FALL, ANIM_BIRD_FLAP_UP,
-        BACKGROUND, TILESET, TILESET_TILE_SIZE, UI_BACKGROUND,
+        BACKGROUND, SUNFLOWER_SLOTS_DOWN, SUNFLOWER_SLOTS_UP, TILESET, TILESET_TILE_SIZE,
+        UI_BACKGROUND,
     },
     pipes::{OscillationMode, PipePool},
 };
@@ -44,7 +45,7 @@ pub const CELL_AREA: usize = 400;
 pub const WINDOW_COLS: usize = 14;
 pub const WINDOW_ROWS: usize = 11;
 
-const DEBUG_MODE: bool = true;
+const DEBUG_MODE: bool = false;
 
 pub const GROUND_COLS: usize = 15;
 pub const GROUND_ROWS: usize = 1;
@@ -53,8 +54,8 @@ pub const GROUND_Y: i16 = (GROUND_ROW_INDEX * TILE_SIZE) as i16;
 
 pub const DECOR_COLS: usize = 30;
 pub const DECOR_ROWS: usize = 3;
-pub const DECOR_START_ROW: usize = GROUND_ROW_INDEX - DECOR_ROWS;
-pub const DECOR_Y: i16 = (DECOR_START_ROW * TILE_SIZE) as i16;
+pub const DECOR_ROW_INDEX: usize = GROUND_ROW_INDEX - DECOR_ROWS;
+pub const DECOR_Y: i16 = (DECOR_ROW_INDEX * TILE_SIZE) as i16;
 
 pub const CLOUDS_COLS: usize = 25;
 pub const CLOUDS_ROWS: usize = 4;
@@ -183,31 +184,78 @@ pub fn game(
     let mut world: GameWorld = GameWorld::new();
     let mut events = EventManager::new(event_config);
 
-    let _ = world_fill_tilemap!(
+    let _ = world_ascii_tilemap!(
         world: world,
         tileset: &TILESET,
         buffer: BG_DATA,
         cols: WINDOW_COLS,
         rows: WINDOW_ROWS,
+        offset: [0, 0],
         z: 0,
-        tile: [3u8, 3u8],
+        transparent: false,
         parallax: Parallax::FIXED,
         wrap: WrapMode::None,
-    );
+        mapping: {
+            b'.' => Some([6, 0]),
+            b'A' => Some([6, 2]),
+            b'B' => Some([7, 2]),
+            b'C' => Some([8, 2]),
+            b'D' => Some([9, 2]),
+            b'a' => Some([6, 1]),
+            b'b' => Some([7, 1]),
+            b'c' => Some([8, 1]),
+            b'd' => Some([9, 1]),
+            b'e' => Some([7, 0]),
+        },
+        layout: "
+        ..............
+        ..............
+        ..............
+        ..............
+        ..............
+        ..............
+        ..............
+        .e...e...e...e
+        abcdabcdabcdab
+        ABCDABCDABCDAB
+        ..............
+    ",)
+    .unwrap();
 
-    let decor_map_id = world_tilemap!(
+    let decor_map_id = world_ascii_tilemap!(
         world: world,
         tileset: &TILESET,
         buffer: DECOR_DATA,
         cols: DECOR_COLS,
         rows: DECOR_ROWS,
         offset: [0, DECOR_Y],
-        z: 14,
+        z: 25,
         transparent: true,
-        parallax: Parallax::FOREGROUND,
+        parallax: Parallax::FIXED,
         wrap: WrapMode::Horizontal,
-    )
+        mapping: {
+            b'.' => None,
+            // Animated Sunflowers:
+            b'L' => Some([128, 0]), // Left Head (Slot 0)
+            b'l' => Some([129, 0]), // Left Stem (Slot 1)
+            b'R' => Some([130, 0]), // Right Head (Slot 2)
+            b'r' => Some([131, 0]), // Right Stem (Slot 3)
+            // Static Props:
+            b'c' => Some([6, 3]),
+            b'd' => Some([6, 4]),
+            b'1' => Some([8, 3]),
+            b'2' => Some([9, 3]),
+            b'3' => Some([8, 4]),
+            b'4' => Some([9, 4]),
+            b'-' => Some([3, 4]),
+        },
+        layout: "
+        ..............................
+        ...LL.R....LL...R.R....12.L.R.
+        ---ll-r----ll---r-r----34-l-r-
+    ",)
     .unwrap();
+    world.tilemap_mut(decor_map_id).anim_slots = &SUNFLOWER_SLOTS_UP;
 
     let ground_map_id = world_tilemap!(
         world: world,
@@ -237,14 +285,18 @@ pub fn game(
         wrap: WrapMode::Horizontal,
         mapping: {
             b'.' => None,
-            b'A' => Some([1, 3]),
-            b'B' => Some([2, 3]),
+            b'A' => Some([4, 0]),
+            b'B' => Some([5, 0]),
+            b'a' => Some([4, 1]),
+            b'b' => Some([5, 1]),
+            b'e' => Some([4, 2]),
+            b'o' => Some([5, 2]),
         },
         layout: "
-        .........AB.........AB...
-        ..AB........AB...........
-        ......AB.................
-        ....................AB...
+        .........ABo........ab...
+        ..ab........AB........e..
+        B.....ab.......e........A
+        ...e.......ab.......AB...
     ",
     )
     .unwrap();
@@ -299,6 +351,7 @@ pub fn game(
     let mut frame_counter: u16 = 0;
     let mut started = false;
     let mut jump_latched = false;
+    let mut sunflowers_down = false;
 
     countdown(
         Point {
@@ -341,10 +394,25 @@ pub fn game(
         // 1. Dynamic Events Transition & Velocity Updates
         let dense_cleared = !pipes.has_dense_ahead(&world, bird_x);
         let steep_leap_ahead = pipes.has_steep_leap_ahead(&world, bird_x);
-        if events.update(dense_cleared, steep_leap_ahead) {
+        let events_changed = events.update(dense_cleared, steep_leap_ahead);
+
+        if events_changed {
             let eff = current_speed * events.speed_multiplier();
             apply_speed(&mut world, &mut pipes, eff);
             sync_particles(&mut world, wind_id, grav_id, events.active_particle_event());
+        }
+
+        // Active / Warmup Telegraph Sunflower Sync
+        let should_be_down = events.is_alert();
+        if should_be_down != sunflowers_down {
+            sunflowers_down = should_be_down;
+            world
+                .tilemap_mut(decor_map_id)
+                .set_anim_slots(if should_be_down {
+                    &SUNFLOWER_SLOTS_DOWN
+                } else {
+                    &SUNFLOWER_SLOTS_UP
+                });
         }
 
         // 2. Bird Input & Dynamics
@@ -374,6 +442,14 @@ pub fn game(
                 bird.set_animation(&ANIM_BIRD_FLAP_UP);
             } else {
                 bird.set_animation(&ANIM_BIRD_FALL);
+            }
+
+            let floor_y = (GROUND_Y - TILESET_TILE_SIZE as i16) as f32;
+            if no_collisions && bird.y() >= floor_y {
+                bird.set_y(floor_y);
+                if bird.vy() > 0.0 {
+                    bird.set_vy(0.0);
+                }
             }
         }
 

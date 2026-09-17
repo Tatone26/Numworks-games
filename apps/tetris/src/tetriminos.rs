@@ -2,15 +2,30 @@ use heapless::Vec;
 
 use numworks_utils::utils::randint;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TetriType {
-    T,
-    J,
-    Z,
-    O,
-    S,
-    L,
-    I,
+    T = 0,
+    J = 1,
+    Z = 2,
+    O = 3,
+    S = 4,
+    L = 5,
+    I = 6,
+}
+
+impl TetriType {
+    pub fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            0 => Some(Self::T),
+            1 => Some(Self::J),
+            2 => Some(Self::Z),
+            3 => Some(Self::O),
+            4 => Some(Self::S),
+            5 => Some(Self::L),
+            6 => Some(Self::I),
+            _ => None,
+        }
+    }
 }
 
 /// Exactly like a point, but signed

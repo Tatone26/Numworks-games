@@ -41,8 +41,17 @@ name = "nppm_decoder"
 version = "0.1.0"
 
 [[package]]
+name = "num_engine"
+version = "1.1.1"
+dependencies = [
+ "cc",
+ "heapless",
+ "numworks_utils",
+]
+
+[[package]]
 name = "numworks_utils"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "cc",
  "heapless",
@@ -50,10 +59,11 @@ dependencies = [
 
 [[package]]
 name = "pacman"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "heapless",
  "nppm_decoder",
+ "num_engine",
  "numworks_utils",
 ]
 

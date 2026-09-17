@@ -141,8 +141,10 @@ macro_rules! ascii_tilemap {
         for b in $layout.bytes() {
             match b {
                 b'\n' => {
+                    if cur_c > 0 {
                     cur_r += 1;
                     cur_c = 0;
+                    }
                 }
                 b'\r' | b' ' | b'\t' => continue,
                 ch => {

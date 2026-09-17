@@ -6,7 +6,7 @@ use std::process::Command;
 ///
 /// (used for optimisation)
 const TILESIZE: u16 = 8;
-const TILESIZE2: u16 = 16;
+const TILESIZE2: u16 = 8;
 
 fn main() {
     // Turn icon.png into icon.nwi

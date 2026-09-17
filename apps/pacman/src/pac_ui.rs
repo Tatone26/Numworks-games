@@ -1,7 +1,7 @@
+use num_engine::{define_anim, graphics::texture::Animation};
 use numworks_utils::{
     eadk::{
-        display::{draw_string, push_rect_uniform, wait_for_vblank, SCREEN_HEIGHT, SCREEN_WIDTH},
-        timing::msleep,
+        display::{draw_string, push_rect_uniform, SCREEN_HEIGHT, SCREEN_WIDTH},
         Color, Point, Rect,
     },
     graphical::tiling::Tileset,
@@ -9,342 +9,139 @@ use numworks_utils::{
     utils::{get_string_pixel_size, string_from_u16, string_from_u32, SMALL_CHAR_HEIGHT},
 };
 
-use crate::{
-    game::{
-        grid_index, Grid, Space, GRID_HEIGHT, GRID_WIDTH, MAZE_BYTES, TILE_SIZE, X_GRID_OFFSET,
-    },
-    ghost::{Ghost, GhostType, HouseState, MovementMode},
-    moveable::Direction,
-    player::Player,
-};
+use crate::game::{TILE_SIZE, VIEW_SCREEN_X};
 
-const WALL_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/walls.nppm");
-const SPRITES_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/sprites.nppm");
-const GRID_SIZE: usize = (GRID_WIDTH as usize) * (GRID_HEIGHT as usize);
+pub const WALL_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/walls.nppm");
+pub const SPRITES_IMAGES_BYTES: &[u8] = include_bytes_align_as!(Color, "./data/sprites.nppm");
 
-/// The maze is printed a first time but also every frame around each Moveable object.
-/// That being heavy in calculation, we cache the tileset positions corresponding to each grid positions.
-static mut MAZE_TILE_CACHE: [Point; GRID_SIZE] = [Point { x: 12, y: 2 }; GRID_SIZE];
-static mut MAZE_TILE_CACHE_READY: bool = false;
-fn ensure_maze_tile_cache() {
-    unsafe {
-        if !MAZE_TILE_CACHE_READY {
-            let mut index = 0;
-            for line in MAZE_BYTES
-                .lines()
-                .filter(|s| !s.is_empty())
-                .take(GRID_HEIGHT as usize)
-            {
-                for c in line.chars().take(GRID_WIDTH as usize) {
-                    MAZE_TILE_CACHE[index] = get_tile_position(c).unwrap_or(Point { x: 12, y: 2 });
-                    index += 1;
-                }
-            }
-            MAZE_TILE_CACHE_READY = true;
-        }
+pub static TILESET_WALLS: Tileset = Tileset::new(TILE_SIZE as u16, 16, WALL_IMAGES_BYTES);
+pub static TILESET_SPRITES: Tileset = Tileset::new(TILE_SIZE as u16, 16, SPRITES_IMAGES_BYTES);
+
+// =============================================================================
+// PAC-MAN ANIMATIONS (2x2 tiles of 8x8 = 16x16 px)
+// =============================================================================
+define_anim!(pub ANIM_PAC_RIGHT, &TILESET_SPRITES, 2, 2, true, 2, [(4, 0), (2, 0), (0, 0), (2, 0)]);
+define_anim!(pub ANIM_PAC_LEFT,  &TILESET_SPRITES, 2, 2, true, 2, [(4, 0), (2, 2), (0, 2), (2, 2)]);
+define_anim!(pub ANIM_PAC_UP,    &TILESET_SPRITES, 2, 2, true, 2, [(4, 0), (2, 4), (0, 4), (2, 4)]);
+define_anim!(pub ANIM_PAC_DOWN,  &TILESET_SPRITES, 2, 2, true, 2, [(4, 0), (2, 6), (0, 6), (2, 6)]);
+define_anim!(pub ANIM_PAC_IDLE,  &TILESET_SPRITES, 2, 2, true, 1, [(4, 0)]);
+
+define_anim!(
+    pub ANIM_PAC_DEAD,
+    &TILESET_SPRITES, 2, 2, true, 3,
+    [
+        (4, 0), (6, 0), (8, 0), (10, 0), (12, 0), (14, 0),
+        (4, 2), (6, 2), (8, 2), (10, 2), (12, 2), (14, 2)
+    ]
+);
+
+define_anim!(pub ANIM_LIFE_ICON, &TILESET_SPRITES, 2, 2, true, 1, [(2, 2)]);
+
+// =============================================================================
+// GHOST ANIMATIONS (2x2 tiles of 8x8 = 16x16 px)
+// =============================================================================
+define_anim!(pub ANIM_BLINKY_RIGHT, &TILESET_SPRITES, 2, 2, true, 8, [(0, 8), (2, 8)]);
+define_anim!(pub ANIM_BLINKY_LEFT,  &TILESET_SPRITES, 2, 2, true, 8, [(4, 8), (6, 8)]);
+define_anim!(pub ANIM_BLINKY_UP,    &TILESET_SPRITES, 2, 2, true, 8, [(8, 8), (10, 8)]);
+define_anim!(pub ANIM_BLINKY_DOWN,  &TILESET_SPRITES, 2, 2, true, 8, [(12, 8), (14, 8)]);
+
+define_anim!(pub ANIM_PINKY_RIGHT, &TILESET_SPRITES, 2, 2, true, 8, [(0, 10), (2, 10)]);
+define_anim!(pub ANIM_PINKY_LEFT,  &TILESET_SPRITES, 2, 2, true, 8, [(4, 10), (6, 10)]);
+define_anim!(pub ANIM_PINKY_UP,    &TILESET_SPRITES, 2, 2, true, 8, [(8, 10), (10, 10)]);
+define_anim!(pub ANIM_PINKY_DOWN,  &TILESET_SPRITES, 2, 2, true, 8, [(12, 10), (14, 10)]);
+
+define_anim!(pub ANIM_INKY_RIGHT, &TILESET_SPRITES, 2, 2, true, 8, [(0, 12), (2, 12)]);
+define_anim!(pub ANIM_INKY_LEFT,  &TILESET_SPRITES, 2, 2, true, 8, [(4, 12), (6, 12)]);
+define_anim!(pub ANIM_INKY_UP,    &TILESET_SPRITES, 2, 2, true, 8, [(8, 12), (10, 12)]);
+define_anim!(pub ANIM_INKY_DOWN,  &TILESET_SPRITES, 2, 2, true, 8, [(12, 12), (14, 12)]);
+
+define_anim!(pub ANIM_CLYDE_RIGHT, &TILESET_SPRITES, 2, 2, true, 8, [(0, 14), (2, 14)]);
+define_anim!(pub ANIM_CLYDE_LEFT,  &TILESET_SPRITES, 2, 2, true, 8, [(4, 14), (6, 14)]);
+define_anim!(pub ANIM_CLYDE_UP,    &TILESET_SPRITES, 2, 2, true, 8, [(8, 14), (10, 14)]);
+define_anim!(pub ANIM_CLYDE_DOWN,  &TILESET_SPRITES, 2, 2, true, 8, [(12, 14), (14, 14)]);
+
+define_anim!(pub ANIM_GHOST_FRIGHTENED, &TILESET_SPRITES, 2, 2, true, 8, [(4, 4), (6, 4)]);
+define_anim!(pub ANIM_GHOST_FLASHING,   &TILESET_SPRITES, 2, 2, true, 4, [(4, 4), (6, 4), (8, 4), (10, 4)]);
+
+define_anim!(pub ANIM_EYES_RIGHT, &TILESET_SPRITES, 2, 2, true, 1, [(4, 6)]);
+define_anim!(pub ANIM_EYES_LEFT,  &TILESET_SPRITES, 2, 2, true, 1, [(6, 6)]);
+define_anim!(pub ANIM_EYES_UP,    &TILESET_SPRITES, 2, 2, true, 1, [(8, 6)]);
+define_anim!(pub ANIM_EYES_DOWN,  &TILESET_SPRITES, 2, 2, true, 1, [(10, 6)]);
+
+define_anim!(pub ANIM_FRUIT_CHERRY,     &TILESET_SPRITES, 2, 2, true, 1, [(0, 16)]);
+define_anim!(pub ANIM_FRUIT_STRAWBERRY, &TILESET_SPRITES, 2, 2, true, 1, [(2, 16)]);
+define_anim!(pub ANIM_FRUIT_PEACH,      &TILESET_SPRITES, 2, 2, true, 1, [(4, 16)]);
+define_anim!(pub ANIM_FRUIT_APPLE,      &TILESET_SPRITES, 2, 2, true, 1, [(6, 16)]);
+define_anim!(pub ANIM_FRUIT_GRAPES,     &TILESET_SPRITES, 2, 2, true, 1, [(8, 16)]);
+define_anim!(pub ANIM_FRUIT_GALAXIAN,   &TILESET_SPRITES, 2, 2, true, 1, [(10, 16)]);
+define_anim!(pub ANIM_FRUIT_BELL,       &TILESET_SPRITES, 2, 2, true, 1, [(12, 16)]);
+define_anim!(pub ANIM_FRUIT_KEY,        &TILESET_SPRITES, 2, 2, true, 1, [(14, 16)]);
+
+pub fn fruit_anim(fruit_id: u8) -> &'static Animation<'static> {
+    match fruit_id {
+        0 => &ANIM_FRUIT_CHERRY,
+        1 => &ANIM_FRUIT_STRAWBERRY,
+        2 => &ANIM_FRUIT_PEACH,
+        3 => &ANIM_FRUIT_APPLE,
+        4 => &ANIM_FRUIT_GRAPES,
+        5 => &ANIM_FRUIT_GALAXIAN,
+        6 => &ANIM_FRUIT_BELL,
+        _ => &ANIM_FRUIT_KEY,
     }
 }
 
-/// I'm using two different Tilesets because one is using 8 pixels wide tiles and the second 16 pixels wide.
-pub static TILESET_WALLS: Tileset = Tileset::new(TILE_SIZE, 16, WALL_IMAGES_BYTES);
-pub static TILESET_SPRITES: Tileset = Tileset::new(TILE_SIZE * 2, 8, SPRITES_IMAGES_BYTES);
+// =============================================================================
+// HUD RENDERING (Margins outside the 224 px viewport)
+// =============================================================================
+const UI_X: u16 = 2;
 
-/// Gives the absolute pixel position from the given position on the grid.
-const fn abs_from_pos(pos: Point) -> Point {
-    Point {
-        x: pos.x * TILE_SIZE + X_GRID_OFFSET,
-        y: pos.y * TILE_SIZE,
-    }
-}
-
-fn draw_house_door() {
-    let pixel_pos = abs_from_pos(Point { x: 14, y: 12 });
-    let door_x = pixel_pos.x + TILE_SIZE / 2 - 3;
-    let door_y = pixel_pos.y + 1;
-    push_rect_uniform(
-        Rect {
-            x: door_x,
-            y: door_y,
-            width: 6,
-            height: TILE_SIZE - 2,
-        },
-        Color::BLACK,
-    );
-    push_rect_uniform(
-        Rect {
-            x: door_x + 1,
-            y: door_y + 1,
-            width: 4,
-            height: TILE_SIZE - 4,
-        },
-        Color::WHITE,
-    );
-}
-
-fn sprite_draw_position(pos: Point, steps: u8, dir: Direction, extra_y: i16) -> Point {
-    let np = abs_from_pos(pos);
-    let dir_offset = match dir {
-        Direction::Up | Direction::Down => 0,
-        Direction::Right | Direction::Left => 1,
-    };
-    Point {
-        x: (np.x as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().0) as u16,
-        y: (np.y as i16 - TILE_SIZE as i16 / 2 + steps as i16 * dir.to_vector().1 + extra_y) as u16
-            + dir_offset,
-    }
-}
-
-/// Draws Pac-Man.
-pub fn draw_player(pos: Point, steps: u8, dir: Direction, frames: u32) {
-    let p = sprite_draw_position(pos, steps, dir, 0);
-    let frame = ((frames / 2) % 4) as u16; // animation has four stages : closed, semi, open, semi
-    TILESET_SPRITES.draw_tile(
-        p,
-        Point {
-            x: if frame == 0 { 2 } else { frame % 2 },
-            y: if frame == 0 {
-                0
-            } else {
-                match dir {
-                    Direction::Up => 2,
-                    Direction::Down => 3,
-                    Direction::Right => 0,
-                    Direction::Left => 1,
-                }
-            },
-        },
-        1,
-        true,
-    );
-}
-
-/// Clear ghost or player by redrawing the maze tiles around it.
-pub fn clear_moveable(pos: Point, _steps: u8, _dir: Direction, grid: &Grid, _is_ghost_home: bool) {
-    ensure_maze_tile_cache();
-    for dy in -1..=1 {
-        for dx in -1..=1 {
-            let tile_pos = Point {
-                x: (pos.x as i16 + dx as i16).clamp(0, GRID_WIDTH as i16 - 1) as u16,
-                y: (pos.y as i16 + dy as i16).clamp(0, GRID_HEIGHT as i16 - 1) as u16,
-            };
-            let tile_pixel_pos = abs_from_pos(tile_pos);
-            match grid.get(grid_index(tile_pos)) {
-                Some(Space::Point) => draw_space(tile_pixel_pos, Space::Point),
-                Some(Space::Superball) => draw_space(tile_pixel_pos, Space::Superball),
-                Some(Space::Fruit) => draw_space(tile_pixel_pos, Space::Fruit),
-                Some(Space::Empty) | None => draw_space(tile_pixel_pos, Space::Empty),
-                Some(Space::Wall) => {
-                    let wall_tile_pos = unsafe { MAZE_TILE_CACHE[grid_index(tile_pos)] };
-                    TILESET_WALLS.draw_tile(tile_pixel_pos, wall_tile_pos, 1, false);
-                }
-            }
-        }
-    }
-}
-
-/// Draws a ghost.
-pub fn draw_ghost(
-    pos: Point,
-    steps: u8,
-    dir: Direction,
-    frames: u32,
-    gtype: &GhostType,
-    house_state: HouseState,
-    movement_mode: &MovementMode,
-) {
-    let extra_y = if house_state == HouseState::Inside {
-        TILE_SIZE as i16 / 2
-    } else {
-        0
-    };
-    let p = sprite_draw_position(pos, steps, dir, extra_y);
-    match movement_mode {
-        MovementMode::Frightened => TILESET_SPRITES.draw_tile(
-            p,
-            Point {
-                x: 2 + ((frames / 4) % 2) as u16,
-                y: 2,
-            },
-            1,
-            true,
-        ),
-        MovementMode::FrightenedBlinking => TILESET_SPRITES.draw_tile(
-            p,
-            Point {
-                x: 2 + ((frames / 4) % 2) as u16 + ((frames / 16) % 2) as u16 * 2,
-                y: 2,
-            },
-            1,
-            true,
-        ),
-        MovementMode::Scatter | MovementMode::Chase => TILESET_SPRITES.draw_tile(
-            p,
-            Point {
-                x: match dir {
-                    Direction::Up => 4,
-                    Direction::Down => 6,
-                    Direction::Right => 0,
-                    Direction::Left => 2,
-                } + ((frames / 4) % 2) as u16,
-                y: match gtype {
-                    GhostType::Blinky => 4,
-                    GhostType::Pinky => 5,
-                    GhostType::Inky => 6,
-                    GhostType::Clyde => 7,
-                },
-            },
-            1,
-            true,
-        ),
-        MovementMode::Eaten => TILESET_SPRITES.draw_tile(
-            p,
-            Point {
-                x: match dir {
-                    Direction::Up => 4,
-                    Direction::Down => 5,
-                    Direction::Right => 2,
-                    Direction::Left => 3,
-                },
-                y: 3,
-            },
-            1,
-            true,
-        ),
-    }
-}
-
-/// Draws a given grid space.
-pub fn draw_space(pos: Point, space: Space) {
-    let tile_pos = match space {
-        Space::Point => get_tile_position('.').unwrap(),
-        Space::Superball => get_tile_position('°').unwrap(),
-        Space::Empty | Space::Wall | Space::Fruit => get_tile_position(' ').unwrap(),
-    };
-    TILESET_WALLS.draw_tile(pos, tile_pos, 1, false);
-}
-
-pub fn draw_fruit(grid_pos: Point, fruit_type: u8) {
-    let tile_pos = Point {
-        x: fruit_type as u16,
-        y: 8,
-    };
-    let mut abs_pos = abs_from_pos(grid_pos);
-    abs_pos.y -= TILE_SIZE / 2;
-    TILESET_SPRITES.draw_tile(abs_pos, tile_pos, 1, true);
-}
-
-pub fn clear_potential_wrapping_stuff() {
-    push_rect_uniform(
-        Rect {
-            x: X_GRID_OFFSET - TILE_SIZE * 2,
-            y: 11 * TILE_SIZE,
-            width: TILE_SIZE * 2,
-            height: TILE_SIZE * 4,
-        },
-        Color::BLACK,
-    );
-    push_rect_uniform(
-        Rect {
-            x: X_GRID_OFFSET + GRID_WIDTH * TILE_SIZE,
-            y: 11 * TILE_SIZE,
-            width: TILE_SIZE * 2,
-            height: TILE_SIZE * 4,
-        },
-        Color::BLACK,
-    );
-}
-
-/// Death animation. Needs the killer ghost too.
-pub fn draw_dead_pac(pac: &Player, ghost: &Ghost, grid: &Grid) {
-    let p = sprite_draw_position(
-        pac.moveable.grid_position,
-        pac.moveable.steps as u8,
-        pac.moveable.direction,
-        0,
-    );
-
-    msleep(750);
-    for y in 0..2 {
-        for x in 2..8 {
-            clear_moveable(
-                pac.moveable.grid_position,
-                pac.moveable.steps as u8,
-                pac.moveable.direction,
-                grid,
-                false,
-            );
-            draw_ghost(
-                ghost.moveable.grid_position,
-                ghost.moveable.steps as u8,
-                ghost.moveable.direction,
-                0,
-                &ghost.gtype,
-                ghost.house_state,
-                &ghost.movement_mode,
-            );
-            TILESET_SPRITES.draw_tile(p, Point { x, y }, 1, true);
-            wait_for_vblank();
-            wait_for_vblank();
-            wait_for_vblank();
-        }
-    }
-    clear_moveable(
-        pac.moveable.grid_position,
-        pac.moveable.steps as u8,
-        pac.moveable.direction,
-        grid,
-        false,
-    );
-    draw_ghost(
-        ghost.moveable.grid_position,
-        ghost.moveable.steps as u8,
-        ghost.moveable.direction,
-        0,
-        &ghost.gtype,
-        ghost.house_state,
-        &ghost.movement_mode,
-    );
-}
-
-const UI_Y_OFFSET: u16 = 5;
-const UI_X_OFFSET: u16 = 2;
 pub fn draw_constant_ui(high_score: u32) {
-    draw_string(
-        "LEVEL\0",
-        Point {
-            x: UI_X_OFFSET,
-            y: UI_Y_OFFSET,
+    push_rect_uniform(
+        Rect {
+            x: 0,
+            y: 0,
+            width: VIEW_SCREEN_X,
+            height: SCREEN_HEIGHT,
         },
-        false,
-        Color::WHITE,
         Color::BLACK,
     );
+    push_rect_uniform(
+        Rect {
+            x: VIEW_SCREEN_X + 224,
+            y: 0,
+            width: VIEW_SCREEN_X,
+            height: SCREEN_HEIGHT,
+        },
+        Color::BLACK,
+    );
+
     draw_string(
         "SCORE\0",
-        Point {
-            x: UI_X_OFFSET,
-            y: UI_Y_OFFSET + (SMALL_CHAR_HEIGHT + 2) * 2,
-        },
+        Point { x: UI_X, y: 8 },
         false,
         Color::WHITE,
         Color::BLACK,
     );
+
+    // Written flush right (2px margin)
+    let high_label_w = get_string_pixel_size("HIGH\0", false);
     draw_string(
         "HIGH\0",
         Point {
-            x: SCREEN_WIDTH - UI_X_OFFSET - get_string_pixel_size("HIGH\0", false),
-            y: UI_Y_OFFSET,
+            x: SCREEN_WIDTH - UI_X - high_label_w,
+            y: 8,
         },
         false,
         Color::WHITE,
         Color::BLACK,
     );
-    let high_score_string = string_from_u32(high_score);
+
+    let high_str = string_from_u32(high_score);
     draw_string(
-        &high_score_string,
+        &high_str,
         Point {
-            x: SCREEN_WIDTH - UI_X_OFFSET - get_string_pixel_size(&high_score_string, false),
-            y: UI_Y_OFFSET + SMALL_CHAR_HEIGHT + 2,
+            x: SCREEN_WIDTH - UI_X - get_string_pixel_size(&high_str, false),
+            y: 24,
         },
         false,
         Color::WHITE,
@@ -352,10 +149,17 @@ pub fn draw_constant_ui(high_score: u32) {
     );
 
     draw_string(
-        "LIVES",
+        "LEVEL\0",
+        Point { x: UI_X, y: 64 },
+        false,
+        Color::WHITE,
+        Color::BLACK,
+    );
+    draw_string(
+        "LIVES\0",
         Point {
-            x: UI_X_OFFSET,
-            y: SCREEN_HEIGHT - UI_Y_OFFSET - TILE_SIZE * 2 - SMALL_CHAR_HEIGHT - 2,
+            x: UI_X,
+            y: SCREEN_HEIGHT - 44,
         },
         false,
         Color::WHITE,
@@ -364,12 +168,19 @@ pub fn draw_constant_ui(high_score: u32) {
 }
 
 pub fn draw_score(score: u32) {
-    draw_string(
-        &string_from_u32(score),
-        Point {
-            x: UI_X_OFFSET,
-            y: UI_X_OFFSET + (SMALL_CHAR_HEIGHT + 2) * 3,
+    push_rect_uniform(
+        Rect {
+            x: UI_X,
+            y: 24,
+            width: 44,
+            height: SMALL_CHAR_HEIGHT,
         },
+        Color::BLACK,
+    );
+    let s = string_from_u32(score);
+    draw_string(
+        &s,
+        Point { x: UI_X, y: 24 },
         false,
         Color::WHITE,
         Color::BLACK,
@@ -377,12 +188,19 @@ pub fn draw_score(score: u32) {
 }
 
 pub fn draw_level(level: u16) {
-    draw_string(
-        &string_from_u16(level),
-        Point {
-            x: UI_X_OFFSET,
-            y: UI_Y_OFFSET + (SMALL_CHAR_HEIGHT + 2),
+    push_rect_uniform(
+        Rect {
+            x: UI_X,
+            y: 80,
+            width: 44,
+            height: SMALL_CHAR_HEIGHT,
         },
+        Color::BLACK,
+    );
+    let l = string_from_u16(level);
+    draw_string(
+        &l,
+        Point { x: UI_X, y: 80 },
         false,
         Color::WHITE,
         Color::BLACK,
@@ -390,79 +208,19 @@ pub fn draw_level(level: u16) {
 }
 
 pub fn draw_lives(lives: u8) {
-    let mut pos = Point {
-        x: 0,
-        y: SCREEN_HEIGHT - UI_Y_OFFSET - TILE_SIZE * 2,
-    };
+    let y = SCREEN_HEIGHT - 24;
     push_rect_uniform(
         Rect {
-            x: pos.x,
-            y: pos.y,
-            width: TILE_SIZE * 2 * 3,
-            height: TILE_SIZE * 2,
+            x: 0,
+            y,
+            width: VIEW_SCREEN_X,
+            height: 18,
         },
         Color::BLACK,
     );
-    for _ in 0..lives {
-        TILESET_SPRITES.draw_tile(pos, Point { x: 1, y: 0 }, 1, true);
-        pos.x += TILE_SIZE * 2;
-    }
-}
-
-/// Draws the maze based on the current grid state.
-/// Wall graphics are pulled from MAZE_TILE_CACHE, while items/empty spaces reflect the active Grid.
-pub fn draw_maze(grid: &Grid) {
-    ensure_maze_tile_cache();
-    for line in 0..GRID_HEIGHT as usize {
-        wait_for_vblank();
-        for col in 0..GRID_WIDTH as usize {
-            let idx = grid_index(Point {
-                x: col as u16,
-                y: line as u16,
-            });
-            let pixel_pos = abs_from_pos(Point {
-                x: col as u16,
-                y: line as u16,
-            });
-
-            match grid[idx] {
-                Space::Wall => {
-                    let tile_pos = unsafe { MAZE_TILE_CACHE[idx] };
-                    TILESET_WALLS.draw_tile(pixel_pos, tile_pos, 1, false);
-                }
-                space => draw_space(pixel_pos, space),
-            }
-        }
-    }
-    draw_house_door();
-}
-
-/// For the maze, determines the tile position based on the character written in the .txt file.
-const fn get_tile_position(c: char) -> Option<Point> {
-    match c {
-        '.' => Some(Point { x: 13, y: 2 }),
-        '°' => Some(Point { x: 15, y: 2 }),
-        ' ' => Some(Point { x: 12, y: 2 }),
-        '0'..='9' => Some(Point {
-            x: (c as u8 - b'0') as u16,
-            y: 0,
-        }),
-        'a'..='f' => Some(Point {
-            x: (c as u8 - b'a') as u16 + 10,
-            y: 0,
-        }),
-        'g'..='v' => Some(Point {
-            x: (c as u8 - b'g') as u16,
-            y: 1,
-        }),
-        'w'..='z' => Some(Point {
-            x: (c as u8 - b'w') as u16,
-            y: 2,
-        }),
-        'A'..='L' => Some(Point {
-            x: (c as u8 - b'A') as u16 + 4,
-            y: 2,
-        }),
-        _ => None, // Handle unexpected characters
+    let mut x = UI_X;
+    for _ in 0..lives.min(3) {
+        ANIM_LIFE_ICON.draw_at(Point { x, y }, 0);
+        x += 14;
     }
 }

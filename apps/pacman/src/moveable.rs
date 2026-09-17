@@ -1,8 +1,6 @@
-use numworks_utils::eadk::Point;
+use crate::game::{Grid, Space, GRID_WIDTH};
 
-use crate::game::{grid_index, Grid, Space, GRID_HEIGHT, GRID_WIDTH, STEPS_PER_CELL};
-
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Direction {
     Up,
     Down,
@@ -11,7 +9,8 @@ pub enum Direction {
 }
 
 impl Direction {
-    pub const fn opposite(&self) -> Direction {
+    #[inline(always)]
+    pub const fn opposite(self) -> Direction {
         match self {
             Direction::Up => Direction::Down,
             Direction::Down => Direction::Up,
@@ -20,6 +19,7 @@ impl Direction {
         }
     }
 
+    #[inline(always)]
     pub const fn to_vector(self) -> (i16, i16) {
         match self {
             Direction::Up => (0, -1),
@@ -30,109 +30,28 @@ impl Direction {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct Moveable {
-    pub grid_position: Point,
-    pub destination: Point,
-    pub steps: f32,
-    pub direction: Direction,
-    pub speed: f32,
-    pub wrapping: bool,
+/// Checks whether a tile position can be traversed in the given direction.
+#[inline(always)]
+pub fn can_go_to(tx: i16, ty: i16, dir: Direction, grid: &Grid) -> bool {
+    let (dx, dy) = dir.to_vector();
+    let nx = tx + dx;
+    let ny = ty + dy;
+
+    // Side tunnel edges are passable
+    if nx < 0 || nx >= GRID_WIDTH as i16 {
+        return ny == 13 || ny == 14;
+    }
+    if ny < 0 || ny >= 30 {
+        return false;
+    }
+
+    let idx = ny as usize * GRID_WIDTH + nx as usize;
+    grid[idx] != Space::Wall
 }
 
-impl Moveable {
-    pub fn new(grid_position: Point, destination: Point, direction: Direction, speed: f32) -> Self {
-        Self {
-            grid_position,
-            destination,
-            steps: 0.0,
-            direction,
-            speed,
-            wrapping: false,
-        }
-    }
-
-    /// Returns the type of cell it ends up on
-    pub fn move_moveable(&mut self, grid: &mut Grid, ignore_walls: bool) -> Space {
-        if self.grid_position.x == self.destination.x && self.grid_position.y == self.destination.y
-        {
-            return Space::Empty;
-        }
-        self.steps += self.speed;
-        // if reached end of current cell, then move to next cell
-        if self.steps >= STEPS_PER_CELL {
-            // if arrived to next node
-            self.grid_position = self.destination;
-            let (next_pos, wrap) = next_pos(self.grid_position, &self.direction);
-            self.wrapping = wrap;
-            (self.destination, self.steps) = match grid.get(grid_index(next_pos)) {
-                Some(Space::Wall) => (self.grid_position, 0.0),
-                Some(_) => (next_pos, self.steps % STEPS_PER_CELL),
-                _ => (self.grid_position, 0.0),
-            };
-            if ignore_walls {
-                self.destination = next_pos;
-                self.steps %= STEPS_PER_CELL;
-            }
-        };
-        *grid
-            .get(grid_index(self.destination))
-            .unwrap_or(&Space::Empty)
-    }
-
-    pub fn change_direction(&mut self, new_dir: Direction) {
-        let should_reverse = new_dir.opposite() == self.direction;
-        let is_new_direction = new_dir != self.direction;
-
-        if should_reverse {
-            let stopped = self.grid_position.x == self.destination.x
-                && self.grid_position.y == self.destination.y;
-            self.direction = new_dir;
-            self.grid_position = self.destination;
-            (self.destination, self.wrapping) = next_pos(self.grid_position, &self.direction);
-            self.steps = if stopped {
-                0.0
-            } else {
-                f32::abs(STEPS_PER_CELL - self.steps)
-            };
-        } else if is_new_direction {
-            self.steps = 0.0;
-            self.direction = new_dir;
-            (self.destination, self.wrapping) = next_pos(self.grid_position, &self.direction);
-        }
-    }
-}
-
-pub fn can_go_to(from: Point, dir: &Direction, grid: &Grid) -> bool {
-    let (next, _) = next_pos(from, dir);
-    match grid.get(grid_index(next)) {
-        Some(Space::Wall) => false,
-        Some(_) => true,
-        None => true,
-    }
-}
-
-pub fn next_pos(from: Point, dir: &Direction) -> (Point, bool) {
-    let next = (
-        (from.x as i16 + dir.to_vector().0),
-        (from.y as i16 + dir.to_vector().1),
-    );
-    if next.0 < 0 || next.1 < 0 || next.0 >= GRID_WIDTH as i16 || next.1 >= GRID_HEIGHT as i16 {
-        // wrapping
-        (
-            Point {
-                x: ((GRID_WIDTH as i16 + next.0) % GRID_WIDTH as i16) as u16,
-                y: ((GRID_HEIGHT as i16 + next.1) % GRID_HEIGHT as i16) as u16,
-            },
-            true,
-        )
-    } else {
-        (
-            Point {
-                x: next.0 as u16,
-                y: next.1 as u16,
-            },
-            false,
-        )
-    }
+#[inline(always)]
+pub fn distance_sq(x1: i16, y1: i16, x2: i16, y2: i16) -> u32 {
+    let dx = x1 as i32 - x2 as i32;
+    let dy = y1 as i32 - y2 as i32;
+    (dx * dx + dy * dy) as u32
 }

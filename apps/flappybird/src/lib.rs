@@ -16,7 +16,7 @@ use numworks_utils::{
 };
 
 use crate::flappy_ui::{
-    ANIM_BIRD_FALL, ANIM_CLOUD, ANIM_PIPE_LIP_BOT, ANIM_PIPE_LIP_TOP, TILESET_TILE_SIZE,
+    ANIM_BIG_CLOUD, ANIM_BIRD_FALL, ANIM_PIPE_LIP_BOT, ANIM_PIPE_LIP_TOP, TILESET_TILE_SIZE,
 };
 
 pub fn get_name() -> String<15> {
@@ -63,7 +63,7 @@ pub fn thumbnail(_: Point) {
 
     ANIM_PIPE_LIP_TOP.draw_at(Point { x: CENTER.x, y: 18 }, 0);
 
-    ANIM_CLOUD.draw_at(
+    ANIM_BIG_CLOUD.draw_at(
         Point {
             x: CENTER.x - 65,
             y: 45 - TILESET_TILE_SIZE,

@@ -297,7 +297,7 @@ pub fn menu_vis_addon() {
             number: randint(0, 13) as u8,
             visible: true,
         },
-        Point::new(x_start, 50),
+        Point::new(x_start, 42),
     );
     draw_card(
         &Card {
@@ -305,7 +305,7 @@ pub fn menu_vis_addon() {
             number: randint(0, 13) as u8,
             visible: true,
         },
-        Point::new(x_start + CARD_WIDTH + 5, 50),
+        Point::new(x_start + CARD_WIDTH + 5, 42),
     );
     draw_card(
         &Card {
@@ -313,7 +313,7 @@ pub fn menu_vis_addon() {
             number: randint(0, 13) as u8,
             visible: true,
         },
-        Point::new(x_start + (CARD_WIDTH + 5) * 2, 50),
+        Point::new(x_start + (CARD_WIDTH + 5) * 2, 42),
     );
     draw_card(
         &Card {
@@ -321,6 +321,6 @@ pub fn menu_vis_addon() {
             number: randint(0, 13) as u8,
             visible: true,
         },
-        Point::new(x_start + (CARD_WIDTH + 5) * 3, 50),
+        Point::new(x_start + (CARD_WIDTH + 5) * 3, 42),
     );
 }
