@@ -34,7 +34,7 @@ dependencies = [
 
 [[package]]
 name = "connectfour"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "heapless",
  "nppm_decoder",
@@ -85,7 +85,7 @@ dependencies = [
 
 [[package]]
 name = "numworks_utils"
-version = "0.2.5"
+version = "0.3.0"
 dependencies = [
  "cc",
  "heapless",
@@ -93,10 +93,11 @@ dependencies = [
 
 [[package]]
 name = "pacman"
-version = "0.1.0"
+version = "1.0.0"
 dependencies = [
  "heapless",
  "nppm_decoder",
+ "num_engine",
  "numworks_utils",
 ]
 
@@ -117,7 +118,7 @@ dependencies = [
 
 [[package]]
 name = "solitaire"
-version = "1.0.0"
+version = "1.1.0"
 dependencies = [
  "heapless",
  "nppm_decoder",
@@ -132,7 +133,7 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
 name = "tetris"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "heapless",
  "nppm_decoder",

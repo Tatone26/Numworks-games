@@ -9,6 +9,8 @@ use numworks_utils::{
 /// Function that will be called by the multiple apps packages
 pub use game::start;
 
+use crate::{game::TILE_SIZE, pac_ui::ANIM_PAC_RIGHT};
+
 mod game;
 mod ghost;
 mod levels;
@@ -40,5 +42,13 @@ pub fn thumbnail(_: Point) {
             height: 94,
         },
         Color::BLACK,
+    );
+
+    ANIM_PAC_RIGHT.draw_at(
+        Point {
+            x: CENTER.x - TILE_SIZE as u16,
+            y: 55,
+        },
+        1,
     );
 }

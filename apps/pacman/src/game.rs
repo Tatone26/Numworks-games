@@ -30,8 +30,8 @@ use crate::{
     ghost::{Ghost, GhostType, HouseState, MovementMode},
     levels::LevelManager,
     pac_ui::{
-        draw_constant_ui, draw_level, draw_lives, draw_score, fruit_anim, ANIM_PAC_DEAD,
-        ANIM_PAC_RIGHT, TILESET_WALLS,
+        draw_constant_ui, draw_level, draw_lives, draw_score, fruit_anim, menu_vis_addon,
+        ANIM_PAC_DEAD, ANIM_PAC_RIGHT, TILESET_WALLS,
     },
     player::{Player, SuperballEvent},
 };
@@ -286,7 +286,7 @@ pub fn start() {
             "PACMAN\0",
             &mut opt,
             &COLOR_CONFIG,
-            || {},
+            menu_vis_addon,
             include_str!("./data/model_controls.txt"),
             "pacman",
             SaveSlotMode::Single,

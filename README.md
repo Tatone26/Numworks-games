@@ -17,16 +17,18 @@ I make these game for fun, to learn Rust and to give myself a challenge by progr
 
 ## Applications
 
-**All games can be downloaded as a single package with `alltheapps.nwa`!** The only downside is that save data isn't shared between games launched with `alltheapps` and games launched with standalone apps.
+**All games can be downloaded as a single package with `alltheapps.nwa`!** The only downside is that save data isn't well-shared between games launched with `alltheapps` and games launched with standalone apps.
 
 > **Warning:** Resetting or crashing the calculator *may* wipe any installed app and all saved data. You can enter **GodMode** to edit your high scores by pressing Shift while clicking on "settings".
 
-**NEW : A 2D Engine !**
+**NEW : A 2D Engine!** And the re-made games with it.
+
+**NEW : SAVES STATES FOR MULTIPLE GAMES!** You can finally quit the app without losing progress! Sorry it took so long.
 
 ### Games
 
 | Game & Links | Description |
-|------------------|-------------|
+| ------------------ | ------------- |
 | **[All the Apps](./apps/alltheapps)** - [Download](https://raw.githubusercontent.com/Tatone26/Numworks-games/main/apps/alltheapps.nwa) | This is a single application combining all games with a simple menu. |
 | **[Flappy Bird](./apps/flappybird)** - [Download](https://raw.githubusercontent.com/Tatone26/Numworks-games/main/apps/flappybird.nwa) | Everybody knows Flappy Bird. It is by far the most technically advanced game I made. *It has been remade to be the first to use my new engine!* |
 | **[Pacman](./apps/pacman)** - [Download](https://raw.githubusercontent.com/Tatone26/Numworks-games/main/apps/pacman.nwa) | A pretty correct recreation of the original arcade Pacman game. You won't believe how many lines of code this needs. |
@@ -86,5 +88,6 @@ Thanks to [ZetaMap](https://github.com/ZetaMap/ZetaMap), you can run these pytho
 ### TODOs 📝
 
 - [x] Update Menu to add lot-of-options support with multi page
-- [ ] Update Flappy Bird to be better !!
+- [x] Update Flappy Bird to be better !!
+- [x] Support for save states
 - [ ] NEW GAMES IDEAS : crossy-road like, platformer

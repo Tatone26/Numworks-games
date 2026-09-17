@@ -6,7 +6,7 @@ use numworks_utils::{
     },
     graphical::tiling::Tileset,
     include_bytes_align_as,
-    utils::{get_string_pixel_size, string_from_u16, string_from_u32, SMALL_CHAR_HEIGHT},
+    utils::{get_string_pixel_size, string_from_u16, string_from_u32, CENTER, SMALL_CHAR_HEIGHT},
 };
 
 use crate::game::{TILE_SIZE, VIEW_SCREEN_X};
@@ -223,4 +223,14 @@ pub fn draw_lives(lives: u8) {
         ANIM_LIFE_ICON.draw_at(Point { x, y }, 0);
         x += 14;
     }
+}
+
+pub fn menu_vis_addon() {
+    ANIM_PAC_RIGHT.draw_at(
+        Point {
+            x: CENTER.x - TILE_SIZE as u16,
+            y: 65,
+        },
+        1,
+    );
 }
