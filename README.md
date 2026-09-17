@@ -4,7 +4,8 @@ Some simple games for numworks calculator, to run in python or as external appli
 
 I make these game for fun, to learn Rust and to give myself a challenge by programming on a very limited device : the glorious NumWorks Calculator !
 
-> These games are tested on a real N0110 and the latest version of the Epsilon software.
+> These games are tested on a real N0110 and the latest version of the Epsilon software. **As I do not have access to one, I don't know how real-time games will behave on a N0120.**
+
 > *Feel free to download and copy the code if you want, but keep in mind it's tailored specifically for tight hardware hacks rather than standard textbook code.*
 
 **Instructions and controls are included in the games themselves!**
